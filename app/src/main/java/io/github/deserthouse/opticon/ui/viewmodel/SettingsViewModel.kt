@@ -172,6 +172,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                         if (r.success && r.wasChanged) {
                             _aniaIconCount.value = r.iconCount
                             SubscriptionManager.readRulesJson(ctx)?.let { IconLibEngine.ingestJson(ctx, it) }
+                            // Publish all fankes_cache icons to the shared Downloads
+                            // dir so the SystemUI hook can read them (SELinux-safe)
+                            io.github.deserthouse.opticon.engine.SharedIconStore
+                                .mirrorAllFromDir(ctx, java.io.File(ctx.filesDir, "fankes_cache"))
                         }
                         _aniaSyncing.value = false
                     }
