@@ -28,7 +28,7 @@ android {
 
     defaultConfig {
         applicationId = "io.github.deserthouse.opticon"
-        minSdk = 34  // Android 14 minimum
+        minSdk = 31  // Android 12 minimum — full Material You generation (dynamic color since API 31)
         targetSdk = 37
         versionCode = 22
         versionName = MODULE_VERSION_NAME
