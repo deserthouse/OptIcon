@@ -377,9 +377,11 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
             val metaFile = File(dir, "$pkg.meta")
             metaFile.writeText(hitLevel, Charsets.UTF_8)
             metaFile.setReadable(true, false)
+            // Production delivery: publish to shared Downloads dir (SystemUI hook reads there)
+            io.github.deserthouse.opticon.engine.SharedIconStore.mirrorIconToShared(getApplication(), pngFile, pkg)
         } catch (_: Exception) {}
     }
-    private fun deleteBaked(pkg: String) { runCatching { File(bakeDir(), "$pkg.png").delete() }; runCatching { File(bakeDir(), "$pkg.meta").delete() } }
+    private fun deleteBaked(pkg: String) { runCatching { File(bakeDir(), "$pkg.png").delete() }; runCatching { File(bakeDir(), "$pkg.meta").delete() }; runCatching { io.github.deserthouse.opticon.engine.SharedIconStore.deleteIcon(getApplication(), pkg) } }
 
     private fun loadSavedParams(pkg: String) = RedrawParams(PreferenceManager.getScale(pkg), PreferenceManager.getOffsetX(pkg), PreferenceManager.getOffsetY(pkg), PreferenceManager.getThreshold(pkg), PreferenceManager.getRadius(pkg))
 

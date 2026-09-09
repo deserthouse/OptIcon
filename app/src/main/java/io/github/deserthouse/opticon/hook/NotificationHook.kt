@@ -48,6 +48,15 @@ object NotificationHook {
     /** World-readable icon dir that survives SELinux app_data_file isolation.
      *  The App bakes PNGs here via root shell (su -c cp) when available. */
     private val WORLD_BAKED_DIR = File("/data/local/tmp/opticon_baked")
+    /** PRODUCTION channel: public Downloads/OptIcon/ dir (Iconify-proven).
+     *  App writes via MediaStore; SystemUI reads via plain File API — both
+     *  sides agree on this path. Survives SELinux, no root, no IPC. */
+    private val SHARED_ICON_DIR = File(
+        android.os.Environment
+            .getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS),
+        "OptIcon"
+    )
+    private const val SHARED_ICON_EXT = ".opticon.png"
 
     // 128 entries × ~36KB (96×96 ARGB_8888) ≈ 4.6MB upper bound — SystemUI affordable
     // NOTE: Do NOT auto-recycle evicted bitmaps — Icon.createWithBitmap holds
@@ -134,6 +143,10 @@ object NotificationHook {
 
             // Watch icon dirs and drop stale cache entries on change
             startIconDirObservers()
+
+            // Plan B: ANIP-style in-process rules sync — the hook process
+            // downloads ANIA icons itself into its own cacheDir (no IPC).
+            getSystemUiContext()?.let { HookLibSync.start(it) }
         } catch (e: Exception) {
             TraceLogger.w(TAG, "initHook: ${e.message}")
             masterEnabled = true
@@ -142,14 +155,22 @@ object NotificationHook {
         }
     }
 
-    /** Read master switch file — default ENABLED if file doesn't exist */
+    /** Read master switch file — default ENABLED if file doesn't exist.
+     *  Checks the production shared dir first (always readable), then the
+     *  legacy filesDir copy (dev/root scenarios). */
     private fun refreshMasterSwitch() {
         try {
-            val dir = moduleFilesDir ?: return
-            val switchFile = File(dir, MASTER_SWITCH_FILE)
-            masterSwitchMtime = if (switchFile.exists()) switchFile.lastModified() else -1L
-            masterEnabled = !switchFile.exists() || switchFile.readText().trim() != "false"
-            TraceLogger.i(TAG, "Master switch: $masterEnabled (file exists: ${switchFile.exists()})")
+            val shared = File(SHARED_ICON_DIR, "master_switch.opticon")
+            val dir = moduleFilesDir
+            val legacy = if (dir != null) File(dir, MASTER_SWITCH_FILE) else null
+            val source = when {
+                shared.exists() -> shared
+                legacy != null && legacy.exists() -> legacy
+                else -> null
+            }
+            masterSwitchMtime = source?.lastModified() ?: -1L
+            masterEnabled = source == null || source.readText().trim() != "false"
+            TraceLogger.i(TAG, "Master switch: $masterEnabled (source: ${source?.absolutePath ?: "absent, default on"})")
         } catch (e: Exception) {
             TraceLogger.w(TAG, "refreshMasterSwitch: ${e.message}")
         }
@@ -162,9 +183,14 @@ object NotificationHook {
         if (now - last < MASTER_SWITCH_RECHECK_MS) return
         if (!lastSwitchCheck.compareAndSet(last, now)) return
         try {
-            val dir = moduleFilesDir ?: return
-            val switchFile = File(dir, MASTER_SWITCH_FILE)
-            val mtime = if (switchFile.exists()) switchFile.lastModified() else -1L
+            val shared = File(SHARED_ICON_DIR, "master_switch.opticon")
+            val dir = moduleFilesDir
+            val legacy = if (dir != null) File(dir, MASTER_SWITCH_FILE) else null
+            val mtime = when {
+                shared.exists() -> shared.lastModified()
+                legacy != null && legacy.exists() -> legacy.lastModified()
+                else -> -1L
+            }
             if (mtime != masterSwitchMtime) refreshMasterSwitch()
         } catch (_: Exception) {
         }
@@ -174,8 +200,13 @@ object NotificationHook {
     private fun preloadIcons() {
         try {
             val files = mutableListOf<File>()
-            // World-readable dir first (primary production path), then module
-            // filesDir sub-dirs (dev/root scenarios)
+            // Priority order mirrors loadIconForPackage: production shared dir
+            // first, then tmp dir, then module filesDir (dev/root scenarios)
+            if (SHARED_ICON_DIR.isDirectory) {
+                SHARED_ICON_DIR.listFiles()
+                    ?.filter { it.isFile && it.name.endsWith(".png") }
+                    ?.let { files.addAll(it) }
+            }
             if (WORLD_BAKED_DIR.isDirectory) {
                 WORLD_BAKED_DIR.listFiles()
                     ?.filter { it.isFile && it.name.endsWith(".png") }
@@ -194,7 +225,7 @@ object NotificationHook {
             var loaded = 0
             for (f in files) {
                 if (loaded >= PRELOAD_LIMIT) break
-                val pkg = f.name.removeSuffix(".png")
+                val pkg = f.name.removeSuffix(SHARED_ICON_EXT).ifEmpty { f.name.removeSuffix(".png") }
                 if (loadIconForPackage(pkg) != null) loaded++
             }
             TraceLogger.i(TAG, "Preloaded $loaded icons into cache (${files.size} candidates)")
@@ -209,6 +240,7 @@ object NotificationHook {
                 FileObserver.DELETE or FileObserver.MOVED_FROM or FileObserver.DELETE_SELF
 
         val watchDirs = mutableListOf<File>()
+        if (SHARED_ICON_DIR.isDirectory) watchDirs.add(SHARED_ICON_DIR)
         if (WORLD_BAKED_DIR.isDirectory) watchDirs.add(WORLD_BAKED_DIR)
         val dir = moduleFilesDir
         if (dir != null) {
@@ -223,7 +255,9 @@ object NotificationHook {
                 val observer = object : FileObserver(sub.absolutePath, mask) {
                     override fun onEvent(event: Int, path: String?) {
                         if (path == null || !path.endsWith(".png")) return
-                        val pkg = path.removeSuffix(".png")
+                        val pkg = path.removeSuffix(SHARED_ICON_EXT).ifEmpty {
+                            path.removeSuffix(".png")
+                        }
                         if (pkg.isNotEmpty()) {
                             iconCache.remove(pkg)
                             TraceLogger.d(TAG, "Cache invalidated: $pkg (${sub.name})")
@@ -231,7 +265,8 @@ object NotificationHook {
                     }
                 }
                 observer.startWatching()
-                if (sub == WORLD_BAKED_DIR) worldObserver = observer
+                if (sub == SHARED_ICON_DIR) worldObserver = observer  // reuse slot: production dir
+                else if (sub == WORLD_BAKED_DIR) worldObserver = observer
                 else if (sub.name == BAKED_DIR) bakedObserver = observer
                 else fankesObserver = observer
                 TraceLogger.i(TAG, "FileObserver started on ${sub.absolutePath}")
@@ -313,7 +348,8 @@ object NotificationHook {
                                     val bitmap = loadIconForPackage(pkg)
                                     if (bitmap != null) {
                                         setSmallIcon.invoke(sbn.notification, Icon.createWithBitmap(bitmap))
-                                        TraceLogger.i(TAG, "createIcons: $pkg -> setSmallIcon replaced")
+                                        val t = sbn.notification.smallIcon?.type
+                                        TraceLogger.i(TAG, "createIcons: $pkg -> setSmallIcon replaced (icon.type=$t)")
                                     }
                                 }
                             }
@@ -531,37 +567,41 @@ object NotificationHook {
         }
     }
 
-    /** Load baked icon for package. Checks baked/ then fankes_cache/.
-     *  Two read paths, tried in order:
-     *    1. Direct File API — fast, works in dev/rooted scenarios.
-     *    2. ContentResolver → IconContentProvider — canonical cross-uid path,
-     *       survives SELinux app_data_file isolation in production. */
+    /** Load baked icon for package. Read paths, tried in order:
+     *    0. SHARED_ICON_DIR (Download/OptIcon/{pkg}.opticon.png) — PRODUCTION
+     *       channel, Iconify-proven, SELinux-safe, no root needed.
+     *    1. /data/local/tmp/opticon_baked — root/test channel (dev AVD).
+     *    2. module filesDir direct read — dev scenarios only (SELinux blocks
+     *       this in production).
+     *    3. ContentProvider fallback — unreliable under LSPosed v2, kept for
+     *       resilience. */
     private fun loadIconForPackage(pkg: String): Bitmap? {
         iconCache.get(pkg)?.let { return it }
 
-        // Path 0: world-readable dir — survives SELinux app_data_file isolation.
-        // The ONLY path verified working end-to-end in the AVD emulator; the App
-        // writes here via root shell when baking.
+        // Path 0: production shared dir
+        loadBitmapFromFile(File(SHARED_ICON_DIR, "$pkg$SHARED_ICON_EXT"))?.let {
+            iconCache.put(pkg, it); return it
+        }
+
+        // Path 0.5: hook-local rules cache (Plan B, ANIP-style self-sync)
+        getSystemUiContext()?.let { HookLibSync.bitmapFor(it, pkg) }?.let {
+            iconCache.put(pkg, it); return it
+        }
+
+        // Path 1: world-readable tmp dir (root/test)
         loadBitmapFromFile(File(WORLD_BAKED_DIR, "$pkg.png"))?.let {
             iconCache.put(pkg, it); return it
         }
 
         for (dirName in listOf(BAKED_DIR, FANKES_DIR)) {
-            // Path 1: direct File read against the module's filesDir. Fast, but
-            // blocked by SELinux app_data_file isolation in production (system_app
-            // cannot read untrusted_app data).
+            // Path 2: direct File read against the module's filesDir.
             val baseDir = moduleFilesDir
             if (baseDir != null) {
                 loadBitmapFromFile(File(File(baseDir, dirName), "$pkg.png"))?.let {
                     iconCache.put(pkg, it); return it
                 }
             }
-            // Path 2: ContentProvider fallback. Survives SELinux isolation by
-            // returning bytes via Binder from the OptIcon app's domain. NOTE: on
-            // LSPosed v2 the framework rejects cross-package openInputStream from
-            // the hooked SystemUI process ("Given calling package android does
-            // not match caller's uid 10169"), so this path works on root/dev
-            // scenarios but is unreliable in production. Retained for resilience.
+            // Path 3: ContentProvider fallback (unreliable on LSPosed v2)
             loadBitmapFromProvider(dirName, pkg)?.let {
                 iconCache.put(pkg, it); return it
             }

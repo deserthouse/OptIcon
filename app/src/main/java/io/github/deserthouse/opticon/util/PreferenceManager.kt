@@ -51,6 +51,20 @@ object PreferenceManager {
             context.filesDir.setExecutable(true, false)
             context.filesDir.setReadable(true, false)
         } catch (_: Exception) {}
+        // Production channel bootstrap: mirror master_switch into the shared
+        // Downloads dir on first launch (idempotent, off main thread) so the
+        // SystemUI hook can read it without touching filesDir.
+        Thread {
+            try {
+                val ctx = context.applicationContext
+                val shared = io.github.deserthouse.opticon.engine.SharedIconStore.masterSwitchFile()
+                val needWrite = !shared.exists() ||
+                    (shared.readText().trim() != if (isModuleEnabled()) "true" else "false")
+                if (needWrite) {
+                    io.github.deserthouse.opticon.engine.SharedIconStore.writeMasterSwitch(ctx, isModuleEnabled())
+                }
+            } catch (_: Exception) {}
+        }.start()
     }
 
     // ━━━ 3 strategies ━━━
@@ -204,6 +218,8 @@ object PreferenceManager {
             val file = java.io.File(ctx.filesDir, "master_switch")
             file.writeText(if (enabled) "true" else "false")
             file.setReadable(true, false)
+            // Production channel: mirror to shared Downloads dir (readable by SystemUI)
+            io.github.deserthouse.opticon.engine.SharedIconStore.writeMasterSwitch(ctx, enabled)
         } catch (_: Exception) {}
     }
 
