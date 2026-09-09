@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OptIcon</string>
+    <string name="module_description">Android notification icon adaptive optimizer — based on libxposed API 102</string>
+
+    <string-array name="xposed_scope">
+        <item>com.android.systemui</item>
+    </string-array>
+
+    <string name="back">Back</string>
+    <string name="save">Save</string>
+    <string name="filter">Filter</string>
+    <string name="settings">Settings</string>
+
+    <string name="lsposed_status_title">LSPosed Status</string>
+    <string name="lsposed_status_active">Active — Module is running</string>
+    <string name="lsposed_status_inactive">Inactive — Enable this module in LSPosed Manager and check System UI (com.android.systemui)</string>
+    <string name="lsposed_status_hint">Toggling the module in LSPosed Manager takes effect only after a SystemUI restart. If the status looks stale, restart SystemUI first.</string>
+
+    <string name="root_status_title">Root Access</string>
+    <string name="root_status_active">Available</string>
+    <string name="root_status_inactive">Unavailable — Some features require root</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="tools_section">Tools</string>
+    <string name="restart_systemui">Restart SystemUI</string>
+    <string name="restart_confirm_title">Confirm Restart</string>
+    <string name="restart_confirm_body">Restarting SystemUI will reload all notification icons. Confirm?</string>
+    <string name="restart_confirm_btn">Confirm Restart</string>
+
+    <string name="module_control">Module Control</string>
+    <string name="master_switch">Master Switch</string>
+    <string name="master_switch_desc">When off, all hooks are physically disconnected (requires SystemUI restart)</string>
+    <string name="debug">Debug</string>
+    <string name="verbose_logging">Verbose Logging</string>
+    <string name="verbose_logging_desc">Write detailed hook-layer logs to file for diagnostics</string>
+    <string name="ui_section">UI</string>
+    <string name="predictive_back">Predictive Back Gesture</string>
+    <string name="predictive_back_desc">Enable native back-swipe parallax transition</string>
+    <string name="about_section">About</string>
+    <string name="about_description">LSPosed API 102 · Android 14+ notification icon optimizer</string>
+    <string name="credits_section">Credits</string>
+    <string name="info_title">Info</string>
+    <string name="ok_label">OK</string>
+
+    <string name="credit_fankes">Fankes / AndroidNotifyIconAdapt</string>
+    <string name="credit_fankes_desc">Thanks to Fankes and team for generously authorizing the use of the Android Notification Icon Adaptation Project results.</string>
+    <string name="credit_howard">Howard20181 / NotificationIconFix</string>
+    <string name="credit_howard_desc">Thanks to Howard20181\'s Notification Icon Fix project for inspiration.</string>
+    <string name="credit_pzcn">pzcn / Perfect-Icons-Completion-Project</string>
+    <string name="credit_pzcn_desc">Thanks to the Perfect Icons Completion Project team for enriching the Android icon ecosystem.</string>
+    <string name="credit_lsposed">LSPosed Framework</string>
+    <string name="credit_lsposed_desc">The foundation of everything. Thank you.</string>
+
+    <string name="easter_egg_author">Author: Miolang</string>
+    <string name="easter_egg_email">deserthouse98@gmail.com</string>
+    <string name="easter_egg_ai_note" formatted="false">I don\'t consider myself a developer — I can\'t read a single line of code. This project contains 100% AI and 0% human. You\'re welcome to submit feedback, but I may not understand it, and my Agent might not either.</string>
+    <string name="easter_egg_card_title">Some musings on vibe coding</string>
+
+    <string name="search_apps">Search apps…</string>
+    <string name="no_apps">No apps found</string>
+    <string name="scanning">Scanning</string>
+    <string name="package_name_copied">Package name copied</string>
+
+    <string name="enable_custom_icon">Enable custom notification icon</string>
+    <string name="source_prefix">Source: %s</string>
+    <string name="config_saved">Configuration saved</string>
+
+    <string name="strategy_fankes_label">Android Notification Icon Standard Adaptation</string>
+    <string name="strategy_fankes_covered">This app is already covered in the adaptation library.</string>
+    <string name="strategy_fankes_not_covered">This app is not yet covered in the adaptation library.</string>
+    <string name="strategy_fankes_contributor">Icon contributed by %s.</string>
+    <string name="strategy_fankes_submit_hint">This app is not yet covered in the adaptation library. Submit a request on GitHub if you want it added.</string>
+    <string name="strategy_fankes_submit_btn">Submit adaptation request on GitHub</string>
+
+    <string name="strategy_asset_label">Adaptive Asset Import</string>
+
+    <string name="strategy_picp_label">Perfect Icons Project (PICP)</string>
+    <string name="strategy_picp_not_downloaded">No PICP icon assets available locally. Check for updates?</string>
+    <string name="strategy_picp_check_update">Check for Updates</string>
+    <string name="strategy_picp_submit_hint">If still not available after updating, submit an icon request to the Perfect Icons Project.</string>
+    <string name="strategy_picp_submit_btn">Submit icon request on GitHub</string>
+    <string name="strategy_asset_desc">Extract layered assets from third-party icon packs or system adaptive icons.</string>
+    <string name="strategy_asset_a_label">Pick from icon pack</string>
+    <string name="strategy_asset_a_wip_hint">This feature is under development. You can still browse installed icon packs.</string>
+    <string name="strategy_asset_open_pack_app">Open icon pack app</string>
+    <string name="no_icon_packs_installed">No icon packs installed. Install one from Play Store.</string>
+    <string name="select_icon_pack">Select icon pack</string>
+    <string name="icons_available"> icons available</string>
+    <string name="strategy_asset_b_label">Adaptive icon layer extraction</string>
+    <string name="strategy_asset_b_foreground">Foreground (Logo)</string>
+    <string name="strategy_asset_b_background">Background (Color)</string>
+    <string name="strategy_asset_b_not_adaptive">⚠️ Note: This app\'s original icon does not support adaptive layers.</string>
+    <string name="strategy_asset_c_label">Perfect Icons Project Import</string>
+    <string name="strategy_asset_c_pull_btn_wip">Pull from Perfect Icons Project (WIP)</string>
+    <string name="strategy_asset_c_wip_hint">This feature is under development. You can still browse the project.</string>
+    <string name="strategy_asset_c_link">→ Go to Perfect Icons Project GitHub</string>
+
+    <string name="strategy_algo_label">Smart Algorithm Redraw</string>
+    <string name="strategy_algo_wip">Under development. The effects and controls are planned features and not yet available.</string>
+    <string name="strategy_algo_open_panel_wip">View planned features (unfinished)</string>
+    <string name="algo_panel_title_wip">Visual Tuning Panel (Unfinished)</string>
+    <string name="algo_panel_wip_body">The sliders below are a preview of planned features. In this version, adjusting them has no actual effect. The algorithm is still under development.</string>
+
+    <string name="filter_all">All Apps</string>
+    <string name="filter_configured">Configured</string>
+    <string name="filter_ania">ANIA Adapted</string>
+    <string name="filter_picp">PICP Adapted</string>
+    <string name="filter_adaptive">Adaptive</string>
+
+    <string name="chip_ania_adapted">ANIA Adapted</string>
+    <string name="chip_ania_not">ANIA Not Adapted</string>
+    <string name="chip_picp_adapted">PICP Adapted</string>
+    <string name="chip_picp_not">PICP Not Adapted</string>
+    <string name="chip_adaptive_yes">Adaptive</string>
+    <string name="chip_adaptive_no">No Adaptive</string>
+
+    <string name="algo_slider_scale">Icon Scale</string>
+    <string name="algo_slider_offset_x">X Offset</string>
+    <string name="algo_slider_offset_y">Y Offset</string>
+    <string name="algo_slider_purity">Cleanliness (remove banners)</string>
+
+    <!-- Live parameter panel (real sliders) -->
+    <string name="param_panel_title">Fine-Tuning</string>
+    <string name="param_scale">Icon Scale</string>
+    <string name="param_offset_x">X Offset</string>
+    <string name="param_offset_y">Y Offset</string>
+    <string name="param_threshold">Color Distance Threshold</string>
+    <string name="param_radius">Corner Radius</string>
+    <string name="param_reset">Reset to Default</string>
+
+    <string name="processing">Processing…</string>
+
+    <!-- Subscription sources -->
+    <string name="ania_section_title">Notification Icon Sources</string>
+    <string name="picp_section_title">App Icon Sources</string>
+    <string name="source_ania_raw">Android Notification Icon Adaptation Project (AndroidNotifyIconAdapt)</string>
+    <string name="source_ania_raw_desc">Android notification icon standard adaptation project maintained by Fankes and team.\nhttps://github.com/fankes/AndroidNotifyIconAdapt</string>
+    <string name="source_picp_github">Perfect Icons Completion Project (Perfect-Icons-Completion-Project)</string>
+    <string name="source_picp_github_desc">Perfect icon completion project maintained by pzcn and the community.\nhttps://github.com/pzcn/Perfect-Icons-Completion-Project</string>
+    <string name="add_source_title">Add Source</string>
+    <string name="edit_source_title">Edit Source</string>
+    <string name="source_name_label">Name</string>
+    <string name="source_url_label">URL</string>
+    <string name="source_description_label">Description</string>
+    <string name="source_url_placeholder">https://example.com/rules.json</string>
+    <string name="add_btn">Add</string>
+    <string name="cancel_btn">Cancel</string>
+    <string name="save_btn">Save</string>
+    <string name="add_custom_btn">Add Custom</string>
+    <string name="restore_default_ania">Restore Default ANIA Source</string>
+    <string name="restore_default_picp">Restore Default PICP Source</string>
+
+    <!-- v0.3.0-alpha ModernAppCard + AppListScreen -->
+    <string name="refresh">Refresh</string>
+</resources>

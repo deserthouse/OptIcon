@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OptIcon</string>
+    <string name="module_description">Android 通知图标自适应优化模块 \u2014 基于 libxposed API 102</string>
+
+    <string-array name="xposed_scope">
+        <item>com.android.systemui</item>
+    </string-array>
+
+    <string name="back">返回</string>
+    <string name="save">保存</string>
+    <string name="filter">过滤</string>
+    <string name="settings">设置</string>
+
+    <string name="lsposed_status_title">LSPosed 状态</string>
+    <string name="lsposed_status_active">已激活 — 模块正在运行</string>
+    <string name="lsposed_status_inactive">未激活 — 请在 LSPosed Manager 中启用本模块并勾选系统界面(com.android.systemui)</string>
+    <string name="lsposed_status_hint">在 LSPosed Manager 中开启/关闭本模块后，需重启系统界面方可生效。若状态显示异常，请先重启系统界面。</string>
+
+    <string name="root_status_title">Root 权限</string>
+    <string name="root_status_active">可用</string>
+    <string name="root_status_inactive">不可用 — 部分功能需要 Root 权限</string>
+
+    <string name="settings_title">设置</string>
+    <string name="tools_section">工具</string>
+    <string name="restart_systemui">重启 SystemUI</string>
+    <string name="restart_confirm_title">确认重启</string>
+    <string name="restart_confirm_body">重启 SystemUI 后所有通知图标将重新加载。确认重启？</string>
+    <string name="restart_confirm_btn">确认重启</string>
+
+    <string name="module_control">模块控制</string>
+    <string name="master_switch">模块总开关</string>
+    <string name="master_switch_desc">关闭后所有 Hook 将物理熔断（需重启 SystemUI）</string>
+    <string name="debug">调试</string>
+    <string name="verbose_logging">详细日志记录</string>
+    <string name="verbose_logging_desc">将 Hook 层详细日志写入文件，用于问题诊断</string>
+    <string name="ui_section">界面</string>
+    <string name="predictive_back">预测性返回手势动画</string>
+    <string name="predictive_back_desc">启用原生侧滑返回的视差转场</string>
+    <string name="about_section">关于</string>
+    <string name="about_description">LSPosed API 102 \u00b7 Android 14+ 通知图标优化器</string>
+    <string name="credits_section">致谢</string>
+    <string name="info_title">提示</string>
+    <string name="ok_label">确定</string>
+
+    <string name="credit_fankes">Fankes / AndroidNotifyIconAdapt</string>
+    <string name="credit_fankes_desc">感谢 Fankes 及其团队慷慨授权本人学习并使用《Android 通知图标规范适配计划》全部成果。</string>
+    <string name="credit_howard">Howard20181 / NotificationIconFix</string>
+    <string name="credit_howard_desc">感谢 Howard20181 的《通知图标修复》项目为本项目提供灵感。</string>
+    <string name="credit_pzcn">pzcn / Perfect-Icons-Completion-Project</string>
+    <string name="credit_pzcn_desc">感谢《完美图标补全计划》团队对丰富 Android 图标生态的无私贡献。</string>
+    <string name="credit_lsposed">LSPosed Framework</string>
+    <string name="credit_lsposed_desc">一切的基石，谢谢你们。</string>
+
+    <string name="easter_egg_author">作者：澪狼</string>
+    <string name="easter_egg_email">deserthouse98@gmail.com</string>
+    <string name="easter_egg_ai_note">我不认为自己是个开发者，我一行代码也看不懂。本项目包含 100% 的 AI 成分和 0% 的人类成分，因此你固然可以对项目提出任何意见或建议，但我不一定看得懂，我的 Agent 也不一定。</string>
+    <string name="easter_egg_card_title">关于 vibe coding 的一点碎碎念</string>
+
+    <string name="search_apps">搜索应用\u2026</string>
+    <string name="no_apps">未找到应用</string>
+    <string name="scanning">扫描中</string>
+    <string name="package_name_copied">包名已复制</string>
+
+    <string name="enable_custom_icon">开启自定义通知图标</string>
+    <string name="source_prefix">来源: %s</string>
+    <string name="config_saved">配置已保存</string>
+
+    <string name="strategy_fankes_label">Android 通知图标规范适配计划适配</string>
+    <string name="strategy_fankes_covered">该应用已在 fankes 规则库中适配，可直接使用。</string>
+    <string name="strategy_fankes_not_covered">该应用尚未被 fankes 规则库收录。</string>
+    <string name="strategy_fankes_contributor">该图标由 %s 贡献。</string>
+    <string name="strategy_fankes_submit_hint">该应用目前在 fankes 规则库中尚未适配，如果希望此应用被适配，可前往 GitHub 提交适配申请。</string>
+    <string name="strategy_fankes_submit_btn">前往 GitHub 提交适配申请</string>
+
+    <string name="strategy_asset_label">自适应资产导入提取</string>
+
+    <string name="strategy_picp_label">完美图标计划 (PICP)</string>
+    <string name="strategy_picp_not_downloaded">本地暂无 PICP 图标资产，检查更新？</string>
+    <string name="strategy_picp_check_update">检查更新</string>
+    <string name="strategy_picp_submit_hint">如果更新后依然没有，你可以给完美图标计划项目提交该应用的图标申请。</string>
+    <string name="strategy_picp_submit_btn">前往 GitHub 提交适配申请</string>
+    <string name="strategy_asset_desc">利用第三方图标包或系统原生的分层资产进行快速剥离。</string>
+    <string name="strategy_asset_a_label">从第三方图标包中选取</string>
+    <string name="strategy_asset_a_wip_hint">该功能目前尚未完成，但您仍然可以查看已安装图标包内的图标。</string>
+    <string name="strategy_asset_open_pack_app">跳转到图标包应用</string>
+    <string name="no_icon_packs_installed">未安装任何图标包，请从 Play 商店安装。</string>
+    <string name="select_icon_pack">选择图标包</string>
+    <string name="icons_available">个图标可用</string>
+    <string name="strategy_asset_b_label">应用自适应图标分层拆解</string>
+    <string name="strategy_asset_b_foreground">前景层 (Logo)</string>
+    <string name="strategy_asset_b_background">背景层 (底色)</string>
+    <string name="strategy_asset_b_not_adaptive">\u26a0\ufe0f 提示：该应用原厂图标不支持自适应分层。</string>
+    <string name="strategy_asset_c_label">完美图标计划导入</string>
+    <string name="strategy_asset_c_pull_btn_wip">从完美图标计划拉取（施工中）</string>
+    <string name="strategy_asset_c_wip_hint">该功能目前尚未完成，但您仍然可以查看完美图标计划。</string>
+    <string name="strategy_asset_c_link">\u2192 前往完美图标计划 GitHub 页面</string>
+
+    <string name="strategy_algo_label">智能算法强制重绘</string>
+    <string name="strategy_algo_wip">施工中，目前的效果和调节器仍为计划功能，暂不可用。</string>
+    <string name="strategy_algo_open_panel_wip">点击查看计划功能（未完成）</string>
+    <string name="algo_panel_title_wip">可视化微调面板（未完成）</string>
+    <string name="algo_panel_wip_body">以下滑块仅是计划加入的功能预览。当前版本对它们的一切调整均不产生任何实际作用，相关算法仍在开发中。您可以先看看。</string>
+
+    <string name="filter_all">全部应用</string>
+    <string name="filter_configured">已修改</string>
+    <string name="filter_ania">ANIA 已适配</string>
+    <string name="filter_picp">PICP 已适配</string>
+    <string name="filter_adaptive">自适应</string>
+
+    <string name="chip_ania_adapted">ANIA 已适配</string>
+    <string name="chip_ania_not">ANIA 未适配</string>
+    <string name="chip_picp_adapted">PICP 已适配</string>
+    <string name="chip_picp_not">PICP 未适配</string>
+    <string name="chip_adaptive_yes">自适应</string>
+    <string name="chip_adaptive_no">无自适应</string>
+
+    <string name="algo_slider_scale">图标整体大小</string>
+    <string name="algo_slider_offset_x">位置 X 轴微调</string>
+    <string name="algo_slider_offset_y">位置 Y 轴微调</string>
+    <string name="algo_slider_purity">去除营销横幅 / 纯净化度</string>
+
+    <!-- 实时参数面板 -->
+    <string name="param_panel_title">算法微调</string>
+    <string name="param_scale">缩放比例</string>
+    <string name="param_offset_x">X 轴偏移</string>
+    <string name="param_offset_y">Y 轴偏移</string>
+    <string name="param_threshold">色距过滤阈值</string>
+    <string name="param_radius">圆角半径</string>
+    <string name="param_reset">恢复默认</string>
+
+    <string name="processing">处理中\u2026</string>
+
+    <!-- 订阅源管理 -->
+    <string name="ania_section_title">通知图标订阅源</string>
+    <string name="picp_section_title">应用图标订阅源</string>
+    <string name="source_ania_raw">Android 通知图标规范适配计划（AndroidNotifyIconAdapt）</string>
+    <string name="source_ania_raw_desc">由 Fankes 及团队维护的 Android 通知图标规范适配计划，提供 673+ 应用的通知图标适配规则。\nhttps://github.com/fankes/AndroidNotifyIconAdapt</string>
+    <string name="source_picp_github">完美图标补全计划（Perfect-Icons-Completion-Project）</string>
+    <string name="source_picp_github_desc">由 pzcn 及社区维护的完美图标补全计划，为海量应用提供高质量的自适应图标资源。\nhttps://github.com/pzcn/Perfect-Icons-Completion-Project</string>
+    <string name="add_source_title">添加订阅源</string>
+    <string name="edit_source_title">编辑订阅源</string>
+    <string name="source_name_label">名称</string>
+    <string name="source_url_label">URL</string>
+    <string name="source_description_label">描述</string>
+    <string name="source_url_placeholder">https://example.com/rules.json</string>
+    <string name="add_btn">添加</string>
+    <string name="cancel_btn">取消</string>
+    <string name="save_btn">保存</string>
+    <string name="add_custom_btn">添加自定义源</string>
+    <string name="restore_default_ania">重新添加默认 ANIA 源</string>
+    <string name="restore_default_picp">重新添加默认 PICP 源</string>
+</resources>

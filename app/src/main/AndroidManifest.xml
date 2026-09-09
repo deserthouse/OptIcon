@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- 突破 Android 11+ 应用可见性限制，获取第三方应用列表 -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+
+    <!-- 网络访问：图标订阅下载 / 连通性检测 / 云端 AI 重绘 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- LSPosed 模块标识 -->
+    <!-- xposedmodule=true · xposedminversion=102 · xposedscope=仅 SystemUI 框架 -->
+    <application
+        android:allowBackup="false"
+        android:enableOnBackInvokedCallback="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:description="@string/module_description"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.OptIcon"
+        tools:targetApi="37">
+
+        <!-- 主 Activity：应用列表与管理界面 -->
+        <activity
+            android:name="io.github.deserthouse.opticon.ui.MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- LSPosed 模块元数据 -->
+        <meta-data
+            android:name="xposedmodule"
+            android:value="true" />
+        <meta-data
+            android:name="xposedminversion"
+            android:value="102" />
+        <meta-data
+            android:name="xposeddescription"
+            android:value="@string/module_description" />
+        <meta-data
+            android:name="xposedscope"
+            android:resource="@array/xposed_scope" />
+
+        <!-- 图标跨进程共享 ContentProvider（SystemUI UID=1000 读取烘焙产物） -->
+        <provider
+            android:name="io.github.deserthouse.opticon.engine.IconContentProvider"
+            android:authorities="io.github.deserthouse.opticon.icons"
+            android:exported="true"
+            android:grantUriPermissions="true" />
+
+    </application>
+</manifest>
