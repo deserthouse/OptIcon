@@ -95,6 +95,10 @@ object NotificationHook {
 
     private val currentPackage = ThreadLocal<String>()
 
+    /** Package attribution channel for recoverBuilder hook: createIcons/updateIcons
+     *  stash the package before SystemUI's inflation thread rebuilds content. */
+    private val lastPendingPackage = object : InheritableThreadLocal<String>() {}
+
     /** FileObservers watching icon dirs; strong refs keep them alive */
     @Volatile
     private var bakedObserver: FileObserver? = null
@@ -114,6 +118,8 @@ object NotificationHook {
         hookCreateIcons(xposed, classLoader)
         hookUpdateIcons(xposed, classLoader)
         hookIconStyleProvider(xposed, classLoader)
+        hookCachingIconView(xposed)
+        hookRecoverBuilder(xposed)
         hookGetIconDescriptor(xposed, classLoader)
         hookStatusBarIconViewSet(xposed, classLoader)
 
@@ -345,6 +351,7 @@ object NotificationHook {
                                 val sbn = sbnField.get(entry) as? StatusBarNotification
                                 val pkg = sbn?.packageName
                                 if (!pkg.isNullOrEmpty() && pkg != MODULE_PKG) {
+                                    lastPendingPackage.set(pkg)
                                     val bitmap = loadIconForPackage(pkg)
                                     if (bitmap != null) {
                                         setSmallIcon.invoke(sbn.notification, Icon.createWithBitmap(bitmap))
@@ -421,18 +428,12 @@ object NotificationHook {
         }
     }
 
-    /** Defensive hook (Android 16+): NotificationIconStyleProvider.shouldShowAppIcon
-     *  can force the notification row to display the colorful APP launcher icon
-     *  instead of the small icon during RemoteViews inflation. Force false so
-     *  our replaced small icon survives. Interface introduced in AOSP 16. */
+    /** Defensive hook (Android 16+): NotificationIconStyleProvider — verified
+     *  EMPTY interface on API 36 (no shouldShowAppIcon method exists), so this
+     *  hook is a no-op kept only for potential OEM variants that DO define the
+     *  method (HyperOS/ColorOS builds). Silently skipped when absent. */
     private fun hookIconStyleProvider(xposed: XposedInterface, classLoader: ClassLoader) {
         try {
-            val providerClass = classLoader.loadClass(
-                "com.android.systemui.statusbar.notification.row.icon.NotificationIconStyleProvider"
-            )
-            // Hook the interface method AND scan for impl classes is not possible via
-            // interface alone; hook interface method itself (libxposed hooks concrete
-            // methods, so instead we scan impl classes by known names).
             val implNames = listOf(
                 "com.android.systemui.statusbar.notification.row.icon.NotificationIconStyleProviderImpl",
                 "com.android.systemui.statusbar.notification.row.icon.NotificationIconStyleProviderImpl2"
@@ -451,13 +452,131 @@ object NotificationHook {
                     }
                 } catch (_: ClassNotFoundException) { /* impl name differs, skip */ }
             }
-            // Also try the AOSP default impl discovered from the interface itself
-            if (hooked == 0) {
-                TraceLogger.i(TAG, "shouldShowAppIcon impl not found by known names, trying provider field")
-            }
-            TraceLogger.i(TAG, "NotificationIconStyleProvider.shouldShowAppIcon hooked (" + hooked + ")")
+            TraceLogger.i(TAG, "shouldShowAppIcon hooked ($hooked) — 0 is expected on AOSP 16+")
         } catch (e: Exception) {
             TraceLogger.i(TAG, "shouldShowAppIcon skipped (pre-16 or OEM): ${e.message}")
+        }
+    }
+
+    /** Heads-up / first-inflation hook: CachingIconView.setImageIcon(Icon).
+     *
+     *  ROOT CAUSE this fixes: heads-up banners and freshly-inflated rows get
+     *  their header icon from the RemoteViews action stream — the smallIcon
+     *  was serialized by the APP's Notification.Builder inside the app
+     *  process, so mutating the SystemUI-side sbn object (our createIcons
+     *  path) does NOT reach the already-serialized RemoteViews payload.
+     *  CachingIconView (com.android.internal.widget, stable API 23+) is the
+     *  concrete view bound to android.R.id.icon in the standard template.
+     *  Intercepting setImageIcon here rewrites the icon at the LAST possible
+     *  moment before the view renders — covers heads-up, list rows, and
+     *  content-update rebinds in one place.
+     *
+     *  Package attribution: the view itself has no notification identity, so
+     *  we look up the nearest ExpandableNotificationRow ancestor via
+     *  getContext() → row tag fallback. Simpler robust approach: replace
+     *  unconditionally when the icon's resPackage resolves to a package we
+     *  have a baked icon for. */
+    private fun hookCachingIconView(xposed: XposedInterface) {
+        try {
+            val viewClass = Class.forName("com.android.internal.widget.CachingIconView")
+            val methods = viewClass.declaredMethods.filter {
+                it.name == "setImageIcon" && it.parameterCount == 1 &&
+                        it.parameterTypes[0] == Icon::class.java
+            }
+            if (methods.isEmpty()) {
+                TraceLogger.i(TAG, "CachingIconView.setImageIcon not found, skipped")
+                return
+            }
+            for (m in methods) {
+                xposed.hook(m).setId("opticon:CachingIconView.setImageIcon").intercept(
+                    XposedInterface.Hooker { chain ->
+                        try {
+                            if (initialized && masterEnabled) {
+                                val icon = chain.getArg(0) as? Icon
+                                if (icon != null) {
+                                    val pkg = icon.resPackage?.takeIf { it.isNotEmpty() && it != "android" }
+                                    if (pkg != null && pkg != MODULE_PKG) {
+                                        val bitmap = loadIconForPackage(pkg)
+                                        if (bitmap != null) {
+                                            chain.args[0] = Icon.createWithBitmap(bitmap)
+                                            TraceLogger.i(TAG, "CachingIconView: $pkg -> icon swapped")
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            TraceLogger.w(TAG, "CachingIconView hook: ${e.message}")
+                        }
+                        chain.proceed()
+                    }
+                )
+            }
+            TraceLogger.i(TAG, "CachingIconView.setImageIcon hooked (${methods.size})")
+        } catch (e: Exception) {
+            TraceLogger.w(TAG, "hookCachingIconView skipped: ${e.message}")
+        }
+    }
+
+    /** Race-fix hook: Notification.Builder.recoverBuilder AFTER.
+     *
+     *  SystemUI inflates notification rows via recoverBuilder(rowCtx, sbn.notification)
+     *  → Builder adopts the SAME Notification object (this.mN = toAdopt) →
+     *  build() re-runs bindSmallIcon which serializes mN.mSmallIcon into the
+     *  template RemoteViews (setImageViewIcon(android.R.id.icon, ...)).
+     *
+     *  RACE: inflation (NotifInflaterImpl) can run BEFORE IconManager.createIcons
+     *  fires, so the builder snapshots the ORIGINAL icon. Replacing mSmallIcon
+     *  here — after recoverBuilder returns, before build() is called — closes
+     *  the race for heads-up banners, list rows, and single-line views alike,
+     *  because they all rebuild content from this recovered builder. */
+    private fun hookRecoverBuilder(xposed: XposedInterface) {
+        try {
+            val builderClass = Notification.Builder::class.java
+            val method = builderClass.getDeclaredMethod(
+                "recoverBuilder", Context::class.java, Notification::class.java
+            )
+            val mNField = builderClass.getDeclaredField("mN").apply { isAccessible = true }
+            val setSmallIcon = Notification::class.java.getDeclaredMethod(
+                "setSmallIcon", Icon::class.java
+            )
+
+            xposed.hook(method).setId("opticon:recoverBuilder").intercept(
+                XposedInterface.Hooker { chain ->
+                    val builder = chain.proceed()
+                    try {
+                        if (initialized && masterEnabled && builder != null) {
+                            val n = chain.getArg(1) as? Notification ?: return@Hooker builder
+                            // Self-contained attribution: the builder AppInfo stashed
+                            // in extras carries the originating package — no timing
+                            // dependency on createIcons.
+                            val appInfo = try {
+                                n.extras?.getParcelable(
+                                    "android.app.extra.BUILDER_APPLICATION_INFO"
+                                ) as? android.content.pm.ApplicationInfo
+                            } catch (_: Exception) { null }
+                            // Fallback to icon resPackage attribution (RESOURCE icons only;
+                            // BITMAP icons are already-replaced payloads with no resPackage)
+                            val pkg = appInfo?.packageName
+                                ?: runCatching {
+                                    n.smallIcon?.takeIf { it.type == 2 }?.resPackage
+                                }.getOrNull()?.takeIf { it.isNotEmpty() && it != "android" }
+                            if (!pkg.isNullOrEmpty() && pkg != MODULE_PKG) {
+                                val bitmap = loadIconForPackage(pkg)
+                                if (bitmap != null) {
+                                    setSmallIcon.invoke(n, Icon.createWithBitmap(bitmap))
+                                    TraceLogger.i(TAG, "recoverBuilder: $pkg -> mSmallIcon replaced")
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        TraceLogger.w(TAG, "recoverBuilder hook: ${e.message}")
+                    }
+                    builder
+                }
+            )
+            TraceLogger.i(TAG, "Notification.Builder.recoverBuilder hooked")
+        } catch (e: Exception) {
+            TraceLogger.w(TAG, "hookRecoverBuilder skipped: ${e.message}")
         }
     }
 
