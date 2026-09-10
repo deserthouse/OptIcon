@@ -105,7 +105,7 @@
     <string name="filter_all">All Apps</string>
     <string name="filter_configured">Configured</string>
     <string name="filter_ania">ANIA Adapted</string>
-    <string name="filter_picp">PICP Adapted</string>
+    <string name="filter_picp">PICP Redrawn</string>
     <string name="filter_adaptive">Adaptive</string>
 
     <string name="chip_ania_adapted">ANIA Adapted</string>

@@ -104,8 +104,8 @@
 
     <string name="filter_all">全部应用</string>
     <string name="filter_configured">已修改</string>
-    <string name="filter_ania">图标适配</string>
-    <string name="filter_picp">完美图标</string>
+    <string name="filter_ania">ANIA 适配</string>
+    <string name="filter_picp">PICP 重绘</string>
     <string name="filter_adaptive">自适应</string>
 
     <string name="chip_ania_adapted">已适配</string>
