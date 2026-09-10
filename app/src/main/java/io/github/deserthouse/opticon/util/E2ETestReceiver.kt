@@ -60,7 +60,9 @@ class E2ETestReceiver : BroadcastReceiver() {
                             params = RedrawParams.DEFAULT,
                             localPath = null,
                             materialIconName = null,
-                            emojiText = null
+                            emojiText = null,
+                            selectedIconPack = intent.getStringExtra("pack"),
+                            selectedPackIconDrawable = intent.getStringExtra("drawable")
                         )
                         val bitmap = result.bitmap
                         if (bitmap == null) {
