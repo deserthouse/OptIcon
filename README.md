@@ -103,9 +103,9 @@
 | 项目 | 支持情况 |
 |---|---|
 | 最低版本 | Android 12 (API 31) |
-| 目标版本 | Android 16 (API 36) |
-| 已验证 | API 34 / API 36（AOSP + LSPosed v2.2.0） |
-| 定制 ROM | 未针对 MIUI/ColorOS 等适配，理论可用但不保证 |
+| 目标版本 | Android 17 (API 37) |
+| 已验证 | API 36 端到端（AOSP 模拟器 + LSPosed v2.2.0）；Android 17（OOS 真机）验收中 |
+| 定制 ROM | 以 AOSP 为主线开发；OOS（一加 15）为第一真机环境，其余理论可用不保证 |
 
 ---
 
