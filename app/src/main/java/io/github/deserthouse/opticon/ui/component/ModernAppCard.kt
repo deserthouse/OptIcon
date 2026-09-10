@@ -202,8 +202,8 @@ private fun ModificationBadge(source: ModificationSource) {
 @Composable
 private fun AdaptiveStatusStrip(entry: AppUiEntry) {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (entry.iconCompliant != null) {
-            StatusPill(text = stringResource(if (entry.iconCompliant == true) io.github.deserthouse.opticon.R.string.pill_compliant else io.github.deserthouse.opticon.R.string.pill_noncompliant), active = entry.iconCompliant == true)
+        if (entry.iconCompliant == false) {
+            StatusPill(text = stringResource(io.github.deserthouse.opticon.R.string.pill_noncompliant), active = true, alert = true)
         }
         StatusPill(text = stringResource(io.github.deserthouse.opticon.R.string.pill_ania), active = entry.aniaAdapted)
         StatusPill(text = stringResource(io.github.deserthouse.opticon.R.string.pill_picp), active = entry.picpAdapted)
@@ -216,10 +216,12 @@ private fun AdaptiveStatusStrip(entry: AppUiEntry) {
 private fun StatusPill(
     text: String,
     active: Boolean,
-    dim: Boolean = false
+    dim: Boolean = false,
+    alert: Boolean = false
 ) {
     val bg by animateColorAsState(
         targetValue = when {
+            alert -> MaterialTheme.colorScheme.errorContainer
             active -> MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
             dim -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
             else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
