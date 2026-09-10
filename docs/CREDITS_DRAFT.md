@@ -6,8 +6,11 @@
 
 OptIcon 站在巨人的肩膀上：
 
-**[Android 通知图标规范适配计划](https://github.com/fankes/AndroidNotifyIconAdapt)**
-感谢 fankes 及其团队构建并开放 673+ 应用的通知图标适配规则库，以及「通知图标修复」项目的灵感启发。本项目自其成果中获益良多。
+**特别感谢 [fankes](https://github.com/fankes) 与 [Android 通知图标规范适配计划](https://github.com/fankes/AndroidNotifyIconAdapt)**
+感谢 fankes 慷慨地以书面（电子邮件）授权本项目使用其团队构建的 673+ 应用通知图标适配规则库。这份信任是本项目得以诞生的基石。
+
+**[NotificationIconFix](https://github.com/Xposed-Modules-Repo/io.github.howard20181.notificationiconfix)**
+感谢 Howard20181 —— 其在通知图标修复领域的技术路径为本项目提供了重要的灵感与参考。
 
 **[完美图标补全计划](https://github.com/pzcn/Perfect-Icons-Completion-Project)**
 感谢 pzcn 及社区贡献者绘制的海量高质量分层图标，让无规则可循的应用也能获得规范图标。

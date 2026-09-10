@@ -43,9 +43,9 @@
     <string name="ok_label">确定</string>
 
     <string name="credit_fankes">Fankes / AndroidNotifyIconAdapt</string>
-    <string name="credit_fankes_desc">感谢 Fankes 及其团队慷慨授权本人学习并使用《Android 通知图标规范适配计划》全部成果。</string>
+    <string name="credit_fankes_desc">特别感谢：fankes 慷慨地以书面（电子邮件）授权本项目使用其团队《Android 通知图标规范适配计划》的 673+ 应用适配规则库。</string>
     <string name="credit_howard">Howard20181 / NotificationIconFix</string>
-    <string name="credit_howard_desc">感谢 Howard20181 的《通知图标修复》项目为本项目提供灵感。</string>
+    <string name="credit_howard_desc">感谢 Howard20181 —— 其技术路径为本项目提供了重要的灵感与参考。</string>
     <string name="credit_pzcn">pzcn / Perfect-Icons-Completion-Project</string>
     <string name="credit_pzcn_desc">感谢《完美图标补全计划》团队对丰富 Android 图标生态的无私贡献。</string>
     <string name="credit_lsposed">LSPosed Framework</string>
