@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug-only manifest: E2E broadcast test driver exists ONLY in debug builds.
+     Release builds physically exclude the receiver (standard ① hardening). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <receiver
+            android:name="io.github.deserthouse.opticon.util.E2ETestReceiver"
+            android:exported="true" />
+    </application>
+</manifest>

@@ -55,10 +55,5 @@
             android:exported="true"
             android:grantUriPermissions="true" />
 
-        <!-- E2E 测试驱动（debug 验证用，生产无副作用） -->
-        <receiver
-            android:name="io.github.deserthouse.opticon.util.E2ETestReceiver"
-            android:exported="true" />
-
     </application>
 </manifest>

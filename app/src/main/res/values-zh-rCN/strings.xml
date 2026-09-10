@@ -189,4 +189,15 @@
     <string name="unsaved_body">你修改了该应用的图标设置但尚未保存，离开前要保存吗？</string>
     <string name="unsaved_save">保存</string>
     <string name="unsaved_discard">放弃</string>
+
+    <!-- UI redesign v0.5.0 — 首页状态大卡 -->
+    <string name="hero_active_subtitle">正在规范化 %1$d 个应用 · 替换已生效</string>
+    <string name="hero_inactive_subtitle">点击前往设置检查 LSPosed 状态</string>
+    <string name="hero_status_cd">模块运行状态，点击进入设置</string>
+
+    <!-- UI redesign v0.5.0 — 重启 SystemUI 静默反馈 -->
+    <string name="restart_running">正在执行…</string>
+    <string name="restart_result_ok">命令已发送 (exit %1$d)，SystemUI 重启中</string>
+    <string name="restart_result_failed">执行失败 (exit %1$d)%2$s</string>
+    <string name="restart_result_error">无法启动 su：%1$s</string>
 </resources>

@@ -2,8 +2,14 @@ package io.github.deserthouse.opticon.ui.screen
 
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -29,16 +35,21 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -152,6 +163,11 @@ fun AppListScreen(
                 .padding(padding)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
+                HeroStatusCard(
+                    active = state.lsposedActive,
+                    modifiedCount = state.apps.count { it.isUserModified },
+                    onClick = onNavigateToSettings
+                )
                 SearchField(
                     query = state.searchQuery,
                     onQueryChange = viewModel::setSearchQuery
@@ -193,6 +209,74 @@ fun AppListScreen(
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * Hero runtime status card (SukiSU-style): the first thing you see.
+ * Active = primaryContainer + check badge; inactive = errorContainer +
+ * alert badge, tap-through to Settings. The leading badge shape gently
+ * morphs between two M3 Expressive shapes (MaterialShapes.morph).
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun HeroStatusCard(active: Boolean, modifiedCount: Int, onClick: () -> Unit) {
+    val container by animateColorAsState(
+        targetValue = if (active) MaterialTheme.colorScheme.primaryContainer
+                      else MaterialTheme.colorScheme.errorContainer,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "heroContainer"
+    )
+    val contentColor = if (active) MaterialTheme.colorScheme.onPrimaryContainer
+                       else MaterialTheme.colorScheme.onErrorContainer
+
+    val morphTransition = rememberInfiniteTransition(label = "heroShape")
+    val morphProgress by morphTransition.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "morph"
+    )
+    val fromShape = if (active) MaterialShapes.Pill else MaterialShapes.Square
+    val toShape = if (active) MaterialShapes.Cookie9Sides else MaterialShapes.SoftBurst
+    val badgeShape = fromShape.morph(toShape, morphProgress).toShape()
+
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(32.dp),
+        color = container,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+    ) {
+        Row(Modifier.padding(horizontal = 20.dp, vertical = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(56.dp)) {
+                Surface(shape = badgeShape, color = contentColor.copy(alpha = 0.12f), modifier = Modifier.size(56.dp)) {}
+                Icon(
+                    if (active) Icons.Rounded.Verified else Icons.Rounded.ErrorOutline,
+                    contentDescription = null,
+                    modifier = Modifier.size(30.dp),
+                    tint = contentColor
+                )
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(if (active) R.string.status_active else R.string.status_inactive),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = contentColor
+                )
+                Text(
+                    text = if (active) stringResource(R.string.hero_active_subtitle, modifiedCount)
+                           else stringResource(R.string.hero_inactive_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = contentColor.copy(alpha = 0.78f)
+                )
+            }
+            Icon(
+                Icons.Rounded.ChevronRight,
+                contentDescription = stringResource(R.string.hero_status_cd),
+                tint = contentColor.copy(alpha = 0.6f)
+            )
         }
     }
 }
