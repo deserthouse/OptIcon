@@ -368,7 +368,13 @@ private fun SourceSection(
             if (syncing) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
             else IconButton(onClick = onSync, Modifier.size(32.dp)) { Icon(Icons.Rounded.Sync, "Sync", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary) }
         }
-        status?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        status?.let {
+            val isFailure = it.contains("failed", ignoreCase = true) || it.contains("unavailable", ignoreCase = true) || it.contains("Invalid", ignoreCase = true)
+            Text(
+                it, style = MaterialTheme.typography.labelSmall,
+                color = if (isFailure) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
         sources.forEach { source ->
             Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 Row(Modifier.fillMaxWidth().clickable { onSelect(source.id) }.padding(vertical = 2.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {

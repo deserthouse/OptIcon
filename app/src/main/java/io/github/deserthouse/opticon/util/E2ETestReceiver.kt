@@ -47,7 +47,11 @@ class E2ETestReceiver : BroadcastReceiver() {
                 CoroutineScope(Dispatchers.IO).launch {
                     try {
                         TraceLogger.i(TAG, "E2E bake start: pkg=$pkg method=$method")
-                        val m = if (method == "selffilter") IconMethod.SELF_FILTER else IconMethod.ADAPTIVE
+                        val m = when (method) {
+            "selffilter" -> IconMethod.SELF_FILTER
+            "iconpack" -> IconMethod.ICON_PACK
+            else -> IconMethod.ADAPTIVE
+        }
                         val result = IconEngine.bake(
                             context = ctx,
                             packageName = pkg,
