@@ -8,6 +8,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,7 +26,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Gesture
+import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Key
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Launch
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.Add
@@ -119,8 +123,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
             Spacer(Modifier.height(12.dp))
 
             // ── 状态区 ──
-            LsposedStatusCard(lsposedActive)
-            RootStatusCard(rootAvailable)
+            RuntimeStatusCard(lsposedActive, rootAvailable) { viewModel.recheckStatuses() }
 
             // ── 模块控制 ──
             SectionTitle(stringResource(R.string.module_control))
@@ -467,41 +470,52 @@ private fun restartSystemUi(context: android.content.Context) {
 }
 
 @Composable
-private fun LsposedStatusCard(active: Boolean) {
-    val color = if (active) Color(0xFF4CAF50) else Color(0xFFFF5722)
-    val statusText = if (active) stringResource(R.string.lsposed_status_active) else stringResource(R.string.lsposed_status_inactive)
-    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-        Column(Modifier.padding(12.dp)) {
-            Text(stringResource(R.string.lsposed_status_title), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium)
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(10.dp).background(color, CircleShape))
-                Spacer(Modifier.width(8.dp))
-                Text(statusText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun StatusRow(
+    title: String,
+    statusText: String,
+    active: Boolean,
+    onRecheck: () -> Unit,
+    hint: String? = null
+) {
+    Column {
+        Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                if (title.contains("LSPosed")) Icons.Rounded.Extension else Icons.Rounded.Key,
+                null, Modifier.padding(end = 12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                Text(statusText, style = MaterialTheme.typography.bodySmall, color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                if (hint != null) Text(hint, style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), lineHeight = 14.sp)
             }
-            Text(stringResource(R.string.lsposed_status_hint), style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                modifier = Modifier.padding(top = 2.dp))
+            TextButton(onClick = onRecheck, modifier = Modifier.size(width = 44.dp, height = 36.dp),
+                contentPadding = PaddingValues(4.dp)) {
+                Icon(Icons.Rounded.Refresh, stringResource(R.string.refresh), Modifier.size(18.dp))
+            }
         }
     }
 }
 
 @Composable
-private fun RootStatusCard(available: Boolean) {
-    val color = if (available) Color(0xFF4CAF50) else Color(0xFFFF5722)
-    val statusText = if (available) stringResource(R.string.root_status_active) else stringResource(R.string.root_status_inactive)
-    Card(Modifier.fillMaxWidth().padding(bottom = 8.dp), shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-        Column(Modifier.padding(12.dp)) {
-            Text(stringResource(R.string.root_status_title), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium)
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(10.dp).background(color, CircleShape))
-                Spacer(Modifier.width(8.dp))
-                Text(statusText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
+private fun RuntimeStatusCard(lsposedActive: Boolean, rootAvailable: Boolean, onRecheck: () -> Unit) {
+    SettingsCard {
+        StatusRow(
+            title = stringResource(R.string.lsposed_status_title),
+            statusText = if (lsposedActive) stringResource(R.string.lsposed_status_active)
+                         else stringResource(R.string.lsposed_status_inactive),
+            active = lsposedActive,
+            onRecheck = onRecheck,
+            hint = if (!lsposedActive) stringResource(R.string.lsposed_status_hint) else null
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+        StatusRow(
+            title = stringResource(R.string.root_status_title),
+            statusText = if (rootAvailable) stringResource(R.string.root_status_active)
+                         else stringResource(R.string.root_status_inactive),
+            active = rootAvailable,
+            onRecheck = onRecheck
+        )
     }
 }
 

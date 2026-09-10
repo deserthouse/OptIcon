@@ -72,6 +72,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     init {
         // Run slow checks off main thread (H2 fix)
+        viewModelScope.launch { recheckStatuses() }
+    }
+
+    /** 手动重检: LSPosed 活性 + Root 可用性 (状态卡刷新按钮) */
+    fun recheckStatuses() {
         viewModelScope.launch {
             val app = getApplication<Application>()
             _lsposedActive.value = withContext(Dispatchers.IO) { checkLsposed(app) }
