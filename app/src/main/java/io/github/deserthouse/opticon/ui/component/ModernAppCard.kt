@@ -36,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.deserthouse.opticon.ui.state.AppUiEntry
@@ -188,9 +189,9 @@ private fun ModificationBadge(source: ModificationSource) {
 @Composable
 private fun AdaptiveStatusStrip(entry: AppUiEntry) {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        StatusPill(text = "ANIA", active = entry.aniaAdapted)
-        StatusPill(text = "PICP", active = entry.picpAdapted)
-        StatusPill(text = "Adaptive", active = entry.hasAdaptiveIcon)
+        StatusPill(text = stringResource(io.github.deserthouse.opticon.R.string.pill_ania), active = entry.aniaAdapted)
+        StatusPill(text = stringResource(io.github.deserthouse.opticon.R.string.pill_picp), active = entry.picpAdapted)
+        StatusPill(text = stringResource(io.github.deserthouse.opticon.R.string.pill_adaptive), active = entry.hasAdaptiveIcon)
         if (entry.isSystemApp) StatusPill(text = "System", active = false, dim = true)
     }
 }

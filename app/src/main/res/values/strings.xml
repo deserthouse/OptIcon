@@ -164,4 +164,24 @@
     <string name="empty_no_apps_title">No apps found</string>
     <string name="empty_no_apps_body">Try a different keyword or filter</string>
     <string name="empty_no_apps_clear">Clear search</string>
+    <string name="preview_title">Status Bar Preview</string>
+    <string name="preview_mode_dark">Dark status bar</string>
+    <string name="preview_mode_light">Light status bar</string>
+    <string name="preview_legend_icon">Icon (#FFF)</string>
+    <string name="preview_legend_edge">Semi-transparent edge</string>
+    <string name="hit_picp">Perfect Icons</string>
+    <string name="hit_picp_failed">Perfect Icons download failed</string>
+    <string name="hit_iconlib">Built-in icon library</string>
+    <string name="hit_network_fail">Network unavailable, all sources missed</string>
+    <string name="hit_disabled">Disabled</string>
+    <string name="hit_selffilter">Algorithm redraw (self-filter)</string>
+    <string name="hit_adaptive">Adaptive icon decomposed</string>
+    <string name="hit_iconpack">Icon pack</string>
+    <string name="hit_remote">Cloud subscription</string>
+    <string name="hit_auto_miss">No source hit</string>
+    <string name="hit_other">Other</string>
+    <string name="toggle_preview_mode">Toggle preview mode</string>
+    <string name="pill_ania">Lib</string>
+    <string name="pill_picp">Perfect</string>
+    <string name="pill_adaptive">Adaptive</string>
 </resources>

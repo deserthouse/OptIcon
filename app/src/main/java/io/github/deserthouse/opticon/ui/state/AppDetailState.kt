@@ -1,5 +1,7 @@
 package io.github.deserthouse.opticon.ui.state
 
+import io.github.deserthouse.opticon.R
+
 import android.graphics.Bitmap
 import io.github.deserthouse.opticon.engine.IconPackEngine
 import io.github.deserthouse.opticon.engine.IconPackEngine.IconPackInfo
@@ -72,7 +74,23 @@ enum class AlgoSource {
     EMOJI_TEXT
 }
 
-enum class StatusBarMode(val label: String) {
-    DARK("Dark status bar"),
-    LIGHT("Light status bar")
+enum class StatusBarMode(@androidx.annotation.StringRes val labelRes: Int) {
+    DARK(R.string.preview_mode_dark),
+    LIGHT(R.string.preview_mode_light)
+}
+
+/** Map engine hitLevel (technical, English, for logs) to a display resource. */
+fun hitLevelRes(hitLevel: String): Int = when {
+    hitLevel.isEmpty() -> R.string.hit_other
+    hitLevel.startsWith("PICP hit") || hitLevel.startsWith("Perfect Icons hit") -> R.string.hit_picp
+    hitLevel.startsWith("PICP download failed") -> R.string.hit_picp_failed
+    hitLevel.startsWith("Local built-in") -> R.string.hit_iconlib
+    hitLevel.startsWith("Network unavailable") -> R.string.hit_network_fail
+    hitLevel == "Disabled" -> R.string.hit_disabled
+    hitLevel.startsWith("Self-filter") -> R.string.hit_selffilter
+    hitLevel.startsWith("Adaptive") -> R.string.hit_adaptive
+    hitLevel.startsWith("Icon pack") -> R.string.hit_iconpack
+    hitLevel.startsWith("Remote") -> R.string.hit_remote
+    hitLevel.startsWith("AUTO: all levels missed") -> R.string.hit_auto_miss
+    else -> R.string.hit_other
 }
