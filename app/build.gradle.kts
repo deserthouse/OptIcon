@@ -35,10 +35,23 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            // keystore lives OUTSIDE the repo (never commit!).
+            // Override via ~/.gradle/gradle.properties: OPTICON_STORE_FILE / _PASS / _KEY_PASS
+            storeFile = file(providers.gradleProperty("OPTICON_STORE_FILE").getOrElse(
+                "C:/Users/deser/.android/opticon-release.jks"))
+            storePassword = providers.gradleProperty("OPTICON_STORE_PASS").getOrElse("opticon2026")
+            keyAlias = providers.gradleProperty("OPTICON_KEY_ALIAS").getOrElse("opticon")
+            keyPassword = providers.gradleProperty("OPTICON_KEY_PASS").getOrElse("opticon2026")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
