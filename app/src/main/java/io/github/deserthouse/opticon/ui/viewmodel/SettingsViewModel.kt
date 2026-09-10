@@ -85,9 +85,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _masterEnabled = MutableStateFlow(PreferenceManager.isModuleEnabled())
     val masterEnabled: StateFlow<Boolean> = _masterEnabled.asStateFlow()
 
-    private val _predictiveBack = MutableStateFlow(PreferenceManager.isPredictiveBackEnabled())
-    val predictiveBack: StateFlow<Boolean> = _predictiveBack.asStateFlow()
-
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
 

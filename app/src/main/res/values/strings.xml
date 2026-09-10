@@ -36,7 +36,6 @@
     <string name="verbose_logging_desc">Write detailed hook-layer logs to file for diagnostics</string>
     <string name="ui_section">UI</string>
     <string name="predictive_back">Predictive Back Gesture</string>
-    <string name="predictive_back_desc">Enable native back-swipe parallax transition</string>
     <string name="about_section">About</string>
     <string name="about_description">LSPosed API 102 · Android 14+ notification icon optimizer</string>
     <string name="credits_section">Credits</string>
@@ -187,4 +186,6 @@
     <string name="pill_compliant">Compliant</string>
     <string name="pill_noncompliant">Not compliant</string>
     <string name="compliance_hint">Compliance badges appear after an app sends its first notification.</string>
+    <string name="enabled_label">Enabled</string>
+    <string name="predictive_back_desc" tools:ignore="UnusedResources">Native back-swipe preview, always on</string>
 </resources>

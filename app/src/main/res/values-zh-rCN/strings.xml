@@ -36,7 +36,6 @@
     <string name="verbose_logging_desc">将 Hook 层详细日志写入文件，用于问题诊断</string>
     <string name="ui_section">界面</string>
     <string name="predictive_back">预测性返回手势动画</string>
-    <string name="predictive_back_desc">启用原生侧滑返回的视差转场</string>
     <string name="about_section">关于</string>
     <string name="about_description">LSPosed API 102 \u00b7 Android 14+ 通知图标优化器</string>
     <string name="credits_section">致谢</string>
@@ -184,4 +183,6 @@
     <string name="pill_compliant">符合规范</string>
     <string name="pill_noncompliant">不符合规范</string>
     <string name="compliance_hint">应用发送通知后才会显示合规状态</string>
+    <string name="enabled_label">已启用</string>
+    <string name="predictive_back_desc" tools:ignore="UnusedResources">原生返回手势预览（始终启用）</string>
 </resources>

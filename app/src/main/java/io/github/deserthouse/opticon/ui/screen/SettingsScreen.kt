@@ -80,7 +80,6 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
     val context = LocalContext.current
     val verboseLogging by viewModel.verboseLogging.collectAsState()
     val masterEnabled by viewModel.masterEnabled.collectAsState()
-    val predictiveBack by viewModel.predictiveBack.collectAsState()
     val busy by viewModel.busy.collectAsState()
     val infoMessage by viewModel.infoMessage.collectAsState()
     val toastEvent by viewModel.toastEvent.collectAsState()
@@ -122,12 +121,15 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
             RootStatusCard(rootAvailable)
 
             SectionTitle(stringResource(R.string.module_control))
-            SettingItem(Icons.Rounded.BugReport, stringResource(R.string.master_switch), stringResource(R.string.master_switch_desc)) {
-                Switch(checked = masterEnabled, onCheckedChange = viewModel::setMasterEnabled)
+            SettingsCard {
+                SettingItem(Icons.Rounded.BugReport, stringResource(R.string.master_switch), stringResource(R.string.master_switch_desc)) {
+                    Switch(checked = masterEnabled, onCheckedChange = viewModel::setMasterEnabled)
+                }
             }
-            Spacer(Modifier.height(8.dp)); HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
             SectionTitle(stringResource(R.string.tools_section))
+            SettingsCard {
+                Column(Modifier.padding(vertical = 4.dp)) {
             val aniaBuiltinHidden = aniaSources.none { it.id == "ania_raw" }
             val picpBuiltinHidden = picpSources.none { it.id == "picp_github" }
 
@@ -142,23 +144,26 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                 onAddSource = viewModel::startAddSource, onEditSource = viewModel::startEditSource, onDeleteSource = viewModel::removeSource,
                 restoreLabel = if (picpBuiltinHidden) stringResource(R.string.restore_default_picp) else null,
                 onRestoreDefault = if (picpBuiltinHidden) viewModel::restoreDefaultPicp else null)
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                }
+            }
             RestartSystemUiButton()
-            Spacer(Modifier.height(8.dp)); HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
             SectionTitle(stringResource(R.string.debug))
-            SettingItem(Icons.Rounded.BugReport, stringResource(R.string.verbose_logging), stringResource(R.string.verbose_logging_desc)) {
-                Switch(checked = verboseLogging, onCheckedChange = viewModel::setVerboseLogging)
+            SettingsCard {
+                SettingItem(Icons.Rounded.BugReport, stringResource(R.string.verbose_logging), stringResource(R.string.verbose_logging_desc)) {
+                    Switch(checked = verboseLogging, onCheckedChange = viewModel::setVerboseLogging)
+                }
             }
-            Spacer(Modifier.height(8.dp)); HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
             SectionTitle(stringResource(R.string.ui_section))
-            SettingItem(Icons.Rounded.Gesture, stringResource(R.string.predictive_back), stringResource(R.string.predictive_back_desc)) {
-                Switch(checked = predictiveBack, onCheckedChange = viewModel::setPredictiveBack)
+            SettingsCard {
+                SettingItem(Icons.Rounded.Gesture, stringResource(R.string.predictive_back), stringResource(R.string.predictive_back_desc)) {
+                    Text(stringResource(R.string.enabled_label), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                }
             }
-            Spacer(Modifier.height(8.dp)); HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
             SectionTitle(stringResource(R.string.about_section))
+            SettingsCard {
             Row(Modifier.fillMaxWidth().clickable { viewModel.onVersionTapped() }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Rounded.Info, null, Modifier.padding(end = 12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Column(Modifier.weight(1f)) {
@@ -194,13 +199,18 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                 }
             }
 
-            Spacer(Modifier.height(8.dp)); HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+            }
+            }
 
             SectionTitle(stringResource(R.string.credits_section))
+            SettingsCard {
+                Column(Modifier.padding(vertical = 4.dp)) {
             CreditEntry(stringResource(R.string.credit_fankes), stringResource(R.string.credit_fankes_desc), "https://github.com/fankes/AndroidNotifyIconAdapt")
             CreditEntry(stringResource(R.string.credit_howard), stringResource(R.string.credit_howard_desc), "https://github.com/Xposed-Modules-Repo/io.github.howard20181.notificationiconfix")
             CreditEntry(stringResource(R.string.credit_pzcn), stringResource(R.string.credit_pzcn_desc), "https://github.com/pzcn/Perfect-Icons-Completion-Project")
             CreditEntry(stringResource(R.string.credit_lsposed), stringResource(R.string.credit_lsposed_desc), "https://github.com/libxposed/api")
+                }
+            }
             Spacer(Modifier.height(32.dp))
         }
 
@@ -366,7 +376,7 @@ private fun SourceSection(
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
             if (syncing) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-            else IconButton(onClick = onSync, Modifier.size(32.dp)) { Icon(Icons.Rounded.Sync, "Sync", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary) }
+            else IconButton(onClick = onSync, Modifier.size(40.dp)) { Icon(Icons.Rounded.Sync, "Sync", Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary) }
         }
         status?.let {
             val isFailure = it.contains("failed", ignoreCase = true) || it.contains("unavailable", ignoreCase = true) || it.contains("Invalid", ignoreCase = true)
@@ -380,8 +390,8 @@ private fun SourceSection(
                 Row(Modifier.fillMaxWidth().clickable { onSelect(source.id) }.padding(vertical = 2.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = activeId == source.id, onClick = { onSelect(source.id) }, modifier = Modifier.padding(end = 4.dp))
                     Text(getSourceDisplayName(source), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { onEditSource(source) }, Modifier.size(28.dp)) { Icon(Icons.Rounded.Edit, null, Modifier.size(14.dp)) }
-                    IconButton(onClick = { onDeleteSource(source.id) }, Modifier.size(28.dp)) { Icon(Icons.Rounded.Delete, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error) }
+                    IconButton(onClick = { onEditSource(source) }, Modifier.size(40.dp)) { Icon(Icons.Rounded.Edit, null, Modifier.size(18.dp)) }
+                    IconButton(onClick = { onDeleteSource(source.id) }, Modifier.size(40.dp)) { Icon(Icons.Rounded.Delete, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error) }
                 }
                 // Description + link
                 getSourceDescription(source)?.let { fullDesc ->
@@ -482,6 +492,16 @@ private fun RootStatusCard(available: Boolean) {
                 Text(statusText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+    }
+}
+
+@Composable private fun SettingsCard(content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+    ) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), content = content)
     }
 }
 
