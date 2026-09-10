@@ -139,12 +139,15 @@ fun AppDetailScreen(
             PreviewCard(state.previewBitmap, state.previewMode, state.isRedrawing, viewModel::togglePreviewMode)
             Spacer(Modifier.height(20.dp))
 
-            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.enable_custom_icon), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
-                    Text(stringResource(R.string.source_prefix, stringResource(io.github.deserthouse.opticon.ui.state.hitLevelRes(state.hitLevel))), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // ── 启用开关（卡片化，与整体语言统一） ──
+            StrategyCard {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.enable_custom_icon), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+                        Text(stringResource(R.string.source_prefix, stringResource(io.github.deserthouse.opticon.ui.state.hitLevelRes(state.hitLevel))), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Switch(state.methodEnabled, viewModel::setMethodEnabled)
                 }
-                Switch(state.methodEnabled, viewModel::setMethodEnabled)
             }
             Spacer(Modifier.height(12.dp))
 
@@ -162,7 +165,7 @@ fun AppDetailScreen(
                 enabled = enabled,
                 onClick = { viewModel.setStrategy(IconStrategy.FANKES) }
             )
-            AnimatedVisibility(state.strategy == IconStrategy.FANKES) {
+            AnimatedVisibility(visible = enabled && state.strategy == IconStrategy.FANKES) {
                 if (fankesHasIcon) {
                     Text(stringResource(R.string.strategy_fankes_contributor, fankesMeta?.contributorName ?: ""),
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -194,7 +197,7 @@ fun AppDetailScreen(
                 enabled = enabled,
                 onClick = { viewModel.setStrategy(IconStrategy.ASSET_IMPORT) }
             )
-            AnimatedVisibility(state.strategy == IconStrategy.ASSET_IMPORT) {
+            AnimatedVisibility(visible = enabled && state.strategy == IconStrategy.ASSET_IMPORT) {
                 AssetImportPanel(state, viewModel, enabled)
             }
             }
@@ -210,7 +213,7 @@ fun AppDetailScreen(
                 enabled = enabled,
                 onClick = { viewModel.setStrategy(IconStrategy.ALGORITHM) }
             )
-            AnimatedVisibility(state.strategy == IconStrategy.ALGORITHM) {
+            AnimatedVisibility(visible = enabled && state.strategy == IconStrategy.ALGORITHM) {
                 AlgoWipSection(viewModel::showSheet)
             }
             }

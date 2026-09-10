@@ -108,18 +108,21 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
     }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,topBar = {
-        TopAppBar(
-            title = { Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium) },
-            navigationIcon = { IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest))
-    }) { padding ->
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium) },
+                navigationIcon = { IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest))
+        }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp).verticalScroll(rememberScrollState())) {
             Spacer(Modifier.height(12.dp))
 
+            // ── 状态区 ──
             LsposedStatusCard(lsposedActive)
             RootStatusCard(rootAvailable)
 
+            // ── 模块控制 ──
             SectionTitle(stringResource(R.string.module_control))
             SettingsCard {
                 SettingItem(Icons.Rounded.BugReport, stringResource(R.string.master_switch), stringResource(R.string.master_switch_desc)) {
@@ -127,27 +130,29 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                 }
             }
 
+            // ── 工具 / 订阅源 ──
             SectionTitle(stringResource(R.string.tools_section))
             SettingsCard {
                 Column(Modifier.padding(vertical = 4.dp)) {
-            val aniaBuiltinHidden = aniaSources.none { it.id == "ania_raw" }
-            val picpBuiltinHidden = picpSources.none { it.id == "picp_github" }
+                    val aniaBuiltinHidden = aniaSources.none { it.id == "ania_raw" }
+                    val picpBuiltinHidden = picpSources.none { it.id == "picp_github" }
 
-            SourceSection(stringResource(R.string.ania_section_title), aniaSources, activeAniaSource, aniaIconCount, aniaSyncing, aniaSyncStatus,
-                onSelect = viewModel::setActiveAniaSource, onSync = viewModel::syncAnia,
-                onAddSource = viewModel::startAddSource, onEditSource = viewModel::startEditSource, onDeleteSource = viewModel::removeSource,
-                restoreLabel = if (aniaBuiltinHidden) stringResource(R.string.restore_default_ania) else null,
-                onRestoreDefault = if (aniaBuiltinHidden) viewModel::restoreDefaultAnia else null)
-            Spacer(Modifier.height(8.dp))
-            SourceSection(stringResource(R.string.picp_section_title), picpSources, activePicpSource, picpCount, picpSyncing, picpSyncStatus,
-                onSelect = viewModel::setActivePicpSource, onSync = viewModel::syncPicp,
-                onAddSource = viewModel::startAddSource, onEditSource = viewModel::startEditSource, onDeleteSource = viewModel::removeSource,
-                restoreLabel = if (picpBuiltinHidden) stringResource(R.string.restore_default_picp) else null,
-                onRestoreDefault = if (picpBuiltinHidden) viewModel::restoreDefaultPicp else null)
+                    SourceSection(stringResource(R.string.ania_section_title), aniaSources, activeAniaSource, aniaIconCount, aniaSyncing, aniaSyncStatus,
+                        onSelect = viewModel::setActiveAniaSource, onSync = viewModel::syncAnia,
+                        onAddSource = viewModel::startAddSource, onEditSource = viewModel::startEditSource, onDeleteSource = viewModel::removeSource,
+                        restoreLabel = if (aniaBuiltinHidden) stringResource(R.string.restore_default_ania) else null,
+                        onRestoreDefault = if (aniaBuiltinHidden) viewModel::restoreDefaultAnia else null)
+                    Spacer(Modifier.height(8.dp))
+                    SourceSection(stringResource(R.string.picp_section_title), picpSources, activePicpSource, picpCount, picpSyncing, picpSyncStatus,
+                        onSelect = viewModel::setActivePicpSource, onSync = viewModel::syncPicp,
+                        onAddSource = viewModel::startAddSource, onEditSource = viewModel::startEditSource, onDeleteSource = viewModel::removeSource,
+                        restoreLabel = if (picpBuiltinHidden) stringResource(R.string.restore_default_picp) else null,
+                        onRestoreDefault = if (picpBuiltinHidden) viewModel::restoreDefaultPicp else null)
                 }
             }
             RestartSystemUiButton()
 
+            // ── 调试 ──
             SectionTitle(stringResource(R.string.debug))
             SettingsCard {
                 SettingItem(Icons.Rounded.BugReport, stringResource(R.string.verbose_logging), stringResource(R.string.verbose_logging_desc)) {
@@ -155,6 +160,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                 }
             }
 
+            // ── 界面 ──
             SectionTitle(stringResource(R.string.ui_section))
             SettingsCard {
                 SettingItem(Icons.Rounded.Gesture, stringResource(R.string.predictive_back), stringResource(R.string.predictive_back_desc)) {
@@ -162,53 +168,53 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                 }
             }
 
+            // ── 关于 ──
             SectionTitle(stringResource(R.string.about_section))
             SettingsCard {
-            Row(Modifier.fillMaxWidth().clickable { viewModel.onVersionTapped() }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.Info, null, Modifier.padding(end = 12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Column(Modifier.weight(1f)) {
-                    Text("OptIcon", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-                    Text("v${BuildConfig.VERSION_NAME} \u00b7 " + stringResource(R.string.about_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(Modifier.fillMaxWidth().clickable { viewModel.onVersionTapped() }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Info, null, Modifier.padding(end = 12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Column(Modifier.weight(1f)) {
+                        Text("OptIcon", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                        Text("v${BuildConfig.VERSION_NAME} \u00b7 " + stringResource(R.string.about_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+
+                AnimatedVisibility(easterEggExpanded) {
+                    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Image(painterResource(R.drawable.avatar_deserthouse), "avatar", Modifier.size(48.dp).clip(CircleShape))
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(stringResource(R.string.easter_egg_author), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                                Text(stringResource(R.string.easter_egg_email), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/deserthouse"))) }) {
+                            Text("github.com/deserthouse", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(4.dp))
+                            Icon(Icons.Rounded.Launch, "GitHub", Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                            Column(Modifier.padding(12.dp)) {
+                                Text(stringResource(R.string.easter_egg_card_title), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
+                                Spacer(Modifier.height(6.dp))
+                                Text(stringResource(R.string.easter_egg_ai_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 18.sp)
+                            }
+                        }
+                    }
                 }
             }
 
-            AnimatedVisibility(easterEggExpanded) {
-                Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Image(painterResource(R.drawable.avatar_deserthouse), "avatar", Modifier.size(48.dp).clip(CircleShape))
-                        Spacer(Modifier.width(12.dp))
-                        Column {
-                            Text(stringResource(R.string.easter_egg_author), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-                            Text(stringResource(R.string.easter_egg_email), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/deserthouse"))) }) {
-                        Text("github.com/deserthouse", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.width(4.dp))
-                        Icon(Icons.Rounded.Launch, "GitHub", Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-                        Column(Modifier.padding(12.dp)) {
-                            Text(stringResource(R.string.easter_egg_card_title), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
-                            Spacer(Modifier.height(6.dp))
-                            Text(stringResource(R.string.easter_egg_ai_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 18.sp)
-                        }
-                    }
-                }
-            }
-
-            }
-            }
-
+            // ── 致谢（页面末尾） ──
             SectionTitle(stringResource(R.string.credits_section))
             SettingsCard {
                 Column(Modifier.padding(vertical = 4.dp)) {
-            CreditEntry(stringResource(R.string.credit_fankes), stringResource(R.string.credit_fankes_desc), "https://github.com/fankes/AndroidNotifyIconAdapt")
-            CreditEntry(stringResource(R.string.credit_howard), stringResource(R.string.credit_howard_desc), "https://github.com/Xposed-Modules-Repo/io.github.howard20181.notificationiconfix")
-            CreditEntry(stringResource(R.string.credit_pzcn), stringResource(R.string.credit_pzcn_desc), "https://github.com/pzcn/Perfect-Icons-Completion-Project")
-            CreditEntry(stringResource(R.string.credit_lsposed), stringResource(R.string.credit_lsposed_desc), "https://github.com/libxposed/api")
+                    CreditEntry(stringResource(R.string.credit_fankes), stringResource(R.string.credit_fankes_desc), "https://github.com/fankes/AndroidNotifyIconAdapt")
+                    CreditEntry(stringResource(R.string.credit_howard), stringResource(R.string.credit_howard_desc), "https://github.com/Xposed-Modules-Repo/io.github.howard20181.notificationiconfix")
+                    CreditEntry(stringResource(R.string.credit_pzcn), stringResource(R.string.credit_pzcn_desc), "https://github.com/pzcn/Perfect-Icons-Completion-Project")
+                    CreditEntry(stringResource(R.string.credit_lsposed), stringResource(R.string.credit_lsposed_desc), "https://github.com/libxposed/api")
                 }
             }
             Spacer(Modifier.height(32.dp))
@@ -229,6 +235,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
             )
         }
     }
+}
 
 @Composable
 private fun AddSourceDialog(onDismiss: () -> Unit, onConfirm: (String, String, String) -> Unit) {
@@ -460,7 +467,7 @@ private fun LsposedStatusCard(active: Boolean) {
     val color = if (active) Color(0xFF4CAF50) else Color(0xFFFF5722)
     val statusText = if (active) stringResource(R.string.lsposed_status_active) else stringResource(R.string.lsposed_status_inactive)
     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
         Column(Modifier.padding(12.dp)) {
             Text(stringResource(R.string.lsposed_status_title), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(4.dp))
@@ -481,7 +488,7 @@ private fun RootStatusCard(available: Boolean) {
     val color = if (available) Color(0xFF4CAF50) else Color(0xFFFF5722)
     val statusText = if (available) stringResource(R.string.root_status_active) else stringResource(R.string.root_status_inactive)
     Card(Modifier.fillMaxWidth().padding(bottom = 8.dp), shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
         Column(Modifier.padding(12.dp)) {
             Text(stringResource(R.string.root_status_title), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(4.dp))
@@ -498,7 +505,7 @@ private fun RootStatusCard(available: Boolean) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
     ) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), content = content)
     }
