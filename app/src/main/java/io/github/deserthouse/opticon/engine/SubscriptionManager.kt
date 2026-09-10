@@ -44,7 +44,7 @@ object SubscriptionManager {
         onProgress?.invoke("Checking network...")
         NetworkExecutor.checkConnectivity { networkOk ->
             if (!networkOk) {
-                onResult(SyncResult(false, errorMessage = "Network unavailable"))
+                onResult(SyncResult(false, errorMessage = "网络不可用，请检查网络连接后重试 / Network unavailable"))
                 return@checkConnectivity
             }
 
@@ -52,7 +52,7 @@ object SubscriptionManager {
             val json = NetworkExecutor.fetchStringSync(url)
 
             if (json == null) {
-                onResult(SyncResult(false, errorMessage = "Download failed - try another source"))
+                onResult(SyncResult(false, errorMessage = "下载失败，请检查网络或更换订阅源 / Download failed"))
                 return@checkConnectivity
             }
 

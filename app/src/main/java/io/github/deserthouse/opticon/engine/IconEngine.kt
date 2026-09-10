@@ -143,7 +143,6 @@ object IconEngine {
                 if (bmp != null) BakeResult(bmp, "Manual: Emoji text")
                 else BakeResult(null, "Manual: Emoji render failed")
             }
-            ManualBranch.AI_REDRAW -> BakeResult(null, "Manual: AI redraw (async)")
             null -> BakeResult(null, "Manual: no branch selected")
         }
     }

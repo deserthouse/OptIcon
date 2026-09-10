@@ -36,7 +36,6 @@
     <string name="verbose_logging_desc">Write detailed hook-layer logs to file for diagnostics</string>
     <string name="ui_section">UI</string>
     <string name="predictive_back">Predictive Back Gesture</string>
-    <string name="predictive_back_desc">Enable native back-swipe parallax transition</string>
     <string name="about_section">About</string>
     <string name="about_description">LSPosed API 102 · Android 14+ notification icon optimizer</string>
     <string name="credits_section">Credits</string>
@@ -44,7 +43,7 @@
     <string name="ok_label">OK</string>
 
     <string name="credit_fankes">Fankes / AndroidNotifyIconAdapt</string>
-    <string name="credit_fankes_desc">Thanks to Fankes and team for generously authorizing the use of the Android Notification Icon Adaptation Project results.</string>
+    <string name="credit_fankes_desc">Special thanks — generously granted permission to use their 673+ app adaptation rules</string>
     <string name="credit_howard">Howard20181 / NotificationIconFix</string>
     <string name="credit_howard_desc">Thanks to Howard20181\'s Notification Icon Fix project for inspiration.</string>
     <string name="credit_pzcn">pzcn / Perfect-Icons-Completion-Project</string>
@@ -68,7 +67,7 @@
 
     <string name="strategy_fankes_label">Android Notification Icon Standard Adaptation</string>
     <string name="strategy_fankes_covered">This app is already covered in the adaptation library.</string>
-    <string name="strategy_fankes_not_covered">This app is not yet covered in the adaptation library.</string>
+    <string name="strategy_fankes_not_covered">Not covered by the library yet — see request option below.</string>
     <string name="strategy_fankes_contributor">Icon contributed by %s.</string>
     <string name="strategy_fankes_submit_hint">This app is not yet covered in the adaptation library. Submit a request on GitHub if you want it added.</string>
     <string name="strategy_fankes_submit_btn">Submit adaptation request on GitHub</string>
@@ -96,7 +95,7 @@
     <string name="strategy_asset_c_wip_hint">This feature is under development. You can still browse the project.</string>
     <string name="strategy_asset_c_link">→ Go to Perfect Icons Project GitHub</string>
 
-    <string name="strategy_algo_label">Smart Algorithm Redraw</string>
+    <string name="strategy_algo_label">Compatibility Redraw</string>
     <string name="strategy_algo_wip">Under development. The effects and controls are planned features and not yet available.</string>
     <string name="strategy_algo_open_panel_wip">View planned features (unfinished)</string>
     <string name="algo_panel_title_wip">Visual Tuning Panel (Unfinished)</string>
@@ -105,7 +104,7 @@
     <string name="filter_all">All Apps</string>
     <string name="filter_configured">Configured</string>
     <string name="filter_ania">ANIA Adapted</string>
-    <string name="filter_picp">PICP Adapted</string>
+    <string name="filter_picp">PICP Redrawn</string>
     <string name="filter_adaptive">Adaptive</string>
 
     <string name="chip_ania_adapted">ANIA Adapted</string>
@@ -153,4 +152,44 @@
 
     <!-- v0.3.0-alpha ModernAppCard + AppListScreen -->
     <string name="refresh">Refresh</string>
+
+
+    <!-- UI redesign v0.4.0 -->
+    <string name="filter_modified">Modified</string>
+    <string name="group_modified">Modified</string>
+    <string name="group_unmodified">Not Modified</string>
+    <string name="status_active">Module active</string>
+    <string name="status_inactive">Module not activated</string>
+    <string name="empty_no_apps_title">No apps found</string>
+    <string name="empty_no_apps_body">Try a different keyword or filter</string>
+    <string name="empty_no_apps_clear">Clear search</string>
+    <string name="preview_title">Status Bar Preview</string>
+    <string name="preview_mode_dark">Dark status bar</string>
+    <string name="preview_mode_light">Light status bar</string>
+    <string name="preview_legend_icon">Icon (#FFF)</string>
+    <string name="preview_legend_edge">Semi-transparent edge</string>
+    <string name="hit_picp">Perfect Icons</string>
+    <string name="hit_picp_failed">Perfect Icons download failed</string>
+    <string name="hit_iconlib">Built-in icon library</string>
+    <string name="hit_network_fail">Network unavailable, all sources missed</string>
+    <string name="hit_disabled">Disabled</string>
+    <string name="hit_selffilter">Algorithm redraw (self-filter)</string>
+    <string name="hit_adaptive">Adaptive icon decomposed</string>
+    <string name="hit_iconpack">Icon pack</string>
+    <string name="hit_remote">Cloud subscription</string>
+    <string name="hit_auto_miss">No source hit</string>
+    <string name="hit_other">Other</string>
+    <string name="toggle_preview_mode">Toggle preview mode</string>
+    <string name="pill_ania">Lib</string>
+    <string name="pill_picp">Perfect</string>
+    <string name="pill_adaptive">Adaptive</string>
+    <string name="pill_compliant">Compliant</string>
+    <string name="pill_noncompliant">Not compliant</string>
+    <string name="compliance_hint">Compliance badges appear after an app sends its first notification.</string>
+    <string name="enabled_label">Enabled</string>
+    <string name="predictive_back_desc">Native back-swipe preview, always on</string>
+    <string name="unsaved_title">Unsaved changes</string>
+    <string name="unsaved_body">You changed this app icon settings but have not saved. Save before leaving?</string>
+    <string name="unsaved_save">Save</string>
+    <string name="unsaved_discard">Discard</string>
 </resources>

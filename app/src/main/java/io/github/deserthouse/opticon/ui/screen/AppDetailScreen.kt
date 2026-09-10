@@ -6,6 +6,8 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -48,6 +50,7 @@ import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material.icons.rounded.ShoppingCart
 import androidx.compose.material.icons.rounded.SportsEsports
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -64,6 +67,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -116,41 +120,74 @@ fun AppDetailScreen(
     val state by viewModel.state.collectAsState()
     LaunchedEffect(packageName) { viewModel.loadApp(packageName) }
 
-    val pickLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> uri?.let { viewModel.setCustomIconPath(it.toString()) } }
     val configSavedText = stringResource(R.string.config_saved)
 
+    // ── 未保存修改拦截 ──
+    val isDirty by viewModel.isDirty.collectAsState()
+    var showUnsavedDialog by remember { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(enabled = isDirty && !showUnsavedDialog) {
+        showUnsavedDialog = true
+    }
+    if (showUnsavedDialog) {
+        AlertDialog(
+            onDismissRequest = { showUnsavedDialog = false },
+            title = { Text(stringResource(R.string.unsaved_title)) },
+            text = { Text(stringResource(R.string.unsaved_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showUnsavedDialog = false
+                    viewModel.saveConfig()
+                    android.widget.Toast.makeText(context, configSavedText, Toast.LENGTH_SHORT).show()
+                    onNavigateBack()
+                }) { Text(stringResource(R.string.unsaved_save), fontWeight = FontWeight.Medium) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showUnsavedDialog = false
+                    onNavigateBack()
+                }) { Text(stringResource(R.string.unsaved_discard), color = MaterialTheme.colorScheme.error) }
+            }
+        )
+    }
+
+    val pickLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> uri?.let { viewModel.setCustomIconPath(it.toString()) } }
+
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
         topBar = {
             TopAppBar(
-                title = { Text(state.appName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium) },
+                title = { Text(state.appName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) },
                 navigationIcon = { IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
                 actions = {
                     IconButton(onClick = { viewModel.saveConfig(); Toast.makeText(context, configSavedText, Toast.LENGTH_SHORT).show() }) {
                         Icon(Icons.Filled.Check, stringResource(R.string.save))
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
             )
         }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
             Spacer(Modifier.height(8.dp))
             PreviewCard(state.previewBitmap, state.previewMode, state.isRedrawing, viewModel::togglePreviewMode)
-            Spacer(Modifier.height(16.dp)); HorizontalDivider(); Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(20.dp))
 
-            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.enable_custom_icon), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
-                    Text(stringResource(R.string.source_prefix, state.hitLevel), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // ── 启用开关（卡片化，与整体语言统一） ──
+            StrategyCard {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.enable_custom_icon), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+                        Text(stringResource(R.string.source_prefix, stringResource(io.github.deserthouse.opticon.ui.state.hitLevelRes(state.hitLevel))), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Switch(state.methodEnabled, viewModel::setMethodEnabled)
                 }
-                Switch(state.methodEnabled, viewModel::setMethodEnabled)
             }
-            Spacer(Modifier.height(8.dp)); HorizontalDivider()
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(12.dp))
 
             val enabled = state.methodEnabled
 
             // Strategy 1: Fankes
+            StrategyCard(selected = state.strategy == IconStrategy.FANKES) {
             val fankesHasIcon = remember(state.packageName) { IconLibEngine.hasIcon(state.packageName) }
             val fankesMeta = remember(state.packageName) { IconLibEngine.getMeta(state.packageName) }
             StrategyRadio(
@@ -161,29 +198,31 @@ fun AppDetailScreen(
                 enabled = enabled,
                 onClick = { viewModel.setStrategy(IconStrategy.FANKES) }
             )
-            AnimatedVisibility(state.strategy == IconStrategy.FANKES) {
+            AnimatedVisibility(visible = enabled && state.strategy == IconStrategy.FANKES) {
                 if (fankesHasIcon) {
                     Text(stringResource(R.string.strategy_fankes_contributor, fankesMeta?.contributorName ?: ""),
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 40.dp, vertical = 4.dp))
                 } else {
-                    Card(Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 4.dp), shape = RoundedCornerShape(10.dp),
+                    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
                         Column(Modifier.padding(12.dp)) {
                             Text(stringResource(R.string.strategy_fankes_submit_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
                             Spacer(Modifier.height(4.dp))
                             OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/fankes/AndroidNotifyIconAdapt/issues/new"))) },
-                                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp)) {
+                                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                                 Text(stringResource(R.string.strategy_fankes_submit_btn), fontSize = 13.sp)
                             }
                         }
                     }
                 }
             }
+            }
 
-            Spacer(Modifier.height(4.dp)); HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+            Spacer(Modifier.height(12.dp))
 
             // Strategy 2: Asset Import
+            StrategyCard(selected = state.strategy == IconStrategy.ASSET_IMPORT) {
             StrategyRadio(
                 label = stringResource(R.string.strategy_asset_label),
                 desc = stringResource(R.string.strategy_asset_desc),
@@ -191,13 +230,15 @@ fun AppDetailScreen(
                 enabled = enabled,
                 onClick = { viewModel.setStrategy(IconStrategy.ASSET_IMPORT) }
             )
-            AnimatedVisibility(state.strategy == IconStrategy.ASSET_IMPORT) {
+            AnimatedVisibility(visible = enabled && state.strategy == IconStrategy.ASSET_IMPORT) {
                 AssetImportPanel(state, viewModel, enabled)
             }
+            }
 
-            Spacer(Modifier.height(4.dp)); HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+            Spacer(Modifier.height(12.dp))
 
             // Strategy 3: Algorithm (WIP)
+            StrategyCard(selected = state.strategy == IconStrategy.ALGORITHM) {
             StrategyRadio(
                 label = stringResource(R.string.strategy_algo_label),
                 desc = stringResource(R.string.strategy_algo_wip),
@@ -205,8 +246,9 @@ fun AppDetailScreen(
                 enabled = enabled,
                 onClick = { viewModel.setStrategy(IconStrategy.ALGORITHM) }
             )
-            AnimatedVisibility(state.strategy == IconStrategy.ALGORITHM) {
+            AnimatedVisibility(visible = enabled && state.strategy == IconStrategy.ALGORITHM) {
                 AlgoWipSection(viewModel::showSheet)
+            }
             }
 
             Spacer(Modifier.height(24.dp))
@@ -217,6 +259,28 @@ fun AppDetailScreen(
         AlgoWipSheet(onDismiss = viewModel::hideSheet, onScaleChange = viewModel::setScale,
             onOffsetXChange = viewModel::setOffsetX, onOffsetYChange = viewModel::setOffsetY,
             onThresholdChange = viewModel::setThreshold)
+    }
+}
+
+/** M3E strategy group card — 24dp radius, floats on layered background */
+@Composable
+private fun StrategyCard(selected: Boolean = false, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    // M3E: selected strategy gets a primaryContainer wash — the card itself
+    // answers "which one am I on", not just the radio dot.
+    val container by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.primaryContainer
+        else MaterialTheme.colorScheme.surfaceContainer,
+        animationSpec = tween(220), label = "strategyCardBg"
+    )
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = container)
+    ) {
+        androidx.compose.foundation.layout.Column(
+            modifier = Modifier.padding(vertical = 8.dp),
+            content = content
+        )
     }
 }
 

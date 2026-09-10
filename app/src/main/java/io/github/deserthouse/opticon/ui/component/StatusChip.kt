@@ -10,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.deserthouse.opticon.ui.state.ModificationSource
@@ -43,7 +44,7 @@ fun ModificationChip(source: ModificationSource, modifier: Modifier = Modifier) 
 @Composable
 fun AniaChip(adapted: Boolean, modifier: Modifier = Modifier) {
     Chip(
-        label = if (adapted) "ANIA" else "ANIA",
+        label = stringResource(io.github.deserthouse.opticon.R.string.pill_ania),
         color = if (adapted) ColorAnia else ColorUnmodified,
         modifier = modifier
     )
@@ -52,7 +53,7 @@ fun AniaChip(adapted: Boolean, modifier: Modifier = Modifier) {
 @Composable
 fun PicpChip(adapted: Boolean, modifier: Modifier = Modifier) {
     Chip(
-        label = if (adapted) "PICP" else "PICP",
+        label = stringResource(io.github.deserthouse.opticon.R.string.pill_picp),
         color = if (adapted) ColorPicp else ColorUnmodified,
         modifier = modifier
     )
@@ -61,7 +62,7 @@ fun PicpChip(adapted: Boolean, modifier: Modifier = Modifier) {
 @Composable
 fun AdaptiveChip(hasAdaptive: Boolean, modifier: Modifier = Modifier) {
     Chip(
-        label = if (hasAdaptive) "Adaptive" else "Adaptive",
+        label = stringResource(io.github.deserthouse.opticon.R.string.pill_adaptive),
         color = if (hasAdaptive) ColorAdaptive else ColorUnmodified,
         modifier = modifier
     )

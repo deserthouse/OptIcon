@@ -28,6 +28,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -85,13 +86,13 @@ fun PreviewCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Status Bar Preview",
+                    text = stringResource(io.github.deserthouse.opticon.R.string.preview_title),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = mode.label,
+                        text = stringResource(mode.labelRes),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -102,7 +103,7 @@ fun PreviewCard(
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Refresh,
-                            contentDescription = "Toggle preview mode",
+                            contentDescription = stringResource(io.github.deserthouse.opticon.R.string.toggle_preview_mode),
                             modifier = Modifier.size(18.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -170,8 +171,8 @@ fun PreviewCard(
                     .padding(horizontal = 20.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                LegendDot(color = Color(0xFFFFFFFF), label = "Icon (#FFF)")
-                LegendDot(color = Color(0xCCCCCCCC.toInt()), label = "Semi-transparent edge")
+                LegendDot(color = Color(0xFFFFFFFF), label = stringResource(io.github.deserthouse.opticon.R.string.preview_legend_icon))
+                LegendDot(color = Color(0xCCCCCCCC.toInt()), label = stringResource(io.github.deserthouse.opticon.R.string.preview_legend_edge))
             }
         }
     }

@@ -141,13 +141,12 @@ object IconPackEngine {
 
             val drawable = packRes.getDrawable(drawableId, null) ?: return null
 
-            // AdaptiveIcon → 取 foreground
+            // AdaptiveIcon → take foreground; flat pack (CandyBar PNG/vector) → use drawable as-is
             val foreground = if (drawable is AdaptiveIconDrawable) {
                 drawable.foreground
             } else {
-                // Non-adaptive icon pack entry —— fallback to launcher icon, skip self-filter here
-                TraceLogger.d(TAG, "Icon pack $iconPackPkg has non-adaptive drawable for $targetPkg, fallback")
-                return null
+                TraceLogger.d(TAG, "Icon pack $iconPackPkg flat drawable for $targetPkg (non-adaptive pack)")
+                drawable
             }
 
             val bitmap = drawableToBitmap(foreground, 96)

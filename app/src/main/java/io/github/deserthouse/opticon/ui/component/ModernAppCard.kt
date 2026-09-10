@@ -33,9 +33,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.deserthouse.opticon.ui.state.AppUiEntry
@@ -62,25 +64,37 @@ fun ModernAppCard(
     val isPressed by interactionSource.collectIsPressedAsState()
     val containerColor by animateColorAsState(
         targetValue = if (isPressed)
-            MaterialTheme.colorScheme.surfaceContainerHigh
+            MaterialTheme.colorScheme.surfaceContainerHighest
         else
-            MaterialTheme.colorScheme.surfaceContainer,
+            MaterialTheme.colorScheme.surfaceContainerHigh,
         animationSpec = tween(durationMillis = 120),
         label = "cardBg"
+    )
+    // M3E press: springy scale-down (expressive motion)
+    val scale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (isPressed) 0.97f else 1f,
+        animationSpec = androidx.compose.animation.core.spring(
+            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+        ),
+        label = "cardScale"
     )
 
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .padding(horizontal = 12.dp, vertical = 5.dp)
+            .graphicsLayer {
+                scaleX = scale; scaleY = scale
+            }
+            .clip(RoundedCornerShape(24.dp))
             .combinedClickable(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick,
                 onLongClick = onLongClick
             ),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp, pressedElevation = 2.dp)
     ) {
@@ -188,9 +202,12 @@ private fun ModificationBadge(source: ModificationSource) {
 @Composable
 private fun AdaptiveStatusStrip(entry: AppUiEntry) {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        StatusPill(text = "ANIA", active = entry.aniaAdapted)
-        StatusPill(text = "PICP", active = entry.picpAdapted)
-        StatusPill(text = "Adaptive", active = entry.hasAdaptiveIcon)
+        if (entry.iconCompliant == false) {
+            StatusPill(text = stringResource(io.github.deserthouse.opticon.R.string.pill_noncompliant), active = true, alert = true)
+        }
+        StatusPill(text = stringResource(io.github.deserthouse.opticon.R.string.pill_ania), active = entry.aniaAdapted)
+        StatusPill(text = stringResource(io.github.deserthouse.opticon.R.string.pill_picp), active = entry.picpAdapted)
+        StatusPill(text = stringResource(io.github.deserthouse.opticon.R.string.pill_adaptive), active = entry.hasAdaptiveIcon)
         if (entry.isSystemApp) StatusPill(text = "System", active = false, dim = true)
     }
 }
@@ -199,10 +216,12 @@ private fun AdaptiveStatusStrip(entry: AppUiEntry) {
 private fun StatusPill(
     text: String,
     active: Boolean,
-    dim: Boolean = false
+    dim: Boolean = false,
+    alert: Boolean = false
 ) {
     val bg by animateColorAsState(
         targetValue = when {
+            alert -> MaterialTheme.colorScheme.errorContainer
             active -> MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
             dim -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
             else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)

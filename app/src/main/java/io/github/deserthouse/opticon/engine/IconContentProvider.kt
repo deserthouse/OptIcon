@@ -63,7 +63,10 @@ class IconContentProvider : ContentProvider() {
         // NOT 1000 (that's system_server); checking raw uid 1000 would deny
         // the very hook that needs to read these icons.
         val callerPkg = context?.packageManager?.getNameForUid(callerUid)
-        val isSystemUI = callerPkg == "com.android.systemui"
+        val systemuiUid = try {
+            context?.packageManager?.getPackageUid("com.android.systemui", 0)
+        } catch (_: Exception) { -1 }
+        val isSystemUI = callerPkg == "com.android.systemui" || callerUid == systemuiUid
         val isSelf = callerUid == android.os.Process.myUid()
         if (!isSystemUI && !isSelf) {
             throw SecurityException(
@@ -93,7 +96,10 @@ class IconContentProvider : ContentProvider() {
         // set_flag: only SystemUI may write
         // get_flag: allow SystemUI + module's own process (for UI status check)
         val callerPkg = context?.packageManager?.getNameForUid(callerUid)
-        val isSystemUI = callerPkg == "com.android.systemui"
+        val systemuiUid = try {
+            context?.packageManager?.getPackageUid("com.android.systemui", 0)
+        } catch (_: Exception) { -1 }
+        val isSystemUI = callerPkg == "com.android.systemui" || callerUid == systemuiUid
         val isSelf = callerUid == android.os.Process.myUid()
         when (method) {
             "set_flag" -> {

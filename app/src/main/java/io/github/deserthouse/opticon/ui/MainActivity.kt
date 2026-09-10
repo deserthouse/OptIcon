@@ -4,7 +4,6 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
@@ -67,13 +66,9 @@ fun OptIconNavHost() {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
 
-    val predictiveBackEnabled = remember { PreferenceManager.isPredictiveBackEnabled() }
-    if (predictiveBackEnabled) {
-        PredictiveBackHandler(
-            enabled = navController.previousBackStackEntry != null,
-            onBack = { navController.popBackStack() }
-        )
-    }
+    // Predictive back: navigation-compose 2.8+ NavHost handles the gesture
+    // natively (cross-screen preview). Do NOT intercept with a custom
+    // PredictiveBackHandler — that opts us out of the system preview.
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         NavHost(

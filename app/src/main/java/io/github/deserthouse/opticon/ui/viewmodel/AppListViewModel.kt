@@ -45,7 +45,20 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
     init {
         viewModelScope.launch {
             withContext(Dispatchers.IO) { initializeIconLibEngine() }
+            refreshLsposedStatus()
             scanApps()
+        }
+    }
+
+    /** Real LSPosed hook detection (shared with SettingsViewModel) — the hero
+     *  status must reflect truth, not a hardcoded green dot. */
+    fun refreshLsposedStatus() {
+        viewModelScope.launch {
+            val active = withContext(Dispatchers.IO) {
+                io.github.deserthouse.opticon.ui.viewmodel.SettingsViewModel
+                    .Companion.checkLsposed(getApplication())
+            }
+            _uiState.value = _uiState.value.copy(lsposedActive = active)
         }
     }
 
@@ -98,17 +111,22 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
         if (currentApps.isEmpty() || _uiState.value.isScanning) return
         viewModelScope.launch {
             val ctx = getApplication<Application>().applicationContext
+            refreshLsposedStatus()
             val updated = withContext(Dispatchers.IO) {
                 currentApps.map { app ->
+                    val fresh = analyzeApp(ctx, app.packageName, app.appName, app.icon, app.isSystemApp)
                     app.copy(
-                        aniaAdapted = try { IconLibEngine.hasIcon(app.packageName) } catch (_: Exception) { false },
-                        picpAdapted = PicpEngine.hasIcon(app.packageName, ctx),
-                        hasAdaptiveIcon = AdaptiveIconExtractor.hasAdaptiveIcon(ctx, app.packageName)
+                        aniaAdapted = fresh.aniaAdapted,
+                        picpAdapted = fresh.picpAdapted,
+                        hasAdaptiveIcon = fresh.hasAdaptiveIcon,
+                        isUserModified = fresh.isUserModified,
+                        modificationSource = fresh.modificationSource,
+                        iconCompliant = fresh.iconCompliant
                     )
                 }
             }
             _uiState.update { it.copy(apps = updated) }
-            TraceLogger.i(TAG, "Icon status refreshed: ${updated.count { it.picpAdapted }} PICP, ${updated.count { it.aniaAdapted }} ANIA")
+            TraceLogger.i(TAG, "Icon status refreshed: ${updated.count { it.isUserModified }} modified")
         }
     }
 
@@ -190,7 +208,9 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
         return AppUiEntry(
             packageName = pkgName, appName = appName, icon = icon, isSystemApp = isSystem,
             aniaAdapted = hasLib, picpAdapted = picpAdapted, hasAdaptiveIcon = hasAdaptive,
-            isUserModified = enabled, modificationSource = modSource
+            isUserModified = enabled, modificationSource = modSource,
+            iconCompliant = io.github.deserthouse.opticon.hook.ComplianceDetector.readFlag(
+                io.github.deserthouse.opticon.engine.SharedIconStore.publicDir(), pkgName)
         )
     }
 

@@ -8,6 +8,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,7 +26,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Gesture
+import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Key
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Launch
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.Add
@@ -80,7 +84,6 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
     val context = LocalContext.current
     val verboseLogging by viewModel.verboseLogging.collectAsState()
     val masterEnabled by viewModel.masterEnabled.collectAsState()
-    val predictiveBack by viewModel.predictiveBack.collectAsState()
     val busy by viewModel.busy.collectAsState()
     val infoMessage by viewModel.infoMessage.collectAsState()
     val toastEvent by viewModel.toastEvent.collectAsState()
@@ -108,98 +111,115 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
             confirmButton = { TextButton(onClick = viewModel::dismissInfo) { Text(stringResource(R.string.ok_label)) } })
     }
 
-    Scaffold(topBar = {
-        TopAppBar(
-            title = { Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium) },
-            navigationIcon = { IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface))
-    }) { padding ->
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium) },
+                navigationIcon = { IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceContainer))
+        }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp).verticalScroll(rememberScrollState())) {
             Spacer(Modifier.height(12.dp))
 
-            LsposedStatusCard(lsposedActive)
-            RootStatusCard(rootAvailable)
+            // ── 状态区 ──
+            RuntimeStatusCard(lsposedActive, rootAvailable) { viewModel.recheckStatuses() }
 
+            // ── 模块控制 ──
             SectionTitle(stringResource(R.string.module_control))
-            SettingItem(Icons.Rounded.BugReport, stringResource(R.string.master_switch), stringResource(R.string.master_switch_desc)) {
-                Switch(checked = masterEnabled, onCheckedChange = viewModel::setMasterEnabled)
+            SettingsCard {
+                SettingItem(Icons.Rounded.BugReport, stringResource(R.string.master_switch), stringResource(R.string.master_switch_desc)) {
+                    Switch(checked = masterEnabled, onCheckedChange = viewModel::setMasterEnabled)
+                }
             }
-            Spacer(Modifier.height(8.dp)); HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
+            // ── 工具 / 订阅源 ──
             SectionTitle(stringResource(R.string.tools_section))
-            val aniaBuiltinHidden = aniaSources.none { it.id == "ania_raw" }
-            val picpBuiltinHidden = picpSources.none { it.id == "picp_github" }
+            SettingsCard {
+                Column(Modifier.padding(vertical = 4.dp)) {
+                    val aniaBuiltinHidden = aniaSources.none { it.id == "ania_raw" }
+                    val picpBuiltinHidden = picpSources.none { it.id == "picp_github" }
 
-            SourceSection(stringResource(R.string.ania_section_title), aniaSources, activeAniaSource, aniaIconCount, aniaSyncing, aniaSyncStatus,
-                onSelect = viewModel::setActiveAniaSource, onSync = viewModel::syncAnia,
-                onAddSource = viewModel::startAddSource, onEditSource = viewModel::startEditSource, onDeleteSource = viewModel::removeSource,
-                restoreLabel = if (aniaBuiltinHidden) stringResource(R.string.restore_default_ania) else null,
-                onRestoreDefault = if (aniaBuiltinHidden) viewModel::restoreDefaultAnia else null)
-            Spacer(Modifier.height(8.dp))
-            SourceSection(stringResource(R.string.picp_section_title), picpSources, activePicpSource, picpCount, picpSyncing, picpSyncStatus,
-                onSelect = viewModel::setActivePicpSource, onSync = viewModel::syncPicp,
-                onAddSource = viewModel::startAddSource, onEditSource = viewModel::startEditSource, onDeleteSource = viewModel::removeSource,
-                restoreLabel = if (picpBuiltinHidden) stringResource(R.string.restore_default_picp) else null,
-                onRestoreDefault = if (picpBuiltinHidden) viewModel::restoreDefaultPicp else null)
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                    SourceSection(stringResource(R.string.ania_section_title), aniaSources, activeAniaSource, aniaIconCount, aniaSyncing, aniaSyncStatus,
+                        onSelect = viewModel::setActiveAniaSource, onSync = viewModel::syncAnia,
+                        onAddSource = viewModel::startAddSource, onEditSource = viewModel::startEditSource, onDeleteSource = viewModel::removeSource,
+                        restoreLabel = if (aniaBuiltinHidden) stringResource(R.string.restore_default_ania) else null,
+                        onRestoreDefault = if (aniaBuiltinHidden) viewModel::restoreDefaultAnia else null)
+                    Spacer(Modifier.height(8.dp))
+                    SourceSection(stringResource(R.string.picp_section_title), picpSources, activePicpSource, picpCount, picpSyncing, picpSyncStatus,
+                        onSelect = viewModel::setActivePicpSource, onSync = viewModel::syncPicp,
+                        onAddSource = viewModel::startAddSource, onEditSource = viewModel::startEditSource, onDeleteSource = viewModel::removeSource,
+                        restoreLabel = if (picpBuiltinHidden) stringResource(R.string.restore_default_picp) else null,
+                        onRestoreDefault = if (picpBuiltinHidden) viewModel::restoreDefaultPicp else null)
+                }
+            }
             RestartSystemUiButton()
-            Spacer(Modifier.height(8.dp)); HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
+            // ── 调试 ──
             SectionTitle(stringResource(R.string.debug))
-            SettingItem(Icons.Rounded.BugReport, stringResource(R.string.verbose_logging), stringResource(R.string.verbose_logging_desc)) {
-                Switch(checked = verboseLogging, onCheckedChange = viewModel::setVerboseLogging)
+            SettingsCard {
+                SettingItem(Icons.Rounded.BugReport, stringResource(R.string.verbose_logging), stringResource(R.string.verbose_logging_desc)) {
+                    Switch(checked = verboseLogging, onCheckedChange = viewModel::setVerboseLogging)
+                }
             }
-            Spacer(Modifier.height(8.dp)); HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
+            // ── 界面 ──
             SectionTitle(stringResource(R.string.ui_section))
-            SettingItem(Icons.Rounded.Gesture, stringResource(R.string.predictive_back), stringResource(R.string.predictive_back_desc)) {
-                Switch(checked = predictiveBack, onCheckedChange = viewModel::setPredictiveBack)
+            SettingsCard {
+                SettingItem(Icons.Rounded.Gesture, stringResource(R.string.predictive_back), stringResource(R.string.predictive_back_desc)) {
+                    Text(stringResource(R.string.enabled_label), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                }
             }
-            Spacer(Modifier.height(8.dp)); HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
+            // ── 关于 ──
             SectionTitle(stringResource(R.string.about_section))
-            Row(Modifier.fillMaxWidth().clickable { viewModel.onVersionTapped() }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.Info, null, Modifier.padding(end = 12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Column(Modifier.weight(1f)) {
-                    Text("OptIcon", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-                    Text("v${BuildConfig.VERSION_NAME} \u00b7 " + stringResource(R.string.about_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SettingsCard {
+                Row(Modifier.fillMaxWidth().clickable { viewModel.onVersionTapped() }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Info, null, Modifier.padding(end = 12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Column(Modifier.weight(1f)) {
+                        Text("OptIcon", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                        Text("v${BuildConfig.VERSION_NAME} \u00b7 " + stringResource(R.string.about_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+
+                AnimatedVisibility(easterEggExpanded) {
+                    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Image(painterResource(R.drawable.avatar_deserthouse), "avatar", Modifier.size(48.dp).clip(CircleShape))
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(stringResource(R.string.easter_egg_author), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                                Text(stringResource(R.string.easter_egg_email), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/deserthouse"))) }) {
+                            Text("github.com/deserthouse", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(4.dp))
+                            Icon(Icons.Rounded.Launch, "GitHub", Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                            Column(Modifier.padding(12.dp)) {
+                                Text(stringResource(R.string.easter_egg_card_title), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
+                                Spacer(Modifier.height(6.dp))
+                                Text(stringResource(R.string.easter_egg_ai_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 18.sp)
+                            }
+                        }
+                    }
                 }
             }
 
-            AnimatedVisibility(easterEggExpanded) {
-                Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Image(painterResource(R.drawable.avatar_deserthouse), "avatar", Modifier.size(48.dp).clip(CircleShape))
-                        Spacer(Modifier.width(12.dp))
-                        Column {
-                            Text(stringResource(R.string.easter_egg_author), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-                            Text(stringResource(R.string.easter_egg_email), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/deserthouse"))) }) {
-                        Text("github.com/deserthouse", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.width(4.dp))
-                        Icon(Icons.Rounded.Launch, "GitHub", Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-                        Column(Modifier.padding(12.dp)) {
-                            Text(stringResource(R.string.easter_egg_card_title), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
-                            Spacer(Modifier.height(6.dp))
-                            Text(stringResource(R.string.easter_egg_ai_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 18.sp)
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(8.dp)); HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-
+            // ── 致谢（页面末尾） ──
             SectionTitle(stringResource(R.string.credits_section))
-            CreditEntry(stringResource(R.string.credit_fankes), stringResource(R.string.credit_fankes_desc), "https://github.com/fankes/AndroidNotifyIconAdapt")
-            CreditEntry(stringResource(R.string.credit_howard), stringResource(R.string.credit_howard_desc), "https://github.com/Xposed-Modules-Repo/io.github.howard20181.notificationiconfix")
-            CreditEntry(stringResource(R.string.credit_pzcn), stringResource(R.string.credit_pzcn_desc), "https://github.com/pzcn/Perfect-Icons-Completion-Project")
-            CreditEntry(stringResource(R.string.credit_lsposed), stringResource(R.string.credit_lsposed_desc), "https://github.com/libxposed/api")
+            SettingsCard {
+                Column(Modifier.padding(vertical = 4.dp)) {
+                    CreditEntry(stringResource(R.string.credit_fankes), stringResource(R.string.credit_fankes_desc), "https://github.com/fankes/AndroidNotifyIconAdapt")
+                    CreditEntry(stringResource(R.string.credit_howard), stringResource(R.string.credit_howard_desc), "https://github.com/Xposed-Modules-Repo/io.github.howard20181.notificationiconfix")
+                    CreditEntry(stringResource(R.string.credit_pzcn), stringResource(R.string.credit_pzcn_desc), "https://github.com/pzcn/Perfect-Icons-Completion-Project")
+                    CreditEntry(stringResource(R.string.credit_lsposed), stringResource(R.string.credit_lsposed_desc), "https://github.com/libxposed/api")
+                }
+            }
             Spacer(Modifier.height(32.dp))
         }
 
@@ -365,16 +385,22 @@ private fun SourceSection(
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
             if (syncing) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-            else IconButton(onClick = onSync, Modifier.size(32.dp)) { Icon(Icons.Rounded.Sync, "Sync", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary) }
+            else IconButton(onClick = onSync, Modifier.size(40.dp)) { Icon(Icons.Rounded.Sync, "Sync", Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary) }
         }
-        status?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        status?.let {
+            val isFailure = it.contains("failed", ignoreCase = true) || it.contains("unavailable", ignoreCase = true) || it.contains("Invalid", ignoreCase = true)
+            Text(
+                it, style = MaterialTheme.typography.labelSmall,
+                color = if (isFailure) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
         sources.forEach { source ->
             Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 Row(Modifier.fillMaxWidth().clickable { onSelect(source.id) }.padding(vertical = 2.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = activeId == source.id, onClick = { onSelect(source.id) }, modifier = Modifier.padding(end = 4.dp))
                     Text(getSourceDisplayName(source), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { onEditSource(source) }, Modifier.size(28.dp)) { Icon(Icons.Rounded.Edit, null, Modifier.size(14.dp)) }
-                    IconButton(onClick = { onDeleteSource(source.id) }, Modifier.size(28.dp)) { Icon(Icons.Rounded.Delete, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error) }
+                    IconButton(onClick = { onEditSource(source) }, Modifier.size(40.dp)) { Icon(Icons.Rounded.Edit, null, Modifier.size(18.dp)) }
+                    IconButton(onClick = { onDeleteSource(source.id) }, Modifier.size(40.dp)) { Icon(Icons.Rounded.Delete, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error) }
                 }
                 // Description + link
                 getSourceDescription(source)?.let { fullDesc ->
@@ -432,7 +458,11 @@ private fun RestartSystemUiButton() {
 
 private fun restartSystemUi(context: android.content.Context) {
     try {
-        Runtime.getRuntime().exec(arrayOf("su", "-c", "pkill -f com.android.systemui"))
+        // pidof = exact package match. pkill -f is a FULL-CMDLINE SUBSTRING
+        // match and would collateral-kill any process whose cmdline merely
+        // contains the string (e.g. OOS wallpaper engine on A17 → wallpaper
+        // + Monet palette reset, reported by the tester).
+        Runtime.getRuntime().exec(arrayOf("su", "-c", "kill \$(pidof com.android.systemui)"))
         Toast.makeText(context, "SystemUI 正在重启...", Toast.LENGTH_SHORT).show()
     } catch (e: Exception) {
         Toast.makeText(context, "重启失败：Root 权限不可用", Toast.LENGTH_LONG).show()
@@ -440,41 +470,62 @@ private fun restartSystemUi(context: android.content.Context) {
 }
 
 @Composable
-private fun LsposedStatusCard(active: Boolean) {
-    val color = if (active) Color(0xFF4CAF50) else Color(0xFFFF5722)
-    val statusText = if (active) stringResource(R.string.lsposed_status_active) else stringResource(R.string.lsposed_status_inactive)
-    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-        Column(Modifier.padding(12.dp)) {
-            Text(stringResource(R.string.lsposed_status_title), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium)
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(10.dp).background(color, CircleShape))
-                Spacer(Modifier.width(8.dp))
-                Text(statusText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun StatusRow(
+    title: String,
+    statusText: String,
+    active: Boolean,
+    onRecheck: () -> Unit,
+    hint: String? = null
+) {
+    Column {
+        Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                if (title.contains("LSPosed")) Icons.Rounded.Extension else Icons.Rounded.Key,
+                null, Modifier.padding(end = 12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                Text(statusText, style = MaterialTheme.typography.bodySmall, color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                if (hint != null) Text(hint, style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), lineHeight = 14.sp)
             }
-            Text(stringResource(R.string.lsposed_status_hint), style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                modifier = Modifier.padding(top = 2.dp))
+            TextButton(onClick = onRecheck, modifier = Modifier.size(width = 44.dp, height = 36.dp),
+                contentPadding = PaddingValues(4.dp)) {
+                Icon(Icons.Rounded.Refresh, stringResource(R.string.refresh), Modifier.size(18.dp))
+            }
         }
     }
 }
 
 @Composable
-private fun RootStatusCard(available: Boolean) {
-    val color = if (available) Color(0xFF4CAF50) else Color(0xFFFF5722)
-    val statusText = if (available) stringResource(R.string.root_status_active) else stringResource(R.string.root_status_inactive)
-    Card(Modifier.fillMaxWidth().padding(bottom = 8.dp), shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-        Column(Modifier.padding(12.dp)) {
-            Text(stringResource(R.string.root_status_title), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium)
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(10.dp).background(color, CircleShape))
-                Spacer(Modifier.width(8.dp))
-                Text(statusText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
+private fun RuntimeStatusCard(lsposedActive: Boolean, rootAvailable: Boolean, onRecheck: () -> Unit) {
+    SettingsCard {
+        StatusRow(
+            title = stringResource(R.string.lsposed_status_title),
+            statusText = if (lsposedActive) stringResource(R.string.lsposed_status_active)
+                         else stringResource(R.string.lsposed_status_inactive),
+            active = lsposedActive,
+            onRecheck = onRecheck,
+            hint = if (!lsposedActive) stringResource(R.string.lsposed_status_hint) else null
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+        StatusRow(
+            title = stringResource(R.string.root_status_title),
+            statusText = if (rootAvailable) stringResource(R.string.root_status_active)
+                         else stringResource(R.string.root_status_inactive),
+            active = rootAvailable,
+            onRecheck = onRecheck
+        )
+    }
+}
+
+@Composable private fun SettingsCard(content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+    ) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), content = content)
     }
 }
 

@@ -35,19 +35,19 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 val result = context.contentResolver.call(uri, "get_flag", null, null) ?: return false
                 val hookPid = result.getInt("hook_pid", 0)
                 if (hookPid <= 0) return false
-                // Check if process with recorded PID is still alive
-                isProcessAlive(hookPid)
+                // Liveness = flag freshness: the hook re-reports every 5 min
+                // (heartbeat); SystemUI crash/deactivation stops the heartbeat
+                // and the flag goes stale. Avoids /proc cross-process reads
+                // (unreliable under SELinux/hidepid).
+                val flagFile = java.io.File(context.filesDir, "hook_installed")
+                val age = System.currentTimeMillis() - flagFile.lastModified()
+                age < HEARTBEAT_TIMEOUT_MS
             } catch (e: Exception) {
                 false
             }
         }
 
-        private fun isProcessAlive(pid: Int): Boolean {
-            return try {
-                val cmdline = java.io.File("/proc/$pid/cmdline").readText().trim('\u0000')
-                cmdline == "com.android.systemui" && pid != android.os.Process.myPid()
-            } catch (e: Exception) { false }
-        }
+        private val HEARTBEAT_TIMEOUT_MS = 10 * 60 * 1000L
 
         /** Root 检测 — InstallerX Revived 风格: 实际执行 su -c 命令验证 (3s 超时) */
         fun checkRoot(): Boolean {
@@ -72,6 +72,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     init {
         // Run slow checks off main thread (H2 fix)
+        viewModelScope.launch { recheckStatuses() }
+    }
+
+    /** 手动重检: LSPosed 活性 + Root 可用性 (状态卡刷新按钮) */
+    fun recheckStatuses() {
         viewModelScope.launch {
             val app = getApplication<Application>()
             _lsposedActive.value = withContext(Dispatchers.IO) { checkLsposed(app) }
@@ -84,9 +89,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     private val _masterEnabled = MutableStateFlow(PreferenceManager.isModuleEnabled())
     val masterEnabled: StateFlow<Boolean> = _masterEnabled.asStateFlow()
-
-    private val _predictiveBack = MutableStateFlow(PreferenceManager.isPredictiveBackEnabled())
-    val predictiveBack: StateFlow<Boolean> = _predictiveBack.asStateFlow()
 
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
@@ -146,10 +148,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _masterEnabled.value = enabled
     }
 
-    fun setPredictiveBack(enabled: Boolean) {
-        PreferenceManager.setPredictiveBackEnabled(enabled)
-        _predictiveBack.value = enabled
-    }
 
     // ━━━ ANIA sync ━━━
 

@@ -20,7 +20,7 @@ kotlin {
     }
 }
 
-val MODULE_VERSION_NAME = "0.3.2-alpha"
+val MODULE_VERSION_NAME = "0.4.0-alpha"
 
 android {
     namespace = "io.github.deserthouse.opticon"
@@ -30,15 +30,28 @@ android {
         applicationId = "io.github.deserthouse.opticon"
         minSdk = 31  // Android 12 minimum — full Material You generation (dynamic color since API 31)
         targetSdk = 37
-        versionCode = 22
+        versionCode = 23
         versionName = MODULE_VERSION_NAME
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        create("release") {
+            // keystore lives OUTSIDE the repo (never commit!).
+            // Override via ~/.gradle/gradle.properties: OPTICON_STORE_FILE / _PASS / _KEY_PASS
+            storeFile = file(providers.gradleProperty("OPTICON_STORE_FILE").getOrElse(
+                "C:/Users/deser/.android/opticon-release.jks"))
+            storePassword = providers.gradleProperty("OPTICON_STORE_PASS").getOrElse("opticon2026")
+            keyAlias = providers.gradleProperty("OPTICON_KEY_ALIAS").getOrElse("opticon")
+            keyPassword = providers.gradleProperty("OPTICON_KEY_PASS").getOrElse("opticon2026")
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
