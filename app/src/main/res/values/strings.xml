@@ -67,7 +67,7 @@
 
     <string name="strategy_fankes_label">Android Notification Icon Standard Adaptation</string>
     <string name="strategy_fankes_covered">This app is already covered in the adaptation library.</string>
-    <string name="strategy_fankes_not_covered">This app is not yet covered in the adaptation library.</string>
+    <string name="strategy_fankes_not_covered">Not covered by the library yet — see request option below.</string>
     <string name="strategy_fankes_contributor">Icon contributed by %s.</string>
     <string name="strategy_fankes_submit_hint">This app is not yet covered in the adaptation library. Submit a request on GitHub if you want it added.</string>
     <string name="strategy_fankes_submit_btn">Submit adaptation request on GitHub</string>

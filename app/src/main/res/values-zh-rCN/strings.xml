@@ -67,7 +67,7 @@
 
     <string name="strategy_fankes_label">通知图标适配</string>
     <string name="strategy_fankes_covered">该应用已在通知图标适配规则库中，可直接使用。</string>
-    <string name="strategy_fankes_not_covered">该应用尚未被适配规则库收录。</string>
+    <string name="strategy_fankes_not_covered">尚未被规则库收录，可在下方提交适配申请。</string>
     <string name="strategy_fankes_contributor">该图标由 %s 贡献。</string>
     <string name="strategy_fankes_submit_hint">该应用目前在适配规则库中尚未收录，如果希望此应用被适配，可前往 GitHub 提交适配申请。</string>
     <string name="strategy_fankes_submit_btn">前往 GitHub 提交适配申请</string>
