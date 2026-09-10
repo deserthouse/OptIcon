@@ -6,6 +6,8 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -120,7 +122,7 @@ fun AppDetailScreen(
     val configSavedText = stringResource(R.string.config_saved)
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
         topBar = {
             TopAppBar(
                 title = { Text(state.appName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) },
@@ -130,7 +132,7 @@ fun AppDetailScreen(
                         Icon(Icons.Filled.Check, stringResource(R.string.save))
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
             )
         }
     ) { padding ->
@@ -154,7 +156,7 @@ fun AppDetailScreen(
             val enabled = state.methodEnabled
 
             // Strategy 1: Fankes
-            StrategyCard {
+            StrategyCard(selected = state.strategy == IconStrategy.FANKES) {
             val fankesHasIcon = remember(state.packageName) { IconLibEngine.hasIcon(state.packageName) }
             val fankesMeta = remember(state.packageName) { IconLibEngine.getMeta(state.packageName) }
             StrategyRadio(
@@ -189,7 +191,7 @@ fun AppDetailScreen(
             Spacer(Modifier.height(12.dp))
 
             // Strategy 2: Asset Import
-            StrategyCard {
+            StrategyCard(selected = state.strategy == IconStrategy.ASSET_IMPORT) {
             StrategyRadio(
                 label = stringResource(R.string.strategy_asset_label),
                 desc = stringResource(R.string.strategy_asset_desc),
@@ -205,7 +207,7 @@ fun AppDetailScreen(
             Spacer(Modifier.height(12.dp))
 
             // Strategy 3: Algorithm (WIP)
-            StrategyCard {
+            StrategyCard(selected = state.strategy == IconStrategy.ALGORITHM) {
             StrategyRadio(
                 label = stringResource(R.string.strategy_algo_label),
                 desc = stringResource(R.string.strategy_algo_wip),
@@ -231,11 +233,18 @@ fun AppDetailScreen(
 
 /** M3E strategy group card — 24dp radius, floats on layered background */
 @Composable
-private fun StrategyCard(content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+private fun StrategyCard(selected: Boolean = false, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    // M3E: selected strategy gets a primaryContainer wash — the card itself
+    // answers "which one am I on", not just the radio dot.
+    val container by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.primaryContainer
+        else MaterialTheme.colorScheme.surfaceContainer,
+        animationSpec = tween(220), label = "strategyCardBg"
+    )
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        colors = CardDefaults.cardColors(containerColor = container)
     ) {
         androidx.compose.foundation.layout.Column(
             modifier = Modifier.padding(vertical = 8.dp),

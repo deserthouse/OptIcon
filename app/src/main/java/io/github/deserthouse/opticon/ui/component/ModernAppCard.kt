@@ -64,9 +64,9 @@ fun ModernAppCard(
     val isPressed by interactionSource.collectIsPressedAsState()
     val containerColor by animateColorAsState(
         targetValue = if (isPressed)
-            MaterialTheme.colorScheme.surfaceContainerHigh
+            MaterialTheme.colorScheme.surfaceContainerHighest
         else
-            MaterialTheme.colorScheme.surfaceContainer,
+            MaterialTheme.colorScheme.surfaceContainerHigh,
         animationSpec = tween(durationMillis = 120),
         label = "cardBg"
     )

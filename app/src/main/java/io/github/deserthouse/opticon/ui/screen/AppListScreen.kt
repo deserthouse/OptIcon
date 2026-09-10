@@ -77,7 +77,7 @@ import io.github.deserthouse.opticon.ui.viewmodel.AppListViewModel
  *
  * Material 3 Expressive with layered surfaces (LSPosed Manager / SukiSU influence):
  *  - Hero header: module name + live status dot + description
- *  - Layered background: surfaceContainerLowest base, cards float on top
+ *  - Layered background: surfaceContainer base, cards (High) float on top
  *  - 24dp large-radius card groups with count badges
  *  - Full i18n (no hardcoded strings)
  */
@@ -99,7 +99,7 @@ fun AppListScreen(
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             LargeTopAppBar(
@@ -126,8 +126,8 @@ fun AppListScreen(
                 },
                 scrollBehavior = scrollBehavior,
                 colors = TopAppBarDefaults.largeTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh
                 )
             )
         }
