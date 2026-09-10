@@ -95,7 +95,18 @@ fun AppListScreen(
     val pullState = rememberPullToRefreshState()
     val packageNameCopiedText = stringResource(R.string.package_name_copied)
 
-    LaunchedEffect(Unit) { viewModel.refreshIconStatus() }
+    // Refresh statuses on every resume — returning from a detail page after
+    // saving picks up new pills/compliance flags without a manual refresh.
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshIconStatus()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(obs)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
+    }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Scaffold(
@@ -108,12 +119,12 @@ fun AppListScreen(
                         Column(Modifier.weight(1f)) {
                             Text("OptIcon", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                             Text(
-                                text = stringResource(R.string.status_active),
+                                text = stringResource(if (state.lsposedActive) R.string.status_active else R.string.status_inactive),
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary
+                                color = if (state.lsposedActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
                             )
                         }
-                        StatusDot()
+                        StatusDot(active = state.lsposedActive)
                     }
                 },
                 actions = {
@@ -188,8 +199,8 @@ fun AppListScreen(
 
 /** Live status dot — green pulse when module active (SukiSU style) */
 @Composable
-private fun StatusDot() {
-    val color = MaterialTheme.colorScheme.primary
+private fun StatusDot(active: Boolean = true) {
+    val color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
     Surface(
         shape = CircleShape,
         color = color.copy(alpha = 0.15f),

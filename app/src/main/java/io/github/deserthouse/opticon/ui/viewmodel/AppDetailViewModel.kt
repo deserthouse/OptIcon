@@ -51,6 +51,8 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     private val _state = MutableStateFlow(AppDetailState())
+    private val _isDirty = MutableStateFlow(false)
+    val isDirty: StateFlow<Boolean> = _isDirty.asStateFlow()
     val state: StateFlow<AppDetailState> = _state.asStateFlow()
 
     private var redrawDebounceJob: Job? = null
@@ -113,11 +115,13 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun setStrategy(strategy: IconStrategy) {
+        _isDirty.value = true
         _state.update { it.copy(strategy = strategy, previewBitmap = null, hitLevel = "") }
         debouncePreview()
     }
 
     fun setAssetSubStrategy(sub: AssetSubStrategy) {
+        _isDirty.value = true
         val cached = state.value.perfectIconsBitmap
         _state.update {
             if (sub == AssetSubStrategy.PERFECT_ICONS && cached != null) {
@@ -131,19 +135,26 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun setAlgoSource(src: AlgoSource) {
+        _isDirty.value = true
         _state.update { it.copy(algoSource = src) }
         debouncePreview()
     }
 
-    fun setMethodEnabled(enabled: Boolean) { _state.update { it.copy(methodEnabled = enabled) }; debouncePreview() }
+    fun setMethodEnabled(enabled: Boolean) {
+        _isDirty.value = true
+        _state.update { it.copy(methodEnabled = enabled) }
+        debouncePreview()
+    }
 
     fun setSelectedIconPack(pkg: String?) {
+        _isDirty.value = true
         _state.update { it.copy(selectedIconPack = pkg, selectedPackIconDrawable = null) }
         if (pkg != null) loadIconPackIcons(pkg)
         debouncePreview()
     }
 
     fun setSelectedPackIconDrawable(drawableName: String?) {
+        _isDirty.value = true
         _state.update { it.copy(selectedPackIconDrawable = drawableName) }
         debouncePreview()
     }
@@ -225,21 +236,54 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun setCustomIconPath(path: String?) { _state.update { it.copy(customIconPath = path) }; debouncePreview() }
-    fun setEmojiText(text: String?) { _state.update { it.copy(emojiText = text) }; debouncePreview() }
-    fun selectMaterialIcon(name: String) { _state.update { it.copy(materialIconName = name) }; debouncePreview() }
+    fun setCustomIconPath(path: String?) {
+        _isDirty.value = true
+        _state.update { it.copy(customIconPath = path) }
+        debouncePreview()
+    }
+    fun setEmojiText(text: String?) {
+        _isDirty.value = true
+        _state.update { it.copy(emojiText = text) }
+        debouncePreview()
+    }
+    fun selectMaterialIcon(name: String) {
+        _isDirty.value = true
+        _state.update { it.copy(materialIconName = name) }
+        debouncePreview()
+    }
 
-    fun setScale(v: Float) { _state.update { it.copy(redrawParams = it.redrawParams.copy(scale = v.coerceIn(RedrawParams.SCALE_MIN, RedrawParams.SCALE_MAX))) }; debouncePreview() }
-    fun setOffsetX(v: Float) { _state.update { it.copy(redrawParams = it.redrawParams.copy(offsetX = v.coerceIn(-RedrawParams.OFFSET_MAX, RedrawParams.OFFSET_MAX))) }; debouncePreview() }
-    fun setOffsetY(v: Float) { _state.update { it.copy(redrawParams = it.redrawParams.copy(offsetY = v.coerceIn(-RedrawParams.OFFSET_MAX, RedrawParams.OFFSET_MAX))) }; debouncePreview() }
-    fun setThreshold(v: Int) { _state.update { it.copy(redrawParams = it.redrawParams.copy(threshold = v.coerceIn(0, 255))) }; debouncePreview() }
-    fun setRadius(v: Float) { _state.update { it.copy(redrawParams = it.redrawParams.copy(radius = v.coerceIn(0f, RedrawParams.RADIUS_MAX))) }; debouncePreview() }
+    fun setScale(v: Float) {
+        _isDirty.value = true
+        _state.update { it.copy(redrawParams = it.redrawParams.copy(scale = v.coerceIn(RedrawParams.SCALE_MIN, RedrawParams.SCALE_MAX))) }
+        debouncePreview()
+    }
+    fun setOffsetX(v: Float) {
+        _isDirty.value = true
+        _state.update { it.copy(redrawParams = it.redrawParams.copy(offsetX = v.coerceIn(-RedrawParams.OFFSET_MAX, RedrawParams.OFFSET_MAX))) }
+        debouncePreview()
+    }
+    fun setOffsetY(v: Float) {
+        _isDirty.value = true
+        _state.update { it.copy(redrawParams = it.redrawParams.copy(offsetY = v.coerceIn(-RedrawParams.OFFSET_MAX, RedrawParams.OFFSET_MAX))) }
+        debouncePreview()
+    }
+    fun setThreshold(v: Int) {
+        _isDirty.value = true
+        _state.update { it.copy(redrawParams = it.redrawParams.copy(threshold = v.coerceIn(0, 255))) }
+        debouncePreview()
+    }
+    fun setRadius(v: Float) {
+        _isDirty.value = true
+        _state.update { it.copy(redrawParams = it.redrawParams.copy(radius = v.coerceIn(0f, RedrawParams.RADIUS_MAX))) }
+        debouncePreview()
+    }
 
     fun showSheet() = _state.update { it.copy(sheetVisible = true) }
     fun hideSheet() = _state.update { it.copy(sheetVisible = false) }
     fun togglePreviewMode() { _state.update { it.copy(previewMode = if (it.previewMode == StatusBarMode.DARK) StatusBarMode.LIGHT else StatusBarMode.DARK) } }
 
     fun saveConfig() {
+        _isDirty.value = false
         val s = _state.value; val pkg = s.packageName
         PreferenceManager.setMethodEnabled(pkg, s.methodEnabled)
         PreferenceManager.setStrategy(pkg, s.strategy)

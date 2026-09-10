@@ -185,4 +185,8 @@
     <string name="compliance_hint">应用发送通知后才会显示合规状态</string>
     <string name="enabled_label">已启用</string>
     <string name="predictive_back_desc">原生返回手势预览（始终启用）</string>
+    <string name="unsaved_title">有未保存的修改</string>
+    <string name="unsaved_body">你修改了该应用的图标设置但尚未保存，离开前要保存吗？</string>
+    <string name="unsaved_save">保存</string>
+    <string name="unsaved_discard">放弃</string>
 </resources>

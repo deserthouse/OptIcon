@@ -50,6 +50,7 @@ import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material.icons.rounded.ShoppingCart
 import androidx.compose.material.icons.rounded.SportsEsports
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -66,6 +67,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -118,8 +120,37 @@ fun AppDetailScreen(
     val state by viewModel.state.collectAsState()
     LaunchedEffect(packageName) { viewModel.loadApp(packageName) }
 
-    val pickLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> uri?.let { viewModel.setCustomIconPath(it.toString()) } }
     val configSavedText = stringResource(R.string.config_saved)
+
+    // ── 未保存修改拦截 ──
+    val isDirty by viewModel.isDirty.collectAsState()
+    var showUnsavedDialog by remember { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(enabled = isDirty && !showUnsavedDialog) {
+        showUnsavedDialog = true
+    }
+    if (showUnsavedDialog) {
+        AlertDialog(
+            onDismissRequest = { showUnsavedDialog = false },
+            title = { Text(stringResource(R.string.unsaved_title)) },
+            text = { Text(stringResource(R.string.unsaved_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showUnsavedDialog = false
+                    viewModel.saveConfig()
+                    android.widget.Toast.makeText(context, configSavedText, Toast.LENGTH_SHORT).show()
+                    onNavigateBack()
+                }) { Text(stringResource(R.string.unsaved_save), fontWeight = FontWeight.Medium) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showUnsavedDialog = false
+                    onNavigateBack()
+                }) { Text(stringResource(R.string.unsaved_discard), color = MaterialTheme.colorScheme.error) }
+            }
+        )
+    }
+
+    val pickLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> uri?.let { viewModel.setCustomIconPath(it.toString()) } }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
