@@ -120,23 +120,24 @@ fun AppDetailScreen(
     val configSavedText = stringResource(R.string.config_saved)
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
         topBar = {
             TopAppBar(
-                title = { Text(state.appName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium) },
+                title = { Text(state.appName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) },
                 navigationIcon = { IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
                 actions = {
                     IconButton(onClick = { viewModel.saveConfig(); Toast.makeText(context, configSavedText, Toast.LENGTH_SHORT).show() }) {
                         Icon(Icons.Filled.Check, stringResource(R.string.save))
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest)
             )
         }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
             Spacer(Modifier.height(8.dp))
             PreviewCard(state.previewBitmap, state.previewMode, state.isRedrawing, viewModel::togglePreviewMode)
-            Spacer(Modifier.height(16.dp)); HorizontalDivider(); Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(20.dp))
 
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -145,8 +146,7 @@ fun AppDetailScreen(
                 }
                 Switch(state.methodEnabled, viewModel::setMethodEnabled)
             }
-            Spacer(Modifier.height(8.dp)); HorizontalDivider()
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(12.dp))
 
             val enabled = state.methodEnabled
 
@@ -181,7 +181,7 @@ fun AppDetailScreen(
                 }
             }
 
-            Spacer(Modifier.height(4.dp)); HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+            Spacer(Modifier.height(12.dp))
 
             // Strategy 2: Asset Import
             StrategyRadio(
@@ -195,7 +195,7 @@ fun AppDetailScreen(
                 AssetImportPanel(state, viewModel, enabled)
             }
 
-            Spacer(Modifier.height(4.dp)); HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+            Spacer(Modifier.height(12.dp))
 
             // Strategy 3: Algorithm (WIP)
             StrategyRadio(
