@@ -124,6 +124,60 @@ object NotificationHook {
         hookStatusBarIconViewSet(xposed, classLoader)
 
         TraceLogger.i(TAG, "Hooks installed")
+        reportHookAlive()
+
+        // Heartbeat: re-report every 5 min so the App's freshness check
+        // (10 min window) knows this SystemUI instance still has the hook.
+        // A crash/deactivation stops the heartbeat → status flips to inactive.
+        val heartbeat = android.os.Handler(android.os.Looper.getMainLooper())
+        val beat = object : Runnable {
+            override fun run() {
+                if (!initialized) return
+                reportHookAlive()
+                heartbeat.postDelayed(this, 5 * 60 * 1000L)
+            }
+        }
+        heartbeat.postDelayed(beat, 5 * 60 * 1000L)
+    }
+
+    /** Report liveness to the module's ContentProvider so the App UI can show
+     *  an accurate LSPosed-active status. Runs on EVERY SystemUI start — the
+     *  provider file stores THIS SystemUI's PID, and the App validates it is
+     *  still alive, so a stale report self-corrects to "inactive". */
+    private fun reportHookAlive() {
+        // Attribution matters here: the provider rejects callers whose package
+        // doesn't match their uid. ActivityThread.getSystemUiContext() and
+        // createPackageContext() both keep the "android" op package → rejected.
+        // Only the real SystemUI Application context carries the correct
+        // package identity. It may not exist yet during early hook init, so
+        // poll on a background thread with a generous timeout.
+        Thread {
+            var app: Context? = null
+            try {
+                val atClass = Class.forName("android.app.ActivityThread")
+                val current = atClass.getDeclaredMethod("currentApplication")
+                for (i in 1..20) {
+                    app = current.invoke(null) as? Context
+                    if (app != null) break
+                    Thread.sleep(2500)
+                }
+                if (app == null) {
+                    TraceLogger.w(TAG, "reportHookAlive: SystemUI Application never ready")
+                    return@Thread
+                }
+                val bundle = android.os.Bundle().apply {
+                    putBoolean("hook_installed", true)
+                    putInt("hook_pid", android.os.Process.myPid())
+                }
+                app.contentResolver.call(
+                    Uri.parse("content://io.github.deserthouse.opticon.icons/__flag__"),
+                    "set_flag", null, bundle
+                )
+                TraceLogger.i(TAG, "Hook alive reported (pid=${android.os.Process.myPid()})")
+            } catch (e: Exception) {
+                TraceLogger.w(TAG, "reportHookAlive: ${e.message}")
+            }
+        }.start()
     }
 
     private fun initHook() {

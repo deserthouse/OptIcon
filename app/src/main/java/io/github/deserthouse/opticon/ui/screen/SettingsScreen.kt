@@ -455,7 +455,11 @@ private fun RestartSystemUiButton() {
 
 private fun restartSystemUi(context: android.content.Context) {
     try {
-        Runtime.getRuntime().exec(arrayOf("su", "-c", "pkill -f com.android.systemui"))
+        // pidof = exact package match. pkill -f is a FULL-CMDLINE SUBSTRING
+        // match and would collateral-kill any process whose cmdline merely
+        // contains the string (e.g. OOS wallpaper engine on A17 → wallpaper
+        // + Monet palette reset, reported by the tester).
+        Runtime.getRuntime().exec(arrayOf("su", "-c", "kill \$(pidof com.android.systemui)"))
         Toast.makeText(context, "SystemUI 正在重启...", Toast.LENGTH_SHORT).show()
     } catch (e: Exception) {
         Toast.makeText(context, "重启失败：Root 权限不可用", Toast.LENGTH_LONG).show()

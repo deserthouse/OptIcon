@@ -35,19 +35,19 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 val result = context.contentResolver.call(uri, "get_flag", null, null) ?: return false
                 val hookPid = result.getInt("hook_pid", 0)
                 if (hookPid <= 0) return false
-                // Check if process with recorded PID is still alive
-                isProcessAlive(hookPid)
+                // Liveness = flag freshness: the hook re-reports every 5 min
+                // (heartbeat); SystemUI crash/deactivation stops the heartbeat
+                // and the flag goes stale. Avoids /proc cross-process reads
+                // (unreliable under SELinux/hidepid).
+                val flagFile = java.io.File(context.filesDir, "hook_installed")
+                val age = System.currentTimeMillis() - flagFile.lastModified()
+                age < HEARTBEAT_TIMEOUT_MS
             } catch (e: Exception) {
                 false
             }
         }
 
-        private fun isProcessAlive(pid: Int): Boolean {
-            return try {
-                val cmdline = java.io.File("/proc/$pid/cmdline").readText().trim('\u0000')
-                cmdline == "com.android.systemui" && pid != android.os.Process.myPid()
-            } catch (e: Exception) { false }
-        }
+        private val HEARTBEAT_TIMEOUT_MS = 10 * 60 * 1000L
 
         /** Root 检测 — InstallerX Revived 风格: 实际执行 su -c 命令验证 (3s 超时) */
         fun checkRoot(): Boolean {
