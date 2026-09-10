@@ -95,7 +95,7 @@
     <string name="strategy_asset_c_wip_hint">该功能目前尚未完成，但您仍然可以查看完美图标计划。</string>
     <string name="strategy_asset_c_link">\u2192 前往完美图标计划 GitHub 页面</string>
 
-    <string name="strategy_algo_label">智能算法强制重绘</string>
+    <string name="strategy_algo_label">兼容重绘（非自适应图标）</string>
     <string name="strategy_algo_wip">施工中，目前的效果和调节器仍为计划功能，暂不可用。</string>
     <string name="strategy_algo_open_panel_wip">点击查看计划功能（未完成）</string>
     <string name="algo_panel_title_wip">可视化微调面板（未完成）</string>

@@ -95,7 +95,7 @@
     <string name="strategy_asset_c_wip_hint">This feature is under development. You can still browse the project.</string>
     <string name="strategy_asset_c_link">→ Go to Perfect Icons Project GitHub</string>
 
-    <string name="strategy_algo_label">Smart Algorithm Redraw</string>
+    <string name="strategy_algo_label">Compatibility Redraw</string>
     <string name="strategy_algo_wip">Under development. The effects and controls are planned features and not yet available.</string>
     <string name="strategy_algo_open_panel_wip">View planned features (unfinished)</string>
     <string name="algo_panel_title_wip">Visual Tuning Panel (Unfinished)</string>
