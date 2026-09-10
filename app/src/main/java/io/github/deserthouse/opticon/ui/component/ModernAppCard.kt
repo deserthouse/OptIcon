@@ -189,6 +189,9 @@ private fun ModificationBadge(source: ModificationSource) {
 @Composable
 private fun AdaptiveStatusStrip(entry: AppUiEntry) {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (entry.iconCompliant != null) {
+            StatusPill(text = stringResource(if (entry.iconCompliant == true) io.github.deserthouse.opticon.R.string.pill_compliant else io.github.deserthouse.opticon.R.string.pill_noncompliant), active = entry.iconCompliant == true)
+        }
         StatusPill(text = stringResource(io.github.deserthouse.opticon.R.string.pill_ania), active = entry.aniaAdapted)
         StatusPill(text = stringResource(io.github.deserthouse.opticon.R.string.pill_picp), active = entry.picpAdapted)
         StatusPill(text = stringResource(io.github.deserthouse.opticon.R.string.pill_adaptive), active = entry.hasAdaptiveIcon)

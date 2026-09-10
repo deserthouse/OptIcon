@@ -26,6 +26,8 @@ data class AppUiEntry(
     val picpAdapted: Boolean = false,
     /** 是否有自适应图标 */
     val hasAdaptiveIcon: Boolean = false,
+    /** 运行时检测: 原生通知图标是否合规 (null=尚未观测到该 App 的通知) */
+    val iconCompliant: Boolean? = null,
     val isUserModified: Boolean = false,
     val modificationSource: ModificationSource = ModificationSource.NONE
 )

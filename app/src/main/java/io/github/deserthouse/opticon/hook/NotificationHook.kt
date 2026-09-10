@@ -352,6 +352,7 @@ object NotificationHook {
                                 val pkg = sbn?.packageName
                                 if (!pkg.isNullOrEmpty() && pkg != MODULE_PKG) {
                                     lastPendingPackage.set(pkg)
+                                    ComplianceDetector.evaluateAndReport(SHARED_ICON_DIR, sbn.notification, pkg)
                                     val bitmap = loadIconForPackage(pkg)
                                     if (bitmap != null) {
                                         setSmallIcon.invoke(sbn.notification, Icon.createWithBitmap(bitmap))

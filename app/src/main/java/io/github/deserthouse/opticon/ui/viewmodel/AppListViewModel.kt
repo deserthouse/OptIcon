@@ -190,7 +190,9 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
         return AppUiEntry(
             packageName = pkgName, appName = appName, icon = icon, isSystemApp = isSystem,
             aniaAdapted = hasLib, picpAdapted = picpAdapted, hasAdaptiveIcon = hasAdaptive,
-            isUserModified = enabled, modificationSource = modSource
+            isUserModified = enabled, modificationSource = modSource,
+            iconCompliant = io.github.deserthouse.opticon.hook.ComplianceDetector.readFlag(
+                io.github.deserthouse.opticon.engine.SharedIconStore.publicDir(), pkgName)
         )
     }
 

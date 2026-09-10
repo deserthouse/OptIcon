@@ -184,4 +184,6 @@
     <string name="pill_ania">Lib</string>
     <string name="pill_picp">Perfect</string>
     <string name="pill_adaptive">Adaptive</string>
+    <string name="pill_compliant">Compliant</string>
+    <string name="pill_noncompliant">Not compliant</string>
 </resources>
