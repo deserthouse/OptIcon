@@ -2,6 +2,10 @@ package io.github.deserthouse.opticon.ui.screen
 
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -27,7 +31,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -36,8 +39,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -63,20 +64,17 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.deserthouse.opticon.R
 import io.github.deserthouse.opticon.ui.component.ModernAppCard
 import io.github.deserthouse.opticon.ui.state.AppGroup
-import io.github.deserthouse.opticon.ui.state.AppUiEntry
 import io.github.deserthouse.opticon.ui.state.FilterMode
 import io.github.deserthouse.opticon.ui.viewmodel.AppListViewModel
 
 /**
- * AppListScreen v0.3.0-alpha
+ * AppListScreen v0.4.0 — UI redesign
  *
- * Redesigned for Material 3 Expressive:
- *  - Sticky TopAppBar with module description
- *  - Rounded search field with inline leading icon
- *  - Horizontal filter chip row (Material 3 FilterChip)
- *  - Pull-to-refresh (Material 3 PullToRefreshBox)
- *  - ModernAppCard with press feedback + status strip
- *  - Refined empty state with illustration
+ * Material 3 Expressive with layered surfaces (LSPosed Manager / SukiSU influence):
+ *  - Hero header: module name + live status dot + description
+ *  - Layered background: surfaceContainerLowest base, cards float on top
+ *  - 24dp large-radius card groups with count badges
+ *  - Full i18n (no hardcoded strings)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,15 +93,26 @@ fun AppListScreen(
     LaunchedEffect(Unit) { viewModel.refreshIconStatus() }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
         topBar = {
             TopAppBar(
                 title = {
                     Column {
-                        Text(
-                            "OptIcon",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "OptIcon",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            StatusDot()
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = stringResource(R.string.status_active),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                         Text(
                             text = stringResource(R.string.module_description),
                             style = MaterialTheme.typography.labelSmall,
@@ -120,7 +129,7 @@ fun AppListScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
                 )
             )
         }
@@ -179,31 +188,66 @@ fun AppListScreen(
     }
 }
 
+/** Live status dot — green pulse when module active (SukiSU style) */
+@Composable
+private fun StatusDot() {
+    val color = MaterialTheme.colorScheme.primary
+    Surface(
+        shape = CircleShape,
+        color = color.copy(alpha = 0.15f),
+        modifier = Modifier.size(10.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(2.5.dp)
+                .clip(CircleShape)
+                .background(color)
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SearchField(
     query: String,
     onQueryChange: (String) -> Unit
 ) {
-    OutlinedTextField(
-        value = query,
-        onValueChange = onQueryChange,
-        placeholder = {
-            Text(stringResource(R.string.search_apps), style = MaterialTheme.typography.bodyMedium)
-        },
-        leadingIcon = {
-            Icon(Icons.Rounded.Search, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        },
-        singleLine = true,
+    Surface(
         shape = RoundedCornerShape(28.dp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-        ),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
-    )
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+        ) {
+            Icon(
+                Icons.Rounded.Search, null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.width(12.dp))
+            androidx.compose.material3.OutlinedTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                placeholder = {
+                    Text(stringResource(R.string.search_apps), style = MaterialTheme.typography.bodyLarge)
+                },
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge,
+                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
+                    unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
+                    focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent
+                ),                modifier = Modifier
+                    .weight(1f)
+                    .padding(vertical = 14.dp)
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -213,11 +257,11 @@ private fun FilterChipRow(
     onSelect: (FilterMode) -> Unit
 ) {
     val filters = listOf(
-        FilterMode.ALL to "全部",
-        FilterMode.MODIFIED to "已修改",
-        FilterMode.ANIA_ADAPTED to "ANIA",
-        FilterMode.PICP_ADAPTED to "PICP",
-        FilterMode.HAS_ADAPTIVE to "Adaptive"
+        FilterMode.ALL to stringResource(R.string.filter_all),
+        FilterMode.MODIFIED to stringResource(R.string.filter_modified),
+        FilterMode.ANIA_ADAPTED to stringResource(R.string.filter_ania),
+        FilterMode.PICP_ADAPTED to stringResource(R.string.filter_picp),
+        FilterMode.HAS_ADAPTIVE to stringResource(R.string.filter_adaptive)
     )
     LazyRow(
         modifier = Modifier.fillMaxWidth(),
@@ -236,7 +280,10 @@ private fun FilterChipRow(
                     )
                 },
                 shape = RoundedCornerShape(20.dp),
-                colors = FilterChipDefaults.filterChipColors()
+                colors = FilterChipDefaults.filterChipColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer
+                )
             )
         }
     }
@@ -247,45 +294,42 @@ private fun ScanProgressBar(
     progress: Pair<Int, Int>,
     modifier: Modifier = Modifier
 ) {
-    val pct = if (progress.second > 0) progress.first.toFloat() / progress.second else 0f
-    Column(modifier) {
+    Column(modifier = modifier) {
         LinearProgressIndicator(
-            progress = { pct.coerceIn(0f, 1f) },
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.primary
+            progress = { if (progress.second > 0) progress.first.toFloat() / progress.second else 0f },
+            modifier = Modifier.fillMaxWidth()
         )
-        Spacer(Modifier.height(4.dp))
         Text(
             text = "${progress.first} / ${progress.second}",
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp)
         )
     }
 }
 
 @Composable
 private fun AppList(
-    grouped: Map<AppGroup, List<AppUiEntry>>,
+    grouped: Map<AppGroup, List<io.github.deserthouse.opticon.ui.state.AppUiEntry>>,
     listState: androidx.compose.foundation.lazy.LazyListState,
     onAppClick: (String) -> Unit,
-    onAppLongClick: (AppUiEntry) -> Unit
+    onAppLongClick: (io.github.deserthouse.opticon.ui.state.AppUiEntry) -> Unit
 ) {
     LazyColumn(
         state = listState,
-        contentPadding = PaddingValues(top = 4.dp, bottom = 32.dp)
+        contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp),
+        modifier = Modifier.fillMaxSize()
     ) {
         grouped.forEach { (group, apps) ->
-            if (apps.isNotEmpty()) {
-                item(key = "h_${group.name}") {
-                    GroupHeader(group, count = apps.size)
-                }
-                items(apps, key = { it.packageName }) { app ->
-                    ModernAppCard(
-                        entry = app,
-                        onClick = { onAppClick(app.packageName) },
-                        onLongClick = { onAppLongClick(app) }
-                    )
-                }
+            item(key = "header_${group.name}") {
+                GroupHeader(group = group, count = apps.size)
+            }
+            items(apps, key = { it.packageName }) { entry ->
+                ModernAppCard(
+                    entry = entry,
+                    onClick = { onAppClick(entry.packageName) },
+                    onLongClick = { onAppLongClick(entry) }
+                )
             }
         }
     }
@@ -293,79 +337,77 @@ private fun AppList(
 
 @Composable
 private fun GroupHeader(group: AppGroup, count: Int) {
+    val label = when (group) {
+        AppGroup.MODIFIED -> stringResource(R.string.group_modified)
+        AppGroup.UNMODIFIED -> stringResource(R.string.group_unmodified)
+    }
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(6.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary)
-        )
+        Surface(
+            shape = CircleShape,
+            color = if (group == AppGroup.MODIFIED)
+                MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.outlineVariant,
+            modifier = Modifier.size(8.dp)
+        ) {}
         Spacer(Modifier.width(8.dp))
         Text(
-            text = when (group) {
-                AppGroup.MODIFIED -> "已修改"
-                AppGroup.UNMODIFIED -> "未修改"
-            },
-            style = MaterialTheme.typography.labelLarge,
+            text = label,
+            style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary
+            color = if (group == AppGroup.MODIFIED)
+                MaterialTheme.colorScheme.onSurface
+            else MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Spacer(Modifier.width(6.dp))
-        Text(
-            text = "($count)",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Spacer(Modifier.width(8.dp))
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh
+        ) {
+            Text(
+                text = count.toString(),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+            )
+        }
     }
 }
 
 @Composable
-private fun EmptyState(
-    searchQuery: String,
-    modifier: Modifier = Modifier
-) {
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+private fun EmptyState(searchQuery: String, modifier: Modifier = Modifier) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = modifier.padding(32.dp)
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier.size(96.dp)
         ) {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier.size(80.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Rounded.Tune,
-                        contentDescription = null,
-                        modifier = Modifier.size(36.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    Icons.Rounded.Search,
+                    null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(40.dp)
+                )
             }
-            Spacer(Modifier.height(16.dp))
-            Text(
-                text = if (searchQuery.isBlank())
-                    "没有匹配的应用"
-                else
-                    "找不到 \"$searchQuery\" 相关应用",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = if (searchQuery.isBlank())
-                    "尝试调整筛选条件或刷新列表"
-                else
-                    "检查包名是否正确，或清除搜索",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-            )
         }
+        Spacer(Modifier.height(20.dp))
+        Text(
+            text = stringResource(R.string.empty_no_apps_title),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = stringResource(R.string.empty_no_apps_body),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }

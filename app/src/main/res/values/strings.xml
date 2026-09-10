@@ -153,4 +153,15 @@
 
     <!-- v0.3.0-alpha ModernAppCard + AppListScreen -->
     <string name="refresh">Refresh</string>
+
+
+    <!-- UI redesign v0.4.0 -->
+    <string name="filter_modified">Modified</string>
+    <string name="group_modified">Modified</string>
+    <string name="group_unmodified">Not Modified</string>
+    <string name="status_active">Module active</string>
+    <string name="status_inactive">Module not activated</string>
+    <string name="empty_no_apps_title">No apps found</string>
+    <string name="empty_no_apps_body">Try a different keyword or filter</string>
+    <string name="empty_no_apps_clear">Clear search</string>
 </resources>
