@@ -151,6 +151,7 @@ fun AppDetailScreen(
             val enabled = state.methodEnabled
 
             // Strategy 1: Fankes
+            StrategyCard {
             val fankesHasIcon = remember(state.packageName) { IconLibEngine.hasIcon(state.packageName) }
             val fankesMeta = remember(state.packageName) { IconLibEngine.getMeta(state.packageName) }
             StrategyRadio(
@@ -167,23 +168,25 @@ fun AppDetailScreen(
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 40.dp, vertical = 4.dp))
                 } else {
-                    Card(Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 4.dp), shape = RoundedCornerShape(10.dp),
+                    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
                         Column(Modifier.padding(12.dp)) {
                             Text(stringResource(R.string.strategy_fankes_submit_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
                             Spacer(Modifier.height(4.dp))
                             OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/fankes/AndroidNotifyIconAdapt/issues/new"))) },
-                                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp)) {
+                                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                                 Text(stringResource(R.string.strategy_fankes_submit_btn), fontSize = 13.sp)
                             }
                         }
                     }
                 }
             }
+            }
 
             Spacer(Modifier.height(12.dp))
 
             // Strategy 2: Asset Import
+            StrategyCard {
             StrategyRadio(
                 label = stringResource(R.string.strategy_asset_label),
                 desc = stringResource(R.string.strategy_asset_desc),
@@ -194,10 +197,12 @@ fun AppDetailScreen(
             AnimatedVisibility(state.strategy == IconStrategy.ASSET_IMPORT) {
                 AssetImportPanel(state, viewModel, enabled)
             }
+            }
 
             Spacer(Modifier.height(12.dp))
 
             // Strategy 3: Algorithm (WIP)
+            StrategyCard {
             StrategyRadio(
                 label = stringResource(R.string.strategy_algo_label),
                 desc = stringResource(R.string.strategy_algo_wip),
@@ -208,6 +213,7 @@ fun AppDetailScreen(
             AnimatedVisibility(state.strategy == IconStrategy.ALGORITHM) {
                 AlgoWipSection(viewModel::showSheet)
             }
+            }
 
             Spacer(Modifier.height(24.dp))
         }
@@ -217,6 +223,21 @@ fun AppDetailScreen(
         AlgoWipSheet(onDismiss = viewModel::hideSheet, onScaleChange = viewModel::setScale,
             onOffsetXChange = viewModel::setOffsetX, onOffsetYChange = viewModel::setOffsetY,
             onThresholdChange = viewModel::setThreshold)
+    }
+}
+
+/** M3E strategy group card — 24dp radius, floats on layered background */
+@Composable
+private fun StrategyCard(content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+    ) {
+        androidx.compose.foundation.layout.Column(
+            modifier = Modifier.padding(vertical = 8.dp),
+            content = content
+        )
     }
 }
 
