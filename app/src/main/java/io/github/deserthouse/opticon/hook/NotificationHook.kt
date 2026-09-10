@@ -56,7 +56,7 @@ object NotificationHook {
             .getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS),
         "OptIcon"
     )
-    private const val SHARED_ICON_EXT = ".opticon.png"
+    private const val SHARED_ICON_EXT = ".opticon"
 
     // 128 entries × ~36KB (96×96 ARGB_8888) ≈ 4.6MB upper bound — SystemUI affordable
     // NOTE: Do NOT auto-recycle evicted bitmaps — Icon.createWithBitmap holds
@@ -688,7 +688,7 @@ object NotificationHook {
     }
 
     /** Load baked icon for package. Read paths, tried in order:
-     *    0. SHARED_ICON_DIR (Download/OptIcon/{pkg}.opticon.png) — PRODUCTION
+     *    0. SHARED_ICON_DIR (Download/OptIcon/{pkg}.opticon) — PRODUCTION
      *       channel, Iconify-proven, SELinux-safe, no root needed.
      *    1. /data/local/tmp/opticon_baked — root/test channel (dev AVD).
      *    2. module filesDir direct read — dev scenarios only (SELinux blocks

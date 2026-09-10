@@ -26,7 +26,7 @@ import java.io.File
  *     Environment.getExternalStoragePublicDirectory(DIRECTORY_DOWNLOADS) —
  *     SystemUI is a privileged process and reads public dirs natively.
  *
- * File naming: {pkg}.opticon.png — the custom extension prevents gallery
+ * File naming: {pkg}.opticon — extensionless (no .png) so MediaScanner
  * apps from indexing the icons (trick used by Iconify's ".iconify" files).
  *
  * Hot reload: the hook already runs FileObserver on this directory; writes
@@ -35,7 +35,7 @@ import java.io.File
 object SharedIconStore {
 
     const val DIR_NAME = "OptIcon"
-    const val EXTENSION = ".opticon.png"
+    const val EXTENSION = ".opticon"  // no image suffix — MediaScanner ignores it
 
     /** Canonical read path used by the SystemUI hook (File API). */
     fun publicDir(): File =
@@ -45,6 +45,32 @@ object SharedIconStore {
 
     /** Master switch also lives here so the hook never touches filesDir. */
     fun masterSwitchFile(): File = File(publicDir(), "master_switch.opticon")
+
+    /** Ensure .nomedia exists so gallery apps never index this dir (belt & braces). */
+    /** One-time cleanup: rename legacy pkg.opticon.png to pkg.opticon so the
+     *  gallery stops indexing files written by old versions. */
+    private fun migrateLegacyNames(context: Context) {
+        try {
+            val prefs = context.getSharedPreferences("opticon_store", Context.MODE_PRIVATE)
+            if (prefs.getBoolean("legacy_migrated", false)) return
+            val dir = publicDir()
+            dir.listFiles { f -> f.name.endsWith(".opticon.png") }?.forEach { old ->
+                val target = File(dir, old.name.removeSuffix(".png"))
+                if (!target.exists()) old.renameTo(target) else old.delete()
+            }
+            val cr = context.contentResolver
+            cr.delete(android.provider.MediaStore.Files.getContentUri("external"),
+                android.provider.MediaStore.MediaColumns.DATA + " LIKE ?",
+                arrayOf("%/Download/OptIcon/%"))
+            prefs.edit().putBoolean("legacy_migrated", true).apply()
+        } catch (_: Exception) { }
+    }
+
+    fun ensureNoMedia(context: Context): Boolean {
+        val f = File(publicDir(), ".nomedia")
+        if (f.exists()) return true
+        return try { f.createNewFile() } catch (_: Exception) { false }
+    }
 
     /**
      * Write (or atomically replace) a baked icon PNG into the shared dir.
@@ -100,6 +126,8 @@ object SharedIconStore {
         MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
 
     private fun writeBytes(context: Context, fileName: String, bytes: ByteArray): String? {
+        ensureNoMedia(context)
+        migrateLegacyNames(context)
         return try {
             val resolver = context.contentResolver
             val relativePath = "Download/$DIR_NAME"
