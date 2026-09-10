@@ -186,4 +186,5 @@
     <string name="pill_adaptive">Adaptive</string>
     <string name="pill_compliant">Compliant</string>
     <string name="pill_noncompliant">Not compliant</string>
+    <string name="compliance_hint">Compliance badges appear after an app sends its first notification.</string>
 </resources>

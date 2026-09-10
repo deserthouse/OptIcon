@@ -34,6 +34,7 @@ class E2ETestReceiver : BroadcastReceiver() {
         private const val TAG = "OptIcon/E2E"
         private const val ACTION_BAKE = "io.github.deserthouse.opticon.E2E_BAKE"
         private const val ACTION_CHECK = "io.github.deserthouse.opticon.E2E_CHECK"
+        private const val ACTION_COLOR_NOTIF = "io.github.deserthouse.opticon.E2E_COLOR_NOTIF"
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -78,6 +79,32 @@ class E2ETestReceiver : BroadcastReceiver() {
                     } finally {
                         pending.finish()
                     }
+                }
+            }
+            ACTION_COLOR_NOTIF -> {
+                // Post a notification whose smallIcon is a COLORFUL BITMAP —
+                // the classic non-compliant pattern (e.g. marketing icons).
+                val pending = goAsync()
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        val nm = ctx.getSystemService(android.app.NotificationManager::class.java)
+                        val ch = android.app.NotificationChannel("e2e_color", "E2E Color", android.app.NotificationManager.IMPORTANCE_LOW)
+                        nm.createNotificationChannel(ch)
+                        // colorful bitmap: red-to-blue gradient
+                        val bmp = android.graphics.Bitmap.createBitmap(48, 48, android.graphics.Bitmap.Config.ARGB_8888)
+                        for (y in 0 until 48) for (x in 0 until 48) {
+                            bmp.setPixel(x, y, android.graphics.Color.rgb(x * 255 / 47, 0, y * 255 / 47))
+                        }
+                        val n = android.app.Notification.Builder(ctx, "e2e_color")
+                            .setSmallIcon(android.graphics.drawable.Icon.createWithBitmap(bmp))
+                            .setContentTitle("ColorIcon")
+                            .setContentText("non-compliant sample")
+                            .build()
+                        nm.notify(9901, n)
+                        TraceLogger.i(TAG, "E2E color notif posted (BITMAP smallIcon)")
+                    } catch (e: Exception) {
+                        TraceLogger.i(TAG, "E2E color notif error: ${e.message}")
+                    } finally { pending.finish() }
                 }
             }
             ACTION_CHECK -> {

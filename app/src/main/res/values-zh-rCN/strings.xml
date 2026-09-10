@@ -183,4 +183,5 @@
     <string name="pill_adaptive">自适应</string>
     <string name="pill_compliant">符合规范</string>
     <string name="pill_noncompliant">不符合规范</string>
+    <string name="compliance_hint">应用发送通知后才会显示合规状态</string>
 </resources>

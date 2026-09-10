@@ -153,6 +153,12 @@ fun AppListScreen(
                     onSelect = viewModel::setFilterMode
                 )
                 Spacer(Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.compliance_hint),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp)
+                )
                 AnimatedVisibility(
                     visible = state.isScanning,
                     enter = fadeIn(),

@@ -43,8 +43,11 @@ object ComplianceDetector {
                 else -> true
             }
             val file = File(dir(sharedBase), pkg)
+            val flag = if (compliant) "1" else "0"
+            // skip disk IO when the verdict is unchanged (frequent notifiers)
+            if (file.exists() && file.readText() == flag) return
             file.parentFile?.mkdirs()
-            file.writeText(if (compliant) "1" else "0")
+            file.writeText(flag)
         } catch (_: Exception) {
             // never crash SystemUI for a badge
         }
