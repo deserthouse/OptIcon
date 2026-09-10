@@ -401,9 +401,7 @@ object PreferenceManager {
         /** B Material 设计图标库兜底 */
         MATERIAL_LIB,
         /** C 文本/Emoji 剪影转换（彩蛋，需解锁） */
-        EMOJI_TEXT,
-        /** D 云端 AI 图标重绘（彩蛋，需解锁） */
-        AI_REDRAW
+        EMOJI_TEXT
     }
 
     // ━━━ 旧枚举保留兼容（不推荐新代码使用）━━━

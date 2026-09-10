@@ -7,6 +7,7 @@ import io.github.deserthouse.opticon.engine.IconEngine
 import io.github.deserthouse.opticon.engine.RedrawParams
 import io.github.deserthouse.opticon.engine.SharedIconStore
 import io.github.deserthouse.opticon.util.PreferenceManager.IconMethod
+import io.github.deserthouse.opticon.util.PreferenceManager.ManualBranch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -50,17 +51,24 @@ class E2ETestReceiver : BroadcastReceiver() {
                         val m = when (method) {
             "selffilter" -> IconMethod.SELF_FILTER
             "iconpack" -> IconMethod.ICON_PACK
+            "manual" -> IconMethod.MANUAL
             else -> IconMethod.ADAPTIVE
+        }
+        val branch = when (intent.getStringExtra("branch")) {
+            "material" -> ManualBranch.MATERIAL_LIB
+            "emoji" -> ManualBranch.EMOJI_TEXT
+            "local" -> ManualBranch.LOCAL_FILE
+            else -> null
         }
                         val result = IconEngine.bake(
                             context = ctx,
                             packageName = pkg,
                             method = m,
-                            branch = null,
+                            branch = branch,
                             params = RedrawParams.DEFAULT,
-                            localPath = null,
-                            materialIconName = null,
-                            emojiText = null,
+                            localPath = intent.getStringExtra("path"),
+                            materialIconName = intent.getStringExtra("icon"),
+                            emojiText = intent.getStringExtra("emoji"),
                             selectedIconPack = intent.getStringExtra("pack"),
                             selectedPackIconDrawable = intent.getStringExtra("drawable")
                         )
