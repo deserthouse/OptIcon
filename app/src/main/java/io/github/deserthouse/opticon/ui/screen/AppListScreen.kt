@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -39,6 +40,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -213,47 +216,28 @@ private fun StatusDot() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SearchField(
     query: String,
     onQueryChange: (String) -> Unit
 ) {
-    Surface(
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        placeholder = { Text(stringResource(R.string.search_apps)) },
+        leadingIcon = { Icon(Icons.Rounded.Search, null) },
+        singleLine = true,
         shape = RoundedCornerShape(28.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        colors = OutlinedTextFieldDefaults.colors(
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            unfocusedBorderColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            focusedBorderColor = MaterialTheme.colorScheme.primary
+        ),
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
-        ) {
-            Icon(
-                Icons.Rounded.Search, null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.width(12.dp))
-            androidx.compose.material3.OutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                placeholder = {
-                    Text(stringResource(R.string.search_apps), style = MaterialTheme.typography.bodyLarge)
-                },
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyLarge,
-                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
-                    unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
-                    focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
-                    unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent
-                ),                modifier = Modifier
-                    .weight(1f)
-                    .padding(vertical = 14.dp)
-            )
-        }
-    }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
