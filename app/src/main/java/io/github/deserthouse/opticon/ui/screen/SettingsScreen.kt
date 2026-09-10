@@ -229,7 +229,6 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
             )
         }
     }
-}
 
 @Composable
 private fun AddSourceDialog(onDismiss: () -> Unit, onConfirm: (String, String, String) -> Unit) {

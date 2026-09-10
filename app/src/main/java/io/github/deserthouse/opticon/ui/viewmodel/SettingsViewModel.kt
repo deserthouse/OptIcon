@@ -143,10 +143,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _masterEnabled.value = enabled
     }
 
-    fun setPredictiveBack(enabled: Boolean) {
-        PreferenceManager.setPredictiveBackEnabled(enabled)
-        _predictiveBack.value = enabled
-    }
 
     // ━━━ ANIA sync ━━━
 

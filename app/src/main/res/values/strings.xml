@@ -187,5 +187,5 @@
     <string name="pill_noncompliant">Not compliant</string>
     <string name="compliance_hint">Compliance badges appear after an app sends its first notification.</string>
     <string name="enabled_label">Enabled</string>
-    <string name="predictive_back_desc" tools:ignore="UnusedResources">Native back-swipe preview, always on</string>
+    <string name="predictive_back_desc">Native back-swipe preview, always on</string>
 </resources>
