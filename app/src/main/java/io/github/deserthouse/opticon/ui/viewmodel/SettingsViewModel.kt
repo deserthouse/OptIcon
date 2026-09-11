@@ -64,11 +64,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    private val _lsposedActive = MutableStateFlow(false)
-    val lsposedActive: StateFlow<Boolean> = _lsposedActive.asStateFlow()
+    private val _lsposedActive = MutableStateFlow<Boolean?>(null)
+    val lsposedActive: StateFlow<Boolean?> = _lsposedActive.asStateFlow()
 
-    private val _rootAvailable = MutableStateFlow(false)
-    val rootAvailable: StateFlow<Boolean> = _rootAvailable.asStateFlow()
+    private val _rootAvailable = MutableStateFlow<Boolean?>(null)
+    val rootAvailable: StateFlow<Boolean?> = _rootAvailable.asStateFlow()
+
+    private val _rechecking = MutableStateFlow(false)
+    val rechecking: StateFlow<Boolean> = _rechecking.asStateFlow()
 
     init {
         // Run slow checks off main thread (H2 fix)
@@ -77,10 +80,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     /** 手动重检: LSPosed 活性 + Root 可用性 (状态卡刷新按钮) */
     fun recheckStatuses() {
+        if (_rechecking.value) return
         viewModelScope.launch {
             val app = getApplication<Application>()
-            _lsposedActive.value = withContext(Dispatchers.IO) { checkLsposed(app) }
-            _rootAvailable.value = withContext(Dispatchers.IO) { checkRoot() }
+            _rechecking.value = true
+            val lsposed = withContext(Dispatchers.IO) { checkLsposed(app) }
+            _lsposedActive.value = lsposed
+            val root = withContext(Dispatchers.IO) { checkRoot() }
+            _rootAvailable.value = root
+            _rechecking.value = false
         }
     }
 
@@ -95,6 +103,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     private val _emojiUnlocked = MutableStateFlow(PreferenceManager.isEmojiUnlocked())
     val emojiUnlocked: StateFlow<Boolean> = _emojiUnlocked.asStateFlow()
+
+    private val _rambleExtraShown = MutableStateFlow(PreferenceManager.isRambleExtraShown())
+    val rambleExtraShown: StateFlow<Boolean> = _rambleExtraShown.asStateFlow()
 
     // ━━━ ANIA subscription ━━━
     private val _aniaSyncStatus = MutableStateFlow<String?>(null)
@@ -268,14 +279,46 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun dismissInfo() { _infoMessage.value = null }
     fun consumeToast() { _toastEvent.value = null }
 
+    /** 解锁后直接展开/收起（含 UI 上的 chevron 按钮），不再走彩蛋计数流程 */
+    fun toggleEasterEgg() {
+        _easterEggExpanded.value = !_easterEggExpanded.value
+    }
+
     fun onVersionTapped() {
+        // 已解锁：直接切换可见性，无 emoji 序列
+        if (_emojiUnlocked.value) {
+            toggleEasterEgg()
+            return
+        }
         versionTapCount++
         if (versionTapCount < EMOJI_UNLOCK_TAPS) {
             _toastEvent.value = "🐾"
             return
         }
-        _easterEggExpanded.value = !_easterEggExpanded.value
-        _toastEvent.value = if (_easterEggExpanded.value) "🐺" else "🌙"
+        // 第 7 击：解锁并常驻（持久化），展开彩蛋区
+        PreferenceManager.setEmojiUnlocked(true)
+        _emojiUnlocked.value = true
+        _easterEggExpanded.value = true
+        _toastEvent.value = "🐺"
         versionTapCount = 0
     }
+
+    /** 碎碎念二层彩蛋: 🍆×6 → 💦+1% 行常驻; 触发后再点 → 「一滴也没有了」 */
+    fun onRambleTapped() {
+        if (_rambleExtraShown.value) {
+            _toastEvent.value = getApplication<Application>().getString(io.github.deserthouse.opticon.R.string.easter_egg_dry)
+            return
+        }
+        rambleTapCount++
+        if (rambleTapCount < EMOJI_UNLOCK_TAPS) {
+            _toastEvent.value = "🍆"
+            return
+        }
+        PreferenceManager.setRambleExtraShown(true)
+        _rambleExtraShown.value = true
+        _toastEvent.value = "💦"
+        rambleTapCount = 0
+    }
+
+    private var rambleTapCount = 0
 }

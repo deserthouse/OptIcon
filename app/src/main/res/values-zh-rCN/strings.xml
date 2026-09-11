@@ -53,9 +53,11 @@
     <string name="credit_iconify">MohamedRejworkshop / Iconify</string>
     <string name="credit_iconify_desc">感谢 Iconify —— 其跨进程图标配送管线（共享目录模式）为本项目的生产配送方案提供了架构参考。</string>
 
-    <string name="easter_egg_author">作者：澪狼</string>
-    <string name="easter_egg_email">deserthouse98@gmail.com</string>
-    <string name="easter_egg_ai_note">我不认为自己是个开发者，我一行代码也看不懂。本项目包含 100% 的 AI 成分和 0% 的人类成分，因此你固然可以对项目提出任何意见或建议，但我不一定看得懂，我的 Agent 也不一定。</string>
+    <string name="easter_egg_author">vibrator</string>
+    <string name="easter_egg_vibe_line">如果程序员可以自称 coder，那么我们玩 vibe coding 的是不是可以自称 vibrator？</string>
+    <string name="easter_egg_ai_note">OptIcon 不是我的第一个项目，但它是我第一个落地的项目。我是 Android 重度发烧友，你要说我是极客我也能脸不红心不跳地认了，但我从来不认为我是一个合格的开发者。原因很简单：我一行代码也看不懂，因此本项目实质上包含 100% 的 AI 成分和 0% 的人类成分。你固然可以对项目提出任何意见或者建议，但我不一定会改——是真的不会，不是不想。</string>
+    <string name="easter_egg_extra_line">等会儿，上面这行字是我亲自编写的，所以人类成分或许勉强可以增加到 1%？</string>
+    <string name="easter_egg_dry">别点了，一滴也没有了 😭</string>
     <string name="easter_egg_card_title">关于 vibe coding 的一点碎碎念</string>
 
     <string name="search_apps">搜索应用\u2026</string>
@@ -159,6 +161,9 @@
     <string name="group_unmodified">未修改</string>
     <string name="status_active">模块已激活</string>
     <string name="status_inactive">模块未激活</string>
+    <string name="status_checking">检测中…</string>
+    <string name="hero_checking_subtitle">正在与 hook 通信，请稍候…</string>
+    <string name="root_status_checking">正在检测 su 权限…</string>
     <string name="empty_no_apps_title">没有找到应用</string>
     <string name="empty_no_apps_body">换个关键词或筛选条件试试</string>
     <string name="empty_no_apps_clear">清除搜索</string>

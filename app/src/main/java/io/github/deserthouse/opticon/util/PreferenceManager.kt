@@ -32,6 +32,7 @@ object PreferenceManager {
     private const val KEY_GLOBAL_VERBOSE_LOG = "global_verbose_log"
     private const val KEY_GLOBAL_PREDICTIVE_BACK = "global_predictive_back"
     private const val KEY_EMOJI_UNLOCKED = "emoji_unlocked"
+    private const val KEY_RAMBLE_EXTRA_SHOWN = "ramble_extra_shown"
     private const val KEY_AI_CONFIG = "ai_config"
     private const val KEY_SUBSCRIPTION_URLS = "subscription_urls"
 
@@ -248,6 +249,13 @@ object PreferenceManager {
 
     fun setEmojiUnlocked(unlocked: Boolean) {
         prefs?.edit { putBoolean(KEY_EMOJI_UNLOCKED, unlocked) }
+    }
+
+    fun isRambleExtraShown(): Boolean =
+        prefs?.getBoolean(KEY_RAMBLE_EXTRA_SHOWN, false) ?: false
+
+    fun setRambleExtraShown(shown: Boolean) {
+        prefs?.edit { putBoolean(KEY_RAMBLE_EXTRA_SHOWN, shown) }
     }
 
     // ━━━ 订阅源管理 ━━━

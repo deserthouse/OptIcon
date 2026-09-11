@@ -7,8 +7,8 @@ import android.graphics.drawable.Drawable
  */
 data class AppListUiState(
     val apps: List<AppUiEntry> = emptyList(),
-    /** 真实 LSPosed hook 存活检测 (心跳新鲜度) — 驱动列表页英雄区状态点 */
-    val lsposedActive: Boolean = false,
+    /** 真实 LSPosed hook 存活检测 (心跳新鲜度) — null=首次检测进行中，UI 显示「检测中」 */
+    val lsposedActive: Boolean? = null,
     val isScanning: Boolean = false,
     val scanProgress: Pair<Int, Int> = 0 to 0,
     val searchQuery: String = "",
