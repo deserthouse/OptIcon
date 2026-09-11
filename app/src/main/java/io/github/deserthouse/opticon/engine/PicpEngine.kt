@@ -35,30 +35,37 @@ object PicpEngine {
     }
 
     /** Download entire PICP repo as zipball, extract all 1.png icons.
-     *  Streams download to disk — zero heap pressure. */
+     *  Streams download to disk (atomic tmp+rename), validates the zip and
+     *  retries once — field reports showed ENOENT on open after a silently
+     *  failed download, which this self-heals. */
     fun syncIndex(context: Context, url: String, onProgress: ((String) -> Unit)?, onResult: (Boolean, Int, String?) -> Unit) {
         Thread {
-            try {
-                val cacheDir = File(context.filesDir, CACHE_DIR).apply { mkdirs() }
-                val zipFile = File(cacheDir, "picp_repo.zip")
+            val cacheDir = File(context.filesDir, CACHE_DIR).apply { mkdirs() }
+            val zipFile = File(cacheDir, "picp_repo.zip")
 
-                // Stream download directly to disk (no byte array in memory)
+            fun downloadZip(): Boolean {
                 onProgress?.invoke("Downloading PICP (streaming)...")
-                val ok = NetworkExecutor.fetchToFile(url, zipFile) { downloaded, total ->
+                // Write to a tmp file first so a failed/interrupted download can
+                // never leave a missing or half-written zip behind.
+                val tmp = File(cacheDir, "picp_repo.zip.tmp")
+                tmp.delete()
+                val ok = NetworkExecutor.fetchToFile(url, tmp) { downloaded, total ->
                     val pct = if (total > 0) (downloaded * 100 / total).toInt() else 0
                     onProgress?.invoke("Downloading ${downloaded / 1024 / 1024}MB${if (total > 0) " / ${total / 1024 / 1024}MB ($pct %)" else ""}")
                 }
-                if (!ok) {
-                    zipFile.delete()
-                    onResult(false, 0, "Failed to download PICP zipball")
-                    return@Thread
+                if (!ok || !tmp.exists() || tmp.length() == 0L) {
+                    TraceLogger.w(TAG, "PICP download failed (ok=$ok fileExists=${tmp.exists()} size=${if (tmp.exists()) tmp.length() else -1})")
+                    tmp.delete()
+                    return false
                 }
+                zipFile.delete()
+                return tmp.renameTo(zipFile)
+            }
 
-                onProgress?.invoke("Extracting icons...")
+            fun extractZip(): Int {
                 index.clear()
                 val iconDir = File(cacheDir, "icons").apply { mkdirs() }
                 var count = 0
-
                 ZipInputStream(zipFile.inputStream()).use { zis ->
                     var entry = zis.nextEntry
                     while (entry != null) {
@@ -79,17 +86,49 @@ object PicpEngine {
                         entry = zis.nextEntry
                     }
                 }
-
-                // Cleanup zip
-                zipFile.delete()
-
-                // Save index
                 File(cacheDir, INDEX_FILE).writeText(index.keys.joinToString("\n"))
-                TraceLogger.i(TAG, "PICP extracted: $count icons")
-                onProgress?.invoke("PICP synced $count icons")
-                onResult(true, count, null)
+                return count
+            }
+
+            try {
+                var lastError: String? = null
+                // Two attempts: transient network/storage hiccups self-heal.
+                for (attempt in 1..2) {
+                    if (attempt > 1) {
+                        onProgress?.invoke("Retrying download...")
+                        Thread.sleep(1500)
+                    }
+                    if (!downloadZip()) {
+                        lastError = "Failed to download PICP zipball"
+                        continue
+                    }
+                    if (!zipFile.exists() || zipFile.length() == 0L) {
+                        // Should be impossible after the atomic tmp+rename —
+                        // reported as ENOENT on some devices before this guard.
+                        TraceLogger.w(TAG, "PICP zip missing after download (attempt $attempt)")
+                        lastError = "Downloaded PICP zip is missing — download silently failed"
+                        continue
+                    }
+                    onProgress?.invoke("Extracting icons...")
+                    val count = try {
+                        extractZip()
+                    } catch (e: Exception) {
+                        TraceLogger.w(TAG, "PICP extract failed: ${e}")
+                        // A non-zip payload (HTML error page from a proxy, a
+                        // truncated download) surfaces here — retry cleanly.
+                        lastError = "PICP archive invalid: ${e.message}"
+                        continue
+                    }
+                    zipFile.delete()
+                    TraceLogger.i(TAG, "PICP extracted: $count icons")
+                    onProgress?.invoke("PICP synced $count icons")
+                    onResult(true, count, null)
+                    return@Thread
+                }
+                onResult(false, 0, lastError ?: "PICP sync failed")
             } catch (e: Exception) {
-                onResult(false, 0, "PICP extraction failed: ${e.message}")
+                TraceLogger.w(TAG, "PICP sync error: ${e}")
+                onResult(false, 0, "PICP sync failed: ${e.message}")
             }
         }.start()
     }
