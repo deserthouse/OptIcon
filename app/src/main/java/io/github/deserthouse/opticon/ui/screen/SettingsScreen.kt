@@ -201,6 +201,8 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
             SettingsCard {
                 Row(
                     Modifier.fillMaxWidth()
+                        // padding BEFORE clickable → ripple fills the whole row
+                        .padding(vertical = 6.dp)
                         .clickable(enabled = !emojiUnlocked) { viewModel.onVersionTapped() },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -261,7 +263,11 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     lineHeight = 18.sp,
-                                    modifier = Modifier.clickable { viewModel.onRambleTapped() }
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable { viewModel.onRambleTapped() }
+                                        .padding(horizontal = 4.dp, vertical = 8.dp)
                                 )
                                 AnimatedVisibility(
                                     visible = rambleExtraShown,

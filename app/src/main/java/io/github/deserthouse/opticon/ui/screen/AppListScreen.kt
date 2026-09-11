@@ -194,49 +194,68 @@ fun AppListScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                SearchField(
-                    query = state.searchQuery,
-                    onQueryChange = viewModel::setSearchQuery
-                )
-                Spacer(Modifier.height(8.dp))
-                FilterChipRow(
-                    current = state.filterMode,
-                    onSelect = viewModel::setFilterMode
-                )
-                Spacer(Modifier.height(8.dp))
-                AnimatedVisibility(
-                    visible = state.isScanning,
-                    enter = fadeIn(),
-                    exit = fadeOut()
-                ) {
-                    ScanProgressBar(
-                        progress = state.scanProgress,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            // Everything lives in ONE lazy list — hero card, search, filter
+            // chips and progress all scroll away with the content, leaving a
+            // clean compact title bar when reading the list.
+            val filtered = viewModel.applySearchAndFilter(
+                state.apps, state.searchQuery, state.filterMode
+            )
+            val grouped = viewModel.buildGroups(filtered)
+            LazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                item(key = "hero") {
+                    HeroStatusCard(
+                        active = state.lsposedActive,
+                        modifiedCount = state.apps.count { it.isUserModified },
+                        onClick = onNavigateToSettings
                     )
                 }
-                val filtered = viewModel.applySearchAndFilter(
-                    state.apps, state.searchQuery, state.filterMode
-                )
-                val grouped = viewModel.buildGroups(filtered)
+                item(key = "search") {
+                    SearchField(
+                        query = state.searchQuery,
+                        onQueryChange = viewModel::setSearchQuery
+                    )
+                }
+                item(key = "chips") {
+                    FilterChipRow(
+                        current = state.filterMode,
+                        onSelect = viewModel::setFilterMode
+                    )
+                }
+                if (state.isScanning) {
+                    item(key = "progress") {
+                        ScanProgressBar(
+                            progress = state.scanProgress,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    }
+                }
                 if (filtered.isEmpty() && !state.isScanning) {
-                    EmptyState(
-                        searchQuery = state.searchQuery,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    item(key = "empty") {
+                        EmptyState(
+                            searchQuery = state.searchQuery,
+                            modifier = Modifier.fillParentMaxSize()
+                        )
+                    }
                 } else {
-                    AppList(
-                        grouped = grouped,
-                        listState = listState,
-                        heroActive = state.lsposedActive,
-                        heroModifiedCount = state.apps.count { it.isUserModified },
-                        onHeroClick = onNavigateToSettings,
-                        onAppClick = onNavigateToDetail,
-                        onAppLongClick = { entry ->
-                            clipboard.setText(AnnotatedString(entry.packageName))
-                            Toast.makeText(context, packageNameCopiedText, Toast.LENGTH_SHORT).show()
+                    grouped.forEach { (group, apps) ->
+                        item(key = "header_${group.name}") {
+                            GroupHeader(group = group, count = apps.size)
                         }
-                    )
+                        items(apps, key = { it.packageName }) { entry ->
+                            ModernAppCard(
+                                entry = entry,
+                                onClick = { onNavigateToDetail(entry.packageName) },
+                                onLongClick = {
+                                    clipboard.setText(AnnotatedString(entry.packageName))
+                                    Toast.makeText(context, packageNameCopiedText, Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -433,44 +452,6 @@ private fun ScanProgressBar(
     }
 }
 
-@Composable
-private fun AppList(
-    grouped: Map<AppGroup, List<io.github.deserthouse.opticon.ui.state.AppUiEntry>>,
-    listState: androidx.compose.foundation.lazy.LazyListState,
-    heroActive: Boolean?,
-    heroModifiedCount: Int,
-    onHeroClick: () -> Unit,
-    onAppClick: (String) -> Unit,
-    onAppLongClick: (io.github.deserthouse.opticon.ui.state.AppUiEntry) -> Unit
-) {
-    LazyColumn(
-        state = listState,
-        contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp),
-        modifier = Modifier.fillMaxSize()
-    ) {
-        // Hero card scrolls away with the content — it must not squat
-        // between the collapsing title bar and the app list.
-        item(key = "hero") {
-            HeroStatusCard(
-                active = heroActive,
-                modifiedCount = heroModifiedCount,
-                onClick = onHeroClick
-            )
-        }
-        grouped.forEach { (group, apps) ->
-            item(key = "header_${group.name}") {
-                GroupHeader(group = group, count = apps.size)
-            }
-            items(apps, key = { it.packageName }) { entry ->
-                ModernAppCard(
-                    entry = entry,
-                    onClick = { onAppClick(entry.packageName) },
-                    onLongClick = { onAppLongClick(entry) }
-                )
-            }
-        }
-    }
-}
 
 @Composable
 private fun GroupHeader(group: AppGroup, count: Int) {
