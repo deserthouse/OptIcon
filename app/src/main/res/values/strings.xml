@@ -167,6 +167,9 @@
     <string name="status_checking">Checking…</string>
     <string name="hero_checking_subtitle">Talking to the hook, one moment…</string>
     <string name="root_status_checking">Checking su access…</string>
+    <string name="about_slogan">Make every notification icon native.</string>
+    <string name="predictive_back_desc">Native back-swipe preview, always on (system effect on Android 13+) — why would you turn it off?</string>
+    <string name="predictive_back_desc_legacy">Gesture preview isn\'t supported on this Android version (needs 13+); back navigation itself is unaffected.</string>
     <string name="empty_no_apps_title">No apps found</string>
     <string name="empty_no_apps_body">Try a different keyword or filter</string>
     <string name="empty_no_apps_clear">Clear search</string>
@@ -194,7 +197,6 @@
     <string name="pill_noncompliant">Not compliant</string>
     <string name="compliance_hint">Compliance badges appear after an app sends its first notification.</string>
     <string name="enabled_label">Enabled</string>
-    <string name="predictive_back_desc">Native back-swipe preview, always on</string>
     <string name="unsaved_title">Unsaved changes</string>
     <string name="unsaved_body">You changed this app icon settings but have not saved. Save before leaving?</string>
     <string name="unsaved_save">Save</string>
