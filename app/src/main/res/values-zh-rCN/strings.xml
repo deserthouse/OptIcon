@@ -37,7 +37,7 @@
     <string name="ui_section">界面</string>
     <string name="predictive_back">预测性返回手势动画</string>
     <string name="about_section">关于</string>
-    <string name="about_description">LSPosed API 102 \u00b7 Android 14+ 通知图标优化器</string>
+    <string name="about_description">LSPosed API 102 \u00b7 Android 12+ 通知图标优化器</string>
     <string name="credits_section">致谢</string>
     <string name="info_title">提示</string>
     <string name="ok_label">确定</string>
@@ -192,6 +192,7 @@
 
     <!-- UI redesign v0.5.0 — 首页状态大卡 -->
     <string name="hero_active_subtitle">正在规范化 %1$d 个应用 · 替换已生效</string>
+    <string name="hero_active_generic">图标替换已生效</string>
     <string name="hero_inactive_subtitle">点击前往设置检查 LSPosed 状态</string>
     <string name="hero_status_cd">模块运行状态，点击进入设置</string>
 
