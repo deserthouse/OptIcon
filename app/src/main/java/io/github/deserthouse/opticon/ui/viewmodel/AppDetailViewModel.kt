@@ -53,6 +53,11 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
     private val _state = MutableStateFlow(AppDetailState())
     private val _isDirty = MutableStateFlow(false)
     val isDirty: StateFlow<Boolean> = _isDirty.asStateFlow()
+
+    /** One-shot message when a save was altered by validation (e.g. kept off) */
+    private val _saveFeedback = MutableStateFlow<String?>(null)
+    val saveFeedback: StateFlow<String?> = _saveFeedback.asStateFlow()
+    fun consumeSaveFeedback() { _saveFeedback.value = null }
     val state: StateFlow<AppDetailState> = _state.asStateFlow()
 
     private var redrawDebounceJob: Job? = null
@@ -285,25 +290,39 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
     fun saveConfig() {
         _isDirty.value = false
         val s = _state.value; val pkg = s.packageName
-        PreferenceManager.setMethodEnabled(pkg, s.methodEnabled)
-        PreferenceManager.setStrategy(pkg, s.strategy)
-        PreferenceManager.setCustomIconPath(pkg, s.customIconPath)
-        PreferenceManager.setMaterialIconName(pkg, s.materialIconName)
-        PreferenceManager.setEmojiText(pkg, s.emojiText)
-        PreferenceManager.setScale(pkg, s.redrawParams.scale)
-        PreferenceManager.setThreshold(pkg, s.redrawParams.threshold)
-        PreferenceManager.setOffsetX(pkg, s.redrawParams.offsetX)
-        PreferenceManager.setOffsetY(pkg, s.redrawParams.offsetY)
-        PreferenceManager.setRadius(pkg, s.redrawParams.radius)
-
         viewModelScope.launch {
             val ctx = getApplication<Application>().applicationContext
-            if (!s.methodEnabled) { withContext(Dispatchers.IO) { deleteBaked(pkg) }; return@launch }
-            val result = withContext(Dispatchers.IO) { bakeCurrentState(ctx, s) }
-            withContext(Dispatchers.IO) {
-                if (result.bitmap != null) writeBaked(pkg, result.bitmap, result.hitLevel) else deleteBaked(pkg)
+            var enabled = s.methodEnabled
+            var bakeResult: IconEngine.BakeResult? = null
+            if (enabled) {
+                // Guard: a strategy that cannot produce an icon (e.g. FANKES
+                // rule not covering this app) must NOT persist as "enabled" —
+                // that would desync the switch from reality. Force it off and
+                // tell the user why.
+                bakeResult = withContext(Dispatchers.IO) { bakeCurrentState(ctx, s) }
+                if (bakeResult.bitmap == null) {
+                    enabled = false
+                    _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.save_blocked_no_icon)
+                }
             }
-            _state.update { it.copy(hitLevel = result.hitLevel) }
+            PreferenceManager.setMethodEnabled(pkg, enabled)
+            PreferenceManager.setStrategy(pkg, s.strategy)
+            PreferenceManager.setCustomIconPath(pkg, s.customIconPath)
+            PreferenceManager.setMaterialIconName(pkg, s.materialIconName)
+            PreferenceManager.setEmojiText(pkg, s.emojiText)
+            PreferenceManager.setScale(pkg, s.redrawParams.scale)
+            PreferenceManager.setThreshold(pkg, s.redrawParams.threshold)
+            PreferenceManager.setOffsetX(pkg, s.redrawParams.offsetX)
+            PreferenceManager.setOffsetY(pkg, s.redrawParams.offsetY)
+            PreferenceManager.setRadius(pkg, s.redrawParams.radius)
+
+            withContext(Dispatchers.IO) {
+                if (enabled && bakeResult?.bitmap != null) writeBaked(pkg, bakeResult.bitmap, bakeResult.hitLevel) else deleteBaked(pkg)
+            }
+            if (enabled) {
+                _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.config_saved)
+            }
+            _state.update { it.copy(methodEnabled = enabled, hitLevel = bakeResult?.hitLevel ?: "Disabled") }
         }
     }
 
