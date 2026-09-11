@@ -3,6 +3,8 @@ package io.github.deserthouse.opticon.ui.screen
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -34,6 +36,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -67,6 +70,8 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -131,56 +136,43 @@ fun AppListScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
     }
 
-    // enterAlways: pulling the list down re-expands the header immediately,
-    // instead of waiting until the list is scrolled back to the very top.
-    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+    // Compact pinned title bar (serif wordmark + version badge). The slogan
+    // lives INSIDE the scrolling content (below the hero card) so it hides
+    // itself while browsing. The search bar + chips sit under the title bar
+    // and auto-hide on scroll down / pop back on ANY pull-up.
+    val scrollUp by listState.isScrollingUp()
+    val headerVisible by remember {
+        derivedStateOf { listState.firstVisibleItemIndex == 0 || scrollUp }
+    }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            LargeTopAppBar(
+            TopAppBar(
                 title = {
-                    // Tap the title bar to jump back to the top, re-expanding
-                    // the whole header along the way.
-                    Column(
-                        Modifier.clickable {
-                            scope.launch {
-                                listState.animateScrollToItem(0)
-                            }
+                    // Tap the title bar to jump back to the top.
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable {
+                            scope.launch { listState.animateScrollToItem(0) }
                         }
                     ) {
-                        // Line 1: serif wordmark with the version badge riding
-                        // right after it; Line 2: slogan in serif italic to
-                        // echo the wordmark.
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                "OptIcon",
-                                style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontFamily = FontFamily.Serif
-                            )
-                            Spacer(Modifier.width(10.dp))
-                            Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
-                                Text(
-                                    "v${io.github.deserthouse.opticon.BuildConfig.VERSION_NAME}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
                         Text(
-                            text = stringResource(R.string.about_slogan),
-                            style = MaterialTheme.typography.labelLarge.copy(
-                                fontFamily = FontFamily.Serif,
-                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
-                            ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            "OptIcon",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontFamily = FontFamily.Serif
                         )
+                        Spacer(Modifier.width(10.dp))
+                        Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                            Text(
+                                "v${io.github.deserthouse.opticon.BuildConfig.VERSION_NAME}",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                     }
                 },
                 actions = {
@@ -191,10 +183,8 @@ fun AppListScreen(
                         Icon(Icons.Rounded.Settings, stringResource(R.string.settings))
                     }
                 },
-                scrollBehavior = scrollBehavior,
-                colors = TopAppBarDefaults.largeTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
                 )
             )
         }
@@ -207,69 +197,106 @@ fun AppListScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Everything lives in ONE lazy list — hero card, search, filter
-            // chips and progress all scroll away with the content, leaving a
-            // clean compact title bar when reading the list.
-            val filtered = viewModel.applySearchAndFilter(
-                state.apps, state.searchQuery, state.filterMode
-            )
-            val grouped = viewModel.buildGroups(filtered)
-            LazyColumn(
-                state = listState,
-                contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                item(key = "hero") {
-                    HeroStatusCard(
-                        active = state.lsposedActive,
-                        modifiedCount = state.apps.count { it.isUserModified },
-                        onClick = onNavigateToSettings
-                    )
-                }
-                item(key = "search") {
-                    SearchField(
-                        query = state.searchQuery,
-                        onQueryChange = viewModel::setSearchQuery
-                    )
-                }
-                item(key = "chips") {
-                    FilterChipRow(
-                        current = state.filterMode,
-                        onSelect = viewModel::setFilterMode
-                    )
-                }
-                if (state.isScanning) {
-                    item(key = "progress") {
-                        ScanProgressBar(
-                            progress = state.scanProgress,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            Column(Modifier.fillMaxSize()) {
+                // Search + chips pop back on any pull-up and hide when the
+                // user scrolls down into the list.
+                AnimatedVisibility(
+                    visible = headerVisible,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Column {
+                        SearchField(
+                            query = state.searchQuery,
+                            onQueryChange = viewModel::setSearchQuery
+                        )
+                        FilterChipRow(
+                            current = state.filterMode,
+                            onSelect = viewModel::setFilterMode
                         )
                     }
                 }
-                if (filtered.isEmpty() && !state.isScanning) {
-                    item(key = "empty") {
-                        EmptyState(
-                            searchQuery = state.searchQuery,
-                            modifier = Modifier.fillParentMaxSize()
-                        )
-                    }
-                } else {
-                    grouped.forEach { (group, apps) ->
-                        item(key = "header_${group.name}") {
-                            GroupHeader(group = group, count = apps.size)
-                        }
-                        items(apps, key = { it.packageName }) { entry ->
-                            ModernAppCard(
-                                entry = entry,
-                                onClick = { onNavigateToDetail(entry.packageName) },
-                                onLongClick = {
-                                    clipboard.setText(AnnotatedString(entry.packageName))
-                                    Toast.makeText(context, packageNameCopiedText, Toast.LENGTH_SHORT).show()
-                                }
+                val filtered = viewModel.applySearchAndFilter(
+                    state.apps, state.searchQuery, state.filterMode
+                )
+                val grouped = viewModel.buildGroups(filtered)
+                LazyColumn(
+                    state = listState,
+                    contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    item(key = "hero") {
+                        Column {
+                            HeroStatusCard(
+                                active = state.lsposedActive,
+                                modifiedCount = state.apps.count { it.isUserModified },
+                                onClick = onNavigateToSettings
+                            )
+                            Text(
+                                text = stringResource(R.string.about_slogan),
+                                style = MaterialTheme.typography.labelLarge.copy(
+                                    fontFamily = FontFamily.Serif,
+                                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                                ),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp)
                             )
                         }
                     }
+                    if (state.isScanning) {
+                        item(key = "progress") {
+                            ScanProgressBar(
+                                progress = state.scanProgress,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                        }
+                    }
+                    if (filtered.isEmpty() && !state.isScanning) {
+                        item(key = "empty") {
+                            EmptyState(
+                                searchQuery = state.searchQuery,
+                                modifier = Modifier.fillParentMaxWidth()
+                            )
+                        }
+                    } else {
+                        grouped.forEach { (group, apps) ->
+                            item(key = "header_${group.name}") {
+                                GroupHeader(group = group, count = apps.size)
+                            }
+                            items(apps, key = { it.packageName }) { entry ->
+                                ModernAppCard(
+                                    entry = entry,
+                                    onClick = { onNavigateToDetail(entry.packageName) },
+                                    onLongClick = {
+                                        clipboard.setText(AnnotatedString(entry.packageName))
+                                        Toast.makeText(context, packageNameCopiedText, Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
+            }
+        }
+    }
+}
+
+/** True while the user is pulling the list UP (towards earlier content). */
+@Composable
+private fun LazyListState.isScrollingUp(): androidx.compose.runtime.State<Boolean> {
+    var previousIndex by remember(this) { mutableStateOf(firstVisibleItemIndex) }
+    var previousOffset by remember(this) { mutableStateOf(firstVisibleItemScrollOffset) }
+    return remember(this) {
+        derivedStateOf {
+            if (previousIndex != firstVisibleItemIndex) {
+                previousIndex > firstVisibleItemIndex
+            } else {
+                previousOffset >= firstVisibleItemScrollOffset
+            }.also {
+                previousIndex = firstVisibleItemIndex
+                previousOffset = firstVisibleItemScrollOffset
             }
         }
     }

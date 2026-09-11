@@ -56,6 +56,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -79,7 +80,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -100,6 +100,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
     val infoMessage by viewModel.infoMessage.collectAsState()
     val toastEvent by viewModel.toastEvent.collectAsState()
     val easterEggExpanded by viewModel.easterEggExpanded.collectAsState()
+    var showAvatarDialog by remember { mutableStateOf(false) }
     val lsposedActive by viewModel.lsposedActive.collectAsState()
     val rootAvailable by viewModel.rootAvailable.collectAsState()
     val rechecking by viewModel.rechecking.collectAsState()
@@ -206,6 +207,9 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                 // with the chevron kept purely as a visual affordance.
                 Row(
                     Modifier.fillMaxWidth()
+                        // clip in the SAME chain as clickable so the ripple
+                        // follows the card's rounded outline
+                        .clip(RoundedCornerShape(16.dp))
                         .padding(vertical = 6.dp)
                         .clickable {
                             if (emojiUnlocked) viewModel.toggleEasterEgg()
@@ -235,24 +239,24 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                 ) {
                     Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Image(painterResource(R.drawable.avatar_deserthouse), "avatar", Modifier.size(48.dp).clip(CircleShape))
+                            // Easter egg #0: tap the avatar for the full artwork
+                            Image(
+                                painterResource(R.drawable.avatar_deserthouse),
+                                "avatar",
+                                Modifier.size(48.dp)
+                                    .clip(CircleShape)
+                                    .clickable { showAvatarDialog = true }
+                            )
                             Spacer(Modifier.width(14.dp))
-                            // "Developer(strikethrough, ruby: Vibrator): 澪(Mio)狼(Ookami), Ling the Wolp"
-                            // Ruby floats above without growing the line, so the
-                            // main text stays centered with the avatar.
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column {
                                 Text(
-                                    stringResource(R.string.easter_egg_author_dev),
+                                    stringResource(R.string.easter_egg_author_name),
                                     style = MaterialTheme.typography.bodyLarge,
                                     fontWeight = FontWeight.Bold,
-                                    textDecoration = TextDecoration.LineThrough,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
-                                Text(":", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                                RubyKanji(stringResource(R.string.easter_egg_ruby_1), stringResource(R.string.easter_egg_kanji_1))
-                                RubyKanji(stringResource(R.string.easter_egg_ruby_2), stringResource(R.string.easter_egg_kanji_2))
                                 Text(
-                                    stringResource(R.string.easter_egg_author_tail),
+                                    stringResource(R.string.easter_egg_author_en),
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -329,6 +333,23 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
         )
 
         // Edit source dialog
+        // Avatar full-size viewer (easter egg #0)
+        if (showAvatarDialog) {
+            androidx.compose.ui.window.Dialog(onDismissRequest = { showAvatarDialog = false }) {
+                Surface(
+                    shape = RoundedCornerShape(28.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    onClick = { showAvatarDialog = false }
+                ) {
+                    Image(
+                        painterResource(R.drawable.avatar_full),
+                        contentDescription = "avatar",
+                        modifier = Modifier.padding(10.dp).clip(RoundedCornerShape(20.dp))
+                    )
+                }
+            }
+        }
+
         showEditSource?.let { source ->
             EditSourceDialog(
                 source = source,
@@ -607,27 +628,6 @@ private fun RestartSystemUiButton() {
                 }) { Text(stringResource(R.string.restart_confirm_btn), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { showConfirm = false }) { Text(stringResource(R.string.ok_label)) } })
-    }
-}
-
-/** Kanji with a small bold ruby annotation floating ABOVE it. The ruby is
- *  drawn via negative offset so it does not grow the line height — the main
- *  text baseline stays centered with the avatar. Hidden when ruby is empty. */
-@Composable
-private fun RubyKanji(ruby: String, kanji: String) {
-    Box(Modifier.padding(horizontal = 2.dp)) {
-        Text(kanji, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-        if (ruby.isNotEmpty()) {
-            Text(
-                ruby,
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .offset(y = (-11).dp)
-            )
-        }
     }
 }
 
