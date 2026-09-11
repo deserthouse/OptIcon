@@ -4,6 +4,11 @@ import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
@@ -27,6 +32,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Gesture
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Info
@@ -93,6 +100,9 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
     val easterEggExpanded by viewModel.easterEggExpanded.collectAsState()
     val lsposedActive by viewModel.lsposedActive.collectAsState()
     val rootAvailable by viewModel.rootAvailable.collectAsState()
+    val rechecking by viewModel.rechecking.collectAsState()
+    val emojiUnlocked by viewModel.emojiUnlocked.collectAsState()
+    val rambleExtraShown by viewModel.rambleExtraShown.collectAsState()
     val aniaSources by viewModel.aniaSources.collectAsState()
     val activeAniaSource by viewModel.activeAniaSource.collectAsState()
     val aniaSyncing by viewModel.aniaSyncing.collectAsState()
@@ -126,7 +136,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
             Spacer(Modifier.height(12.dp))
 
             // ── 状态区 ──
-            RuntimeStatusCard(lsposedActive, rootAvailable) { viewModel.recheckStatuses() }
+            RuntimeStatusCard(lsposedActive, rootAvailable, rechecking) { viewModel.recheckStatuses() }
 
             // ── 模块控制 ──
             SectionTitle(stringResource(R.string.module_control))
@@ -177,24 +187,45 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
             // ── 关于 ──
             SectionTitle(stringResource(R.string.about_section))
             SettingsCard {
-                Row(Modifier.fillMaxWidth().clickable { viewModel.onVersionTapped() }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    Modifier.fillMaxWidth()
+                        .clickable(enabled = !emojiUnlocked) { viewModel.onVersionTapped() },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Icon(Icons.Rounded.Info, null, Modifier.padding(end = 12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Column(Modifier.weight(1f)) {
                         Text("OptIcon", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
                         Text("v${BuildConfig.VERSION_NAME} \u00b7 " + stringResource(R.string.about_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
+                    if (emojiUnlocked) {
+                        IconButton(onClick = viewModel::toggleEasterEgg) {
+                            Icon(
+                                if (easterEggExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                                stringResource(R.string.hero_status_cd),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                 }
 
-                AnimatedVisibility(easterEggExpanded) {
+                AnimatedVisibility(
+                    visible = easterEggExpanded,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
                     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Image(painterResource(R.drawable.avatar_deserthouse), "avatar", Modifier.size(48.dp).clip(CircleShape))
                             Spacer(Modifier.width(12.dp))
-                            Column {
-                                Text(stringResource(R.string.easter_egg_author), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-                                Text(stringResource(R.string.easter_egg_email), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
+                            Text(stringResource(R.string.easter_egg_author), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
                         }
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            stringResource(R.string.easter_egg_vibe_line),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 18.sp
+                        )
                         Spacer(Modifier.height(4.dp))
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/deserthouse"))) }) {
                             Text("github.com/deserthouse", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
@@ -206,7 +237,27 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                             Column(Modifier.padding(12.dp)) {
                                 Text(stringResource(R.string.easter_egg_card_title), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
                                 Spacer(Modifier.height(6.dp))
-                                Text(stringResource(R.string.easter_egg_ai_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 18.sp)
+                                Text(
+                                    stringResource(R.string.easter_egg_ai_note),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    lineHeight = 18.sp,
+                                    modifier = Modifier.clickable { viewModel.onRambleTapped() }
+                                )
+                                AnimatedVisibility(
+                                    visible = rambleExtraShown,
+                                    enter = expandVertically() + fadeIn(),
+                                    exit = shrinkVertically() + fadeOut()
+                                ) {
+                                    Text(
+                                        stringResource(R.string.easter_egg_extra_line),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        lineHeight = 18.sp,
+                                        modifier = Modifier.padding(top = 8.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -556,7 +607,8 @@ private suspend fun restartSystemUi(): RestartResult = kotlinx.coroutines.withCo
 private fun StatusRow(
     title: String,
     statusText: String,
-    active: Boolean,
+    active: Boolean?,
+    checking: Boolean,
     onRecheck: () -> Unit,
     hint: String? = null
 ) {
@@ -564,39 +616,69 @@ private fun StatusRow(
         Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 if (title.contains("LSPosed")) Icons.Rounded.Extension else Icons.Rounded.Key,
-                null, Modifier.padding(end = 12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant
+                null, Modifier.padding(end = 12.dp),
+                tint = if (checking) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                       else MaterialTheme.colorScheme.onSurfaceVariant
             )
             Column(Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-                Text(statusText, style = MaterialTheme.typography.bodySmall, color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
-                if (hint != null) Text(hint, style = MaterialTheme.typography.labelSmall,
+                // 三态: 检测中(中性) → 结果(主色/错误色), 颜色平滑过渡
+                val statusColor by animateColorAsState(
+                    targetValue = when {
+                        checking || active == null -> MaterialTheme.colorScheme.onSurfaceVariant
+                        active -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.error
+                    },
+                    label = "statusColor"
+                )
+                Text(statusText, style = MaterialTheme.typography.bodySmall, color = statusColor)
+                if (hint != null && !checking) Text(hint, style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), lineHeight = 14.sp)
             }
-            TextButton(onClick = onRecheck, modifier = Modifier.size(width = 44.dp, height = 36.dp),
-                contentPadding = PaddingValues(4.dp)) {
-                Icon(Icons.Rounded.Refresh, stringResource(R.string.refresh), Modifier.size(18.dp))
+            if (checking) {
+                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+            } else {
+                TextButton(onClick = onRecheck, modifier = Modifier.size(width = 44.dp, height = 36.dp),
+                    contentPadding = PaddingValues(4.dp)) {
+                    Icon(Icons.Rounded.Refresh, stringResource(R.string.refresh), Modifier.size(18.dp))
+                }
             }
         }
     }
 }
 
 @Composable
-private fun RuntimeStatusCard(lsposedActive: Boolean, rootAvailable: Boolean, onRecheck: () -> Unit) {
+private fun RuntimeStatusCard(
+    lsposedActive: Boolean?,
+    rootAvailable: Boolean?,
+    rechecking: Boolean,
+    onRecheck: () -> Unit
+) {
     SettingsCard {
         StatusRow(
             title = stringResource(R.string.lsposed_status_title),
-            statusText = if (lsposedActive) stringResource(R.string.lsposed_status_active)
-                         else stringResource(R.string.lsposed_status_inactive),
+            statusText = when {
+                rechecking && lsposedActive == null -> stringResource(R.string.status_checking)
+                lsposedActive == null -> stringResource(R.string.status_checking)
+                lsposedActive -> stringResource(R.string.lsposed_status_active)
+                else -> stringResource(R.string.lsposed_status_inactive)
+            },
             active = lsposedActive,
+            checking = rechecking || lsposedActive == null,
             onRecheck = onRecheck,
-            hint = if (!lsposedActive) stringResource(R.string.lsposed_status_hint) else null
+            hint = if (lsposedActive == false) stringResource(R.string.lsposed_status_hint) else null
         )
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
         StatusRow(
             title = stringResource(R.string.root_status_title),
-            statusText = if (rootAvailable) stringResource(R.string.root_status_active)
-                         else stringResource(R.string.root_status_inactive),
+            statusText = when {
+                rechecking && rootAvailable == null -> stringResource(R.string.root_status_checking)
+                rootAvailable == null -> stringResource(R.string.root_status_checking)
+                rootAvailable -> stringResource(R.string.root_status_active)
+                else -> stringResource(R.string.root_status_inactive)
+            },
             active = rootAvailable,
+            checking = rechecking || rootAvailable == null,
             onRecheck = onRecheck
         )
     }
@@ -608,7 +690,12 @@ private fun RuntimeStatusCard(lsposedActive: Boolean, rootAvailable: Boolean, on
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
     ) {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), content = content)
+        // clip at card-content level so descendant clickable ripples stay
+        // inside the 24dp rounded outline (otherwise they draw square)
+        Column(
+            Modifier.padding(horizontal = 16.dp, vertical = 6.dp).clip(RoundedCornerShape(24.dp)),
+            content = content
+        )
     }
 }
 

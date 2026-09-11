@@ -38,6 +38,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.HourglassEmpty
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
@@ -217,15 +218,21 @@ fun AppListScreen(
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun HeroStatusCard(active: Boolean, modifiedCount: Int, onClick: () -> Unit) {
+private fun HeroStatusCard(active: Boolean?, modifiedCount: Int, onClick: () -> Unit) {
     val container by animateColorAsState(
-        targetValue = if (active) MaterialTheme.colorScheme.primaryContainer
-                      else MaterialTheme.colorScheme.errorContainer,
+        targetValue = when (active) {
+            true -> MaterialTheme.colorScheme.primaryContainer
+            false -> MaterialTheme.colorScheme.errorContainer
+            null -> MaterialTheme.colorScheme.surfaceContainerHighest
+        },
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "heroContainer"
     )
-    val contentColor = if (active) MaterialTheme.colorScheme.onPrimaryContainer
-                       else MaterialTheme.colorScheme.onErrorContainer
+    val contentColor = when (active) {
+        true -> MaterialTheme.colorScheme.onPrimaryContainer
+        false -> MaterialTheme.colorScheme.onErrorContainer
+        null -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
 
     val morphTransition = rememberInfiniteTransition(label = "heroShape")
     val morphProgress by morphTransition.animateFloat(
@@ -233,8 +240,16 @@ private fun HeroStatusCard(active: Boolean, modifiedCount: Int, onClick: () -> U
         animationSpec = infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "morph"
     )
-    val fromShape = if (active) MaterialShapes.Pill else MaterialShapes.Square
-    val toShape = if (active) MaterialShapes.Cookie9Sided else MaterialShapes.SoftBurst
+    val fromShape = when (active) {
+        true -> MaterialShapes.Pill
+        false -> MaterialShapes.Square
+        null -> MaterialShapes.Oval
+    }
+    val toShape = when (active) {
+        true -> MaterialShapes.Cookie9Sided
+        false -> MaterialShapes.SoftBurst
+        null -> MaterialShapes.Square
+    }
     val morph = remember(active) { Morph(fromShape, toShape) }
 
     Surface(
@@ -259,7 +274,11 @@ private fun HeroStatusCard(active: Boolean, modifiedCount: Int, onClick: () -> U
                     drawPath(ap.asComposePath(), contentColor.copy(alpha = 0.14f))
                 }
                 Icon(
-                    if (active) Icons.Rounded.Verified else Icons.Rounded.ErrorOutline,
+                    when (active) {
+                        true -> Icons.Rounded.Verified
+                        false -> Icons.Rounded.ErrorOutline
+                        null -> Icons.Rounded.HourglassEmpty
+                    },
                     contentDescription = null,
                     modifier = Modifier.size(30.dp),
                     tint = contentColor
@@ -268,13 +287,20 @@ private fun HeroStatusCard(active: Boolean, modifiedCount: Int, onClick: () -> U
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = stringResource(if (active) R.string.status_active else R.string.status_inactive),
+                    text = stringResource(
+                        when (active) {
+                            true -> R.string.status_active
+                            false -> R.string.status_inactive
+                            null -> R.string.status_checking
+                        }
+                    ),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = contentColor
                 )
                 Text(
                     text = when {
+                        active == null -> stringResource(R.string.hero_checking_subtitle)
                         active && modifiedCount > 0 -> stringResource(R.string.hero_active_subtitle, modifiedCount)
                         active -> stringResource(R.string.hero_active_generic)
                         else -> stringResource(R.string.hero_inactive_subtitle)
