@@ -137,13 +137,17 @@ fun AppListScreen(
                     // Expanded hero header: serif wordmark + version badge + slogan.
                     // Collapses down to the compact title as the list scrolls.
                     Column {
-                        Text(
-                            "OptIcon",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontFamily = FontFamily.Serif
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                        // Line 1: serif wordmark with the version badge riding
+                        // right after it; Line 2: slogan in serif italic to
+                        // echo the wordmark.
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "OptIcon",
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontFamily = FontFamily.Serif
+                            )
+                            Spacer(Modifier.width(10.dp))
                             Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
                                 Text(
                                     "v${io.github.deserthouse.opticon.BuildConfig.VERSION_NAME}",
@@ -153,15 +157,17 @@ fun AppListScreen(
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = stringResource(R.string.about_slogan),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                            )
                         }
+                        Text(
+                            text = stringResource(R.string.about_slogan),
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontFamily = FontFamily.Serif,
+                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
                     }
                 },
                 actions = {

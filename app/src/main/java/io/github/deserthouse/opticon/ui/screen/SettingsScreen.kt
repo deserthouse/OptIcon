@@ -229,7 +229,14 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Image(painterResource(R.drawable.avatar_deserthouse), "avatar", Modifier.size(48.dp).clip(CircleShape))
                             Spacer(Modifier.width(12.dp))
-                            Text(stringResource(R.string.easter_egg_author), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                            // "Vibrator: 澪(Mio)狼(Ookami) (Ling the Wolp)" — ruby
+                            // annotations above the kanji; zh locale shows plain 澪狼.
+                            Row(verticalAlignment = Alignment.Bottom) {
+                                Text(stringResource(R.string.easter_egg_author_prefix), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                RubyKanji(stringResource(R.string.easter_egg_ruby_1), stringResource(R.string.easter_egg_kanji_1))
+                                RubyKanji(stringResource(R.string.easter_egg_ruby_2), stringResource(R.string.easter_egg_kanji_2))
+                                Text(stringResource(R.string.easter_egg_author_suffix), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                            }
                         }
                         Spacer(Modifier.height(4.dp))
                         Text(
@@ -575,6 +582,20 @@ private fun RestartSystemUiButton() {
                 }) { Text(stringResource(R.string.restart_confirm_btn), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { showConfirm = false }) { Text(stringResource(R.string.ok_label)) } })
+    }
+}
+
+/** Kanji with small ruby annotation above it (hidden when ruby is empty) */
+@Composable
+private fun RubyKanji(ruby: String, kanji: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            ruby,
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 4.dp)
+        )
+        Text(kanji, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 
