@@ -37,7 +37,7 @@
     <string name="ui_section">UI</string>
     <string name="predictive_back">Predictive Back Gesture</string>
     <string name="about_section">About</string>
-    <string name="about_description">LSPosed API 102 · Android 14+ notification icon optimizer</string>
+    <string name="about_description">LSPosed API 102 · Android 12+ notification icon optimizer</string>
     <string name="credits_section">Credits</string>
     <string name="info_title">Info</string>
     <string name="ok_label">OK</string>
@@ -192,4 +192,16 @@
     <string name="unsaved_body">You changed this app icon settings but have not saved. Save before leaving?</string>
     <string name="unsaved_save">Save</string>
     <string name="unsaved_discard">Discard</string>
+
+    <!-- UI redesign v0.5.0 — hero status card -->
+    <string name="hero_active_subtitle">Normalizing %1$d apps · replacements live</string>
+    <string name="hero_active_generic">Icon replacements live</string>
+    <string name="hero_inactive_subtitle">Tap to check LSPosed status in Settings</string>
+    <string name="hero_status_cd">Module runtime status, tap for settings</string>
+
+    <!-- UI redesign v0.5.0 — restart SystemUI silent feedback -->
+    <string name="restart_running">Executing…</string>
+    <string name="restart_result_ok">Command sent (exit %1$d) — SystemUI is restarting</string>
+    <string name="restart_result_failed">Command failed (exit %1$d)%2$s</string>
+    <string name="restart_result_error">Could not launch su: %1$s</string>
 </resources>

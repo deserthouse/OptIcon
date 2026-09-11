@@ -2,12 +2,19 @@ package io.github.deserthouse.opticon.ui.screen
 
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,16 +36,21 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -48,6 +60,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.toPath
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -55,10 +68,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -66,6 +82,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.graphics.shapes.Morph
 import io.github.deserthouse.opticon.R
 import io.github.deserthouse.opticon.ui.component.ModernAppCard
 import io.github.deserthouse.opticon.ui.state.AppGroup
@@ -115,17 +132,7 @@ fun AppListScreen(
         topBar = {
             LargeTopAppBar(
                 title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("OptIcon", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                            Text(
-                                text = stringResource(if (state.lsposedActive) R.string.status_active else R.string.status_inactive),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = if (state.lsposedActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                            )
-                        }
-                        StatusDot(active = state.lsposedActive)
-                    }
+                    Text("OptIcon", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 },
                 actions = {
                     IconButton(onClick = { viewModel.scanApps() }) {
@@ -152,6 +159,11 @@ fun AppListScreen(
                 .padding(padding)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
+                HeroStatusCard(
+                    active = state.lsposedActive,
+                    modifiedCount = state.apps.count { it.isUserModified },
+                    onClick = onNavigateToSettings
+                )
                 SearchField(
                     query = state.searchQuery,
                     onQueryChange = viewModel::setSearchQuery
@@ -197,22 +209,86 @@ fun AppListScreen(
     }
 }
 
-/** Live status dot — green pulse when module active (SukiSU style) */
+/**
+ * Hero runtime status card (SukiSU-style): the first thing you see.
+ * Active = primaryContainer + check badge; inactive = errorContainer +
+ * alert badge, tap-through to Settings. The leading badge shape gently
+ * morphs between two M3 Expressive shapes (MaterialShapes.morph).
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun StatusDot(active: Boolean = true) {
-    val color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+private fun HeroStatusCard(active: Boolean, modifiedCount: Int, onClick: () -> Unit) {
+    val container by animateColorAsState(
+        targetValue = if (active) MaterialTheme.colorScheme.primaryContainer
+                      else MaterialTheme.colorScheme.errorContainer,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "heroContainer"
+    )
+    val contentColor = if (active) MaterialTheme.colorScheme.onPrimaryContainer
+                       else MaterialTheme.colorScheme.onErrorContainer
+
+    val morphTransition = rememberInfiniteTransition(label = "heroShape")
+    val morphProgress by morphTransition.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "morph"
+    )
+    val fromShape = if (active) MaterialShapes.Pill else MaterialShapes.Square
+    val toShape = if (active) MaterialShapes.Cookie9Sided else MaterialShapes.SoftBurst
+    val morph = remember(active) { Morph(fromShape, toShape) }
+
     Surface(
-        shape = CircleShape,
-        color = color.copy(alpha = 0.15f),
-        modifier = Modifier.size(10.dp)
+        onClick = onClick,
+        shape = RoundedCornerShape(32.dp),
+        color = container,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(2.5.dp)
-                .clip(CircleShape)
-                .background(color)
-        )
+        Row(Modifier.padding(horizontal = 20.dp, vertical = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(56.dp)) {
+                // M3 Expressive shape morph, drawn as a fitted path (bounds-normalized)
+                Canvas(Modifier.size(56.dp)) {
+                    val ap = morph.toPath(morphProgress).asAndroidPath()
+                    val b = android.graphics.RectF()
+                    ap.computeBounds(b, true)
+                    val s = if (b.width() > 1e-6f && b.height() > 1e-6f)
+                        minOf(size.width / b.width(), size.height / b.height()) else 1f
+                    val m = android.graphics.Matrix()
+                    m.setScale(s, s, b.centerX(), b.centerY())
+                    m.postTranslate(size.width / 2f - b.centerX(), size.height / 2f - b.centerY())
+                    ap.transform(m)
+                    drawPath(ap.asComposePath(), contentColor.copy(alpha = 0.14f))
+                }
+                Icon(
+                    if (active) Icons.Rounded.Verified else Icons.Rounded.ErrorOutline,
+                    contentDescription = null,
+                    modifier = Modifier.size(30.dp),
+                    tint = contentColor
+                )
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(if (active) R.string.status_active else R.string.status_inactive),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = contentColor
+                )
+                Text(
+                    text = when {
+                        active && modifiedCount > 0 -> stringResource(R.string.hero_active_subtitle, modifiedCount)
+                        active -> stringResource(R.string.hero_active_generic)
+                        else -> stringResource(R.string.hero_inactive_subtitle)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = contentColor.copy(alpha = 0.78f)
+                )
+            }
+            Icon(
+                Icons.Rounded.ChevronRight,
+                contentDescription = stringResource(R.string.hero_status_cd),
+                tint = contentColor.copy(alpha = 0.6f)
+            )
+        }
     }
 }
 

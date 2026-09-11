@@ -25,6 +25,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.rounded.BugReport
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Gesture
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Info
@@ -77,6 +79,7 @@ import io.github.deserthouse.opticon.BuildConfig
 import io.github.deserthouse.opticon.R
 import io.github.deserthouse.opticon.util.PreferenceManager
 import io.github.deserthouse.opticon.ui.viewmodel.SettingsViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -433,13 +436,65 @@ private fun SourceSection(
     }
 }
 
+/** Result of `su -c kill $(pidof com.android.systemui)` — surfaced inline, no toast */
+private sealed interface RestartResult {
+    data object Running : RestartResult
+    data class Ok(val exitCode: Int) : RestartResult
+    data class Failed(val exitCode: Int, val stderr: String) : RestartResult
+    data class Error(val message: String) : RestartResult
+}
+
 @Composable
 private fun RestartSystemUiButton() {
     var showConfirm by remember { mutableStateOf(false) }
-    val ctx = LocalContext.current
+    var result by remember { mutableStateOf<RestartResult?>(null) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val running = result is RestartResult.Running
 
-    OutlinedButton(onClick = { showConfirm = true }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), shape = RoundedCornerShape(12.dp)) {
-        Text(stringResource(R.string.restart_systemui))
+    // Auto-clear the success line after a few seconds (silent feedback)
+    LaunchedEffect(result) {
+        if (result is RestartResult.Ok) {
+            kotlinx.coroutines.delay(6000)
+            result = null
+        }
+    }
+
+    Column {
+        OutlinedButton(
+            onClick = { showConfirm = true },
+            enabled = !running,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            if (running) {
+                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.restart_running))
+            } else {
+                Text(stringResource(R.string.restart_systemui))
+            }
+        }
+        androidx.compose.animation.AnimatedVisibility(visible = result is RestartResult.Ok) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.CheckCircle, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    stringResource(R.string.restart_result_ok, (result as? RestartResult.Ok)?.exitCode ?: 0),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        when (val r = result) {
+            is RestartResult.Failed -> RestartFeedbackRow(
+                text = stringResource(R.string.restart_result_failed, r.exitCode,
+                    if (r.stderr.isNotBlank()) " — ${r.stderr.take(120)}" else ""),
+                isError = true)
+            is RestartResult.Error -> RestartFeedbackRow(
+                text = stringResource(R.string.restart_result_error, r.message),
+                isError = true)
+            else -> {}
+        }
     }
 
     if (showConfirm) {
@@ -449,23 +504,50 @@ private fun RestartSystemUiButton() {
             confirmButton = {
                 TextButton(onClick = {
                     showConfirm = false
-                    restartSystemUi(ctx)
+                    result = RestartResult.Running
+                    scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                        result = restartSystemUi()
+                    }
                 }) { Text(stringResource(R.string.restart_confirm_btn), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { showConfirm = false }) { Text(stringResource(R.string.ok_label)) } })
     }
 }
 
-private fun restartSystemUi(context: android.content.Context) {
+@Composable
+private fun RestartFeedbackRow(text: String, isError: Boolean) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Rounded.ErrorOutline, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
+        Spacer(Modifier.width(6.dp))
+        Text(text, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, lineHeight = 14.sp)
+    }
+}
+
+/**
+ * Runs the restart on the caller's dispatcher. Reads the real su exit code —
+ * a missing/forbidden su or a failed kill no longer shows a fake success toast.
+ */
+private suspend fun restartSystemUi(): RestartResult = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
     try {
         // pidof = exact package match. pkill -f is a FULL-CMDLINE SUBSTRING
         // match and would collateral-kill any process whose cmdline merely
         // contains the string (e.g. OOS wallpaper engine on A17 → wallpaper
         // + Monet palette reset, reported by the tester).
-        Runtime.getRuntime().exec(arrayOf("su", "-c", "kill \$(pidof com.android.systemui)"))
-        Toast.makeText(context, "SystemUI 正在重启...", Toast.LENGTH_SHORT).show()
+        val proc = ProcessBuilder("su", "-c", "kill \$(pidof com.android.systemui)")
+            .redirectErrorStream(true)
+            .start()
+        val output = proc.inputStream.bufferedReader().readText().trim()
+        val exited = proc.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)
+        if (!exited) {
+            proc.destroy()
+            RestartResult.Failed(-1, "timeout")
+        } else if (proc.exitValue() == 0) {
+            RestartResult.Ok(0)
+        } else {
+            RestartResult.Failed(proc.exitValue(), output)
+        }
     } catch (e: Exception) {
-        Toast.makeText(context, "重启失败：Root 权限不可用", Toast.LENGTH_LONG).show()
+        RestartResult.Error(e.message ?: e.javaClass.simpleName)
     }
 }
 

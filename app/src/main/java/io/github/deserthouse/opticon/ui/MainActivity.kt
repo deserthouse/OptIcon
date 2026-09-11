@@ -8,10 +8,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.EaseOutCubic
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.fillMaxSize
@@ -50,16 +51,23 @@ private object Routes {
     fun detail(pkg: String) = "detail/${Uri.encode(pkg)}"
 }
 
-private const val NAV_DURATION = 300
+// Material shared-axis X transitions (M3 motion): short slide (¼ width) +
+// slight scale-up on enter + fade, symmetric easing — replaces plain slide.
+private const val NAV_DURATION = 320
+private val NAV_EASING = EaseOutCubic
 
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.enterPush(): EnterTransition =
-    slideInHorizontally(tween(NAV_DURATION, easing = FastOutSlowInEasing)) { it } + fadeIn(tween(NAV_DURATION))
+    slideInHorizontally(tween(NAV_DURATION, easing = NAV_EASING)) { it / 4 } +
+    scaleIn(tween(NAV_DURATION, easing = NAV_EASING), initialScale = 0.94f) +
+    fadeIn(tween(NAV_DURATION, easing = NAV_EASING))
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.exitPush(): ExitTransition =
-    slideOutHorizontally(tween(NAV_DURATION, easing = FastOutSlowInEasing)) { -it } + fadeOut(tween(NAV_DURATION))
+    slideOutHorizontally(tween(NAV_DURATION, easing = NAV_EASING)) { -it / 4 } + fadeOut(tween(NAV_DURATION))
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.enterPop(): EnterTransition =
-    slideInHorizontally(tween(NAV_DURATION, easing = FastOutSlowInEasing)) { -it } + fadeIn(tween(NAV_DURATION))
+    slideInHorizontally(tween(NAV_DURATION, easing = NAV_EASING)) { -it / 4 } +
+    scaleIn(tween(NAV_DURATION, easing = NAV_EASING), initialScale = 0.94f) +
+    fadeIn(tween(NAV_DURATION, easing = NAV_EASING))
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.exitPop(): ExitTransition =
-    slideOutHorizontally(tween(NAV_DURATION, easing = FastOutSlowInEasing)) { it } + fadeOut(tween(NAV_DURATION))
+    slideOutHorizontally(tween(NAV_DURATION, easing = NAV_EASING)) { it / 4 } + fadeOut(tween(NAV_DURATION))
 
 @Composable
 fun OptIconNavHost() {
