@@ -3,6 +3,8 @@ package io.github.deserthouse.opticon.ui.screen
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -138,7 +140,7 @@ fun AppListScreen(
     // lives INSIDE the scrolling content (below the hero card) so it hides
     // itself while browsing. The search bar + chips sit under the title bar
     // and auto-hide on scroll down / pop back on ANY pull-up.
-    val scrollUp by remember { derivedStateOf { listState.isScrollingUp() } }
+    val scrollUp by listState.isScrollingUp()
     val headerVisible by remember {
         derivedStateOf { listState.firstVisibleItemIndex == 0 || scrollUp }
     }
@@ -282,7 +284,8 @@ fun AppListScreen(
 }
 
 /** True while the user is pulling the list UP (towards earlier content). */
-private fun LazyListState.isScrollingUp(): Boolean {
+@Composable
+private fun LazyListState.isScrollingUp(): androidx.compose.runtime.State<Boolean> {
     var previousIndex by remember(this) { mutableStateOf(firstVisibleItemIndex) }
     var previousOffset by remember(this) { mutableStateOf(firstVisibleItemScrollOffset) }
     return remember(this) {
@@ -295,7 +298,7 @@ private fun LazyListState.isScrollingUp(): Boolean {
                 previousIndex = firstVisibleItemIndex
                 previousOffset = firstVisibleItemScrollOffset
             }
-        }.value
+        }
     }
 }
 
