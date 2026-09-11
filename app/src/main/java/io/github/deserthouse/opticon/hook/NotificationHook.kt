@@ -117,7 +117,6 @@ object NotificationHook {
         hookGetSmallIcon(xposed)
         hookCreateIcons(xposed, classLoader)
         hookUpdateIcons(xposed, classLoader)
-        hookIconStyleProvider(xposed, classLoader)
         hookCachingIconView(xposed)
         hookRecoverBuilder(xposed)
         hookGetIconDescriptor(xposed, classLoader)
@@ -487,36 +486,6 @@ object NotificationHook {
             TraceLogger.i(TAG, "IconManager.updateIcons hooked (" + candidates.size + " overload)")
         } catch (e: Exception) {
             TraceLogger.w(TAG, "hookUpdateIcons skipped: ${e.message}")
-        }
-    }
-
-    /** Defensive hook (Android 16+): NotificationIconStyleProvider — verified
-     *  EMPTY interface on API 36 (no shouldShowAppIcon method exists), so this
-     *  hook is a no-op kept only for potential OEM variants that DO define the
-     *  method (HyperOS/ColorOS builds). Silently skipped when absent. */
-    private fun hookIconStyleProvider(xposed: XposedInterface, classLoader: ClassLoader) {
-        try {
-            val implNames = listOf(
-                "com.android.systemui.statusbar.notification.row.icon.NotificationIconStyleProviderImpl",
-                "com.android.systemui.statusbar.notification.row.icon.NotificationIconStyleProviderImpl2"
-            )
-            var hooked = 0
-            for (name in implNames) {
-                try {
-                    val impl = classLoader.loadClass(name)
-                    for (m in impl.declaredMethods) {
-                        if (m.name == "shouldShowAppIcon" && m.returnType == java.lang.Boolean.TYPE) {
-                            xposed.hook(m).setId("opticon:shouldShowAppIcon").intercept(
-                                XposedInterface.Hooker { chain -> false }
-                            )
-                            hooked++
-                        }
-                    }
-                } catch (_: ClassNotFoundException) { /* impl name differs, skip */ }
-            }
-            TraceLogger.i(TAG, "shouldShowAppIcon hooked ($hooked) — 0 is expected on AOSP 16+")
-        } catch (e: Exception) {
-            TraceLogger.i(TAG, "shouldShowAppIcon skipped (pre-16 or OEM): ${e.message}")
         }
     }
 
