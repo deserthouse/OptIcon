@@ -221,6 +221,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                     CreditEntry(stringResource(R.string.credit_howard), stringResource(R.string.credit_howard_desc), "https://github.com/Xposed-Modules-Repo/io.github.howard20181.notificationiconfix")
                     CreditEntry(stringResource(R.string.credit_pzcn), stringResource(R.string.credit_pzcn_desc), "https://github.com/pzcn/Perfect-Icons-Completion-Project")
                     CreditEntry(stringResource(R.string.credit_lsposed), stringResource(R.string.credit_lsposed_desc), "https://github.com/libxposed/api")
+                    CreditEntry(stringResource(R.string.credit_iconify), stringResource(R.string.credit_iconify_desc), "https://github.com/MohamedRejworkshop/Iconify")
                 }
             }
             Spacer(Modifier.height(32.dp))

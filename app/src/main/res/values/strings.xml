@@ -50,6 +50,8 @@
     <string name="credit_pzcn_desc">Thanks to the Perfect Icons Completion Project team for enriching the Android icon ecosystem.</string>
     <string name="credit_lsposed">LSPosed Framework</string>
     <string name="credit_lsposed_desc">The foundation of everything. Thank you.</string>
+    <string name="credit_iconify">MohamedRejworkshop / Iconify</string>
+    <string name="credit_iconify_desc">Architecture reference for the cross-process icon delivery pipeline (shared-directory pattern).</string>
 
     <string name="easter_egg_author">Author: Miolang</string>
     <string name="easter_egg_email">deserthouse98@gmail.com</string>
