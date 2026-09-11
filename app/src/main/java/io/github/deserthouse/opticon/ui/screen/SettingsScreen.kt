@@ -72,12 +72,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -199,11 +201,16 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
             // ── 关于 ──
             SectionTitle(stringResource(R.string.about_section))
             SettingsCard {
+                // Whole row = the level-1 easter-egg button. Locked: counts
+                // taps (🐾…🐺). Unlocked: a single tap collapses/expands,
+                // with the chevron kept purely as a visual affordance.
                 Row(
                     Modifier.fillMaxWidth()
-                        // padding BEFORE clickable → ripple fills the whole row
                         .padding(vertical = 6.dp)
-                        .clickable(enabled = !emojiUnlocked) { viewModel.onVersionTapped() },
+                        .clickable {
+                            if (emojiUnlocked) viewModel.toggleEasterEgg()
+                            else viewModel.onVersionTapped()
+                        },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(Icons.Rounded.Info, null, Modifier.padding(end = 12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -212,13 +219,12 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                         Text("v${BuildConfig.VERSION_NAME} \u00b7 " + stringResource(R.string.about_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     if (emojiUnlocked) {
-                        IconButton(onClick = viewModel::toggleEasterEgg) {
-                            Icon(
-                                if (easterEggExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                                stringResource(R.string.hero_status_cd),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
+                        Icon(
+                            if (easterEggExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                            stringResource(R.string.hero_status_cd),
+                            Modifier.padding(start = 8.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
 
@@ -227,62 +233,75 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                     enter = expandVertically() + fadeIn(),
                     exit = shrinkVertically() + fadeOut()
                 ) {
-                    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Image(painterResource(R.drawable.avatar_deserthouse), "avatar", Modifier.size(48.dp).clip(CircleShape))
-                            Spacer(Modifier.width(12.dp))
-                            // "Vibrator: 澪(Mio)狼(Ookami) (Ling the Wolp)" — ruby
-                            // annotations above the kanji; zh locale shows plain 澪狼.
-                            Row(verticalAlignment = Alignment.Bottom) {
-                                Text(stringResource(R.string.easter_egg_author_prefix), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(Modifier.width(14.dp))
+                            // "Developer(strikethrough, ruby: Vibrator): 澪(Mio)狼(Ookami), Ling the Wolp"
+                            // Ruby floats above without growing the line, so the
+                            // main text stays centered with the avatar.
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    stringResource(R.string.easter_egg_author_dev),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    textDecoration = TextDecoration.LineThrough,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(":", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                                 RubyKanji(stringResource(R.string.easter_egg_ruby_1), stringResource(R.string.easter_egg_kanji_1))
                                 RubyKanji(stringResource(R.string.easter_egg_ruby_2), stringResource(R.string.easter_egg_kanji_2))
-                                Text(stringResource(R.string.easter_egg_author_suffix), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                                Text(
+                                    stringResource(R.string.easter_egg_author_tail),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(12.dp))
                         Text(
                             stringResource(R.string.easter_egg_vibe_line),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             lineHeight = 18.sp
                         )
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(8.dp))
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/deserthouse"))) }) {
                             Text("github.com/deserthouse", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.width(4.dp))
                             Icon(Icons.Rounded.Launch, "GitHub", Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
                         }
-                        Spacer(Modifier.height(10.dp))
-                        Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-                            Column(Modifier.padding(12.dp)) {
-                                Text(stringResource(R.string.easter_egg_card_title), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
-                                Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(14.dp))
+                        // Whole musings block (title + body + extra line) is the
+                        // level-2 tap target; once burned out it becomes the
+                        // level-3 "not a single drop left" target.
+                        Column(
+                            Modifier.fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { viewModel.onRambleTapped() }
+                                .padding(horizontal = 4.dp, vertical = 10.dp)
+                        ) {
+                            Text(stringResource(R.string.easter_egg_card_title), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                stringResource(R.string.easter_egg_ai_note),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                lineHeight = 18.sp
+                            )
+                            AnimatedVisibility(
+                                visible = rambleExtraShown,
+                                enter = expandVertically() + fadeIn(),
+                                exit = shrinkVertically() + fadeOut()
+                            ) {
                                 Text(
-                                    stringResource(R.string.easter_egg_ai_note),
+                                    stringResource(R.string.easter_egg_extra_line),
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.primary,
                                     lineHeight = 18.sp,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .clickable { viewModel.onRambleTapped() }
-                                        .padding(horizontal = 4.dp, vertical = 8.dp)
+                                    modifier = Modifier.padding(top = 10.dp)
                                 )
-                                AnimatedVisibility(
-                                    visible = rambleExtraShown,
-                                    enter = expandVertically() + fadeIn(),
-                                    exit = shrinkVertically() + fadeOut()
-                                ) {
-                                    Text(
-                                        stringResource(R.string.easter_egg_extra_line),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        lineHeight = 18.sp,
-                                        modifier = Modifier.padding(top = 8.dp)
-                                    )
-                                }
                             }
                         }
                     }
@@ -591,17 +610,24 @@ private fun RestartSystemUiButton() {
     }
 }
 
-/** Kanji with small ruby annotation above it (hidden when ruby is empty) */
+/** Kanji with a small bold ruby annotation floating ABOVE it. The ruby is
+ *  drawn via negative offset so it does not grow the line height — the main
+ *  text baseline stays centered with the avatar. Hidden when ruby is empty. */
 @Composable
 private fun RubyKanji(ruby: String, kanji: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            ruby,
-            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 4.dp)
-        )
+    Box(Modifier.padding(horizontal = 2.dp)) {
         Text(kanji, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+        if (ruby.isNotEmpty()) {
+            Text(
+                ruby,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = (-11).dp)
+            )
+        }
     }
 }
 
