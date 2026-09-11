@@ -38,6 +38,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.HourglassEmpty
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
@@ -163,7 +164,8 @@ fun AppListScreen(
                     active = state.lsposedActive,
                     modifiedCount = state.apps.count { it.isUserModified },
                     onClick = onNavigateToSettings
-                )                SearchField(
+                )
+                SearchField(
                     query = state.searchQuery,
                     onQueryChange = viewModel::setSearchQuery
                 )
