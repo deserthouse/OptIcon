@@ -53,12 +53,13 @@
     <string name="credit_iconify">MohamedRejworkshop / Iconify</string>
     <string name="credit_iconify_desc">Architecture reference for the cross-process icon delivery pipeline (shared-directory pattern).</string>
 
-    <string name="easter_egg_author_prefix">Vibrator: </string>
+    <string name="easter_egg_author_dev">Developer</string>
+    <string name="easter_egg_author_dev_ruby">Vibrator</string>
     <string name="easter_egg_ruby_1">Mio</string>
     <string name="easter_egg_kanji_1">澪</string>
     <string name="easter_egg_ruby_2">Ookami</string>
     <string name="easter_egg_kanji_2">狼</string>
-    <string name="easter_egg_author_suffix"> (Ling the Wolp)</string>
+    <string name="easter_egg_author_tail">, Ling the Wolp</string>
     <string name="easter_egg_vibe_line">If programmers can call themselves coders, can those of us doing vibe coding call ourselves vibrators?</string>
     <string name="easter_egg_ai_note" formatted="false">OptIcon isn\'t my first project, but it\'s the first one I\'ve ever shipped. I\'m a hardcore Android enthusiast — call me a geek and I\'ll own it without blushing. I\'ve just never considered myself a qualified developer, for one simple reason: I can\'t read a single line of code. This project is, in essence, 100% AI and 0% human. Feel free to voice any feedback — whether it gets done is another matter. I genuinely can\'t, not just won\'t.</string>
     <string name="easter_egg_extra_line">Wait — that last line was written by me personally, so the human ratio might grudgingly climb to 1%?</string>
@@ -172,7 +173,7 @@
     <string name="status_checking">Checking…</string>
     <string name="hero_checking_subtitle">Talking to the hook, one moment…</string>
     <string name="root_status_checking">Checking su access…</string>
-    <string name="about_slogan">Make every notification icon native.</string>
+    <string name="about_slogan">— Make every notification icon native.</string>
     <string name="predictive_back_desc">Native back-swipe preview, always on (system effect on Android 13+) — why would you turn it off?</string>
     <string name="predictive_back_desc_legacy">Regrettably, gesture preview is not supported on this Android version (requires Android 13+).</string>
     <string name="empty_no_apps_title">No apps found</string>

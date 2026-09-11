@@ -70,7 +70,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -127,16 +130,25 @@ fun AppListScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
     }
 
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    // enterAlways: pulling the list down re-expands the header immediately,
+    // instead of waiting until the list is scrolled back to the very top.
+    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             LargeTopAppBar(
                 title = {
-                    // Expanded hero header: serif wordmark + version badge + slogan.
-                    // Collapses down to the compact title as the list scrolls.
-                    Column {
+                    // Tap the title bar to jump back to the top, re-expanding
+                    // the whole header along the way.
+                    Column(
+                        Modifier.clickable {
+                            scope.launch {
+                                listState.animateScrollToItem(0)
+                            }
+                        }
+                    ) {
                         // Line 1: serif wordmark with the version badge riding
                         // right after it; Line 2: slogan in serif italic to
                         // echo the wordmark.
