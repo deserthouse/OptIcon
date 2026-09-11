@@ -16,6 +16,9 @@ import android.graphics.drawable.Drawable
  */
 object AppInfoProvider {
 
+    private const val TAG = "OptIcon/AppInfo"
+
+
     fun getInstalledApps(
         context: Context,
         includeSystemApps: Boolean = false,
@@ -25,7 +28,14 @@ object AppInfoProvider {
 
         // One IPC call with GET_ACTIVITIES + GET_PERMISSIONS (H5+H6 fix)
         val flags = PackageManager.GET_ACTIVITIES or PackageManager.GET_PERMISSIONS
-        val allPackages = pm.getInstalledPackages(flags)
+        val allPackages = try {
+            pm.getInstalledPackages(flags)
+        } catch (e: Exception) {
+            // Some ROMs throw on a single corrupted package; fall back to the
+            // leaner query instead of dying with an empty screen.
+            TraceLogger.w(TAG, "getInstalledPackages(flags) failed: ${e.message}")
+            pm.getInstalledPackages(0)
+        }
 
         // Pre-compute launcher activity packages in one query (H5 fix)
         val launcherIntent = Intent(Intent.ACTION_MAIN).apply {
@@ -34,11 +44,15 @@ object AppInfoProvider {
         val launcherPkgs = if (requireNotificationCapable) {
             pm.queryIntentActivities(launcherIntent, 0).map { it.activityInfo.packageName }.toSet()
         } else emptySet()
+        TraceLogger.i(TAG, "Visibility probe: ${allPackages.size} packages visible, ${launcherPkgs.size} launcher entries")
 
         return allPackages
             .asSequence()
             .filter { it.packageName != context.packageName }
-            .filter { includeSystemApps || !isSystemApp(it.applicationInfo) }
+            // NOTE: MIUI/HyperOS flags many user-facing apps as FLAG_SYSTEM
+            // (store-updated system components). A launcher entry is the
+            // user-visible truth — such apps are always worth listing.
+            .filter { includeSystemApps || !isSystemApp(it.applicationInfo) || launcherPkgs.contains(it.packageName) }
             .filter { pkg ->
                 if (!requireNotificationCapable) true
                 else launcherPkgs.contains(pkg.packageName) ||
