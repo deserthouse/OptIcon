@@ -83,7 +83,7 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
             }
 
             val total = installedApps.size
-            _uiState.update { it.copy(scanProgress = 0 to total) }
+            _uiState.update { it.copy(scanProgress = 0 to total, installedCount = total) }
             TraceLogger.i(TAG, "Scan started: $total apps")
 
             // Build all entries in IO, then update once (H4 fix: avoid O(n²))

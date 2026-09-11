@@ -257,6 +257,7 @@ fun AppListScreen(
                         item(key = "empty") {
                             EmptyState(
                                 searchQuery = state.searchQuery,
+                                visibilityBlocked = state.installedCount in 1..2,
                                 modifier = Modifier.fillParentMaxWidth()
                             )
                         }
@@ -535,7 +536,7 @@ private fun GroupHeader(group: AppGroup, count: Int) {
 }
 
 @Composable
-private fun EmptyState(searchQuery: String, modifier: Modifier = Modifier) {
+private fun EmptyState(searchQuery: String, visibilityBlocked: Boolean = false, modifier: Modifier = Modifier) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
@@ -557,15 +558,16 @@ private fun EmptyState(searchQuery: String, modifier: Modifier = Modifier) {
         }
         Spacer(Modifier.height(20.dp))
         Text(
-            text = stringResource(R.string.empty_no_apps_title),
+            text = stringResource(if (visibilityBlocked) R.string.empty_visibility_title else R.string.empty_no_apps_title),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            text = stringResource(R.string.empty_no_apps_body),
+            text = stringResource(if (visibilityBlocked) R.string.empty_visibility_body else R.string.empty_no_apps_body),
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
     }
 }

@@ -169,6 +169,8 @@
     <string name="about_slogan">——让每一个通知图标都符合原生规范。</string>
     <string name="predictive_back_desc_legacy">遗憾地，此系统版本不支持手势预览（需 Android 13+）。</string>
     <string name="empty_no_apps_title">没有找到应用</string>
+    <string name="empty_visibility_title">应用列表被系统拦截</string>
+    <string name="empty_visibility_body">系统只暴露了极少数应用。请在系统设置中允许 OptIcon「获取应用列表」（MIUI/HyperOS：应用信息 → 权限 → 获取应用列表），然后刷新。</string>
     <string name="empty_no_apps_body">换个关键词或筛选条件试试</string>
     <string name="empty_no_apps_clear">清除搜索</string>
     <string name="preview_title">状态栏预览</string>
