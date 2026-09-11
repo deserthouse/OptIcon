@@ -80,6 +80,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -133,7 +134,33 @@ fun AppListScreen(
         topBar = {
             LargeTopAppBar(
                 title = {
-                    Text("OptIcon", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    // Expanded hero header: serif wordmark + version badge + slogan.
+                    // Collapses down to the compact title as the list scrolls.
+                    Column {
+                        Text(
+                            "OptIcon",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontFamily = FontFamily.Serif
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                            Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                                Text(
+                                    "v${io.github.deserthouse.opticon.BuildConfig.VERSION_NAME}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = stringResource(R.string.about_slogan),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 },
                 actions = {
                     IconButton(onClick = { viewModel.scanApps() }) {
@@ -160,11 +187,6 @@ fun AppListScreen(
                 .padding(padding)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                HeroStatusCard(
-                    active = state.lsposedActive,
-                    modifiedCount = state.apps.count { it.isUserModified },
-                    onClick = onNavigateToSettings
-                )
                 SearchField(
                     query = state.searchQuery,
                     onQueryChange = viewModel::setSearchQuery
@@ -198,6 +220,9 @@ fun AppListScreen(
                     AppList(
                         grouped = grouped,
                         listState = listState,
+                        heroActive = state.lsposedActive,
+                        heroModifiedCount = state.apps.count { it.isUserModified },
+                        onHeroClick = onNavigateToSettings,
                         onAppClick = onNavigateToDetail,
                         onAppLongClick = { entry ->
                             clipboard.setText(AnnotatedString(entry.packageName))
@@ -404,6 +429,9 @@ private fun ScanProgressBar(
 private fun AppList(
     grouped: Map<AppGroup, List<io.github.deserthouse.opticon.ui.state.AppUiEntry>>,
     listState: androidx.compose.foundation.lazy.LazyListState,
+    heroActive: Boolean?,
+    heroModifiedCount: Int,
+    onHeroClick: () -> Unit,
     onAppClick: (String) -> Unit,
     onAppLongClick: (io.github.deserthouse.opticon.ui.state.AppUiEntry) -> Unit
 ) {
@@ -412,6 +440,15 @@ private fun AppList(
         contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp),
         modifier = Modifier.fillMaxSize()
     ) {
+        // Hero card scrolls away with the content — it must not squat
+        // between the collapsing title bar and the app list.
+        item(key = "hero") {
+            HeroStatusCard(
+                active = heroActive,
+                modifiedCount = heroModifiedCount,
+                onClick = onHeroClick
+            )
+        }
         grouped.forEach { (group, apps) ->
             item(key = "header_${group.name}") {
                 GroupHeader(group = group, count = apps.size)

@@ -179,8 +179,20 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
             // ── 界面 ──
             SectionTitle(stringResource(R.string.ui_section))
             SettingsCard {
-                SettingItem(Icons.Rounded.Gesture, stringResource(R.string.predictive_back), stringResource(R.string.predictive_back_desc)) {
-                    Text(stringResource(R.string.enabled_label), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                // Predictive back gesture preview is a system capability that
+                // only exists on Android 13+; on 12 the option degrades to a
+                // plain back press (harmless). Be honest per OS version.
+                val predictiveSupported = android.os.Build.VERSION.SDK_INT >= 33
+                SettingItem(
+                    Icons.Rounded.Gesture,
+                    stringResource(R.string.predictive_back),
+                    stringResource(if (predictiveSupported) R.string.predictive_back_desc else R.string.predictive_back_desc_legacy)
+                ) {
+                    if (predictiveSupported) {
+                        Text(stringResource(R.string.enabled_label), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    } else {
+                        Text("N/A", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
 
