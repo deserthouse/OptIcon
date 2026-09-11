@@ -120,7 +120,15 @@ fun AppDetailScreen(
     val state by viewModel.state.collectAsState()
     LaunchedEffect(packageName) { viewModel.loadApp(packageName) }
 
-    val configSavedText = stringResource(R.string.config_saved)
+    // Save toasts (saved / blocked-kept-off) come from the VM after the
+    // async bake validation finishes.
+    val saveFeedback by viewModel.saveFeedback.collectAsState()
+    LaunchedEffect(saveFeedback) {
+        saveFeedback?.let {
+            android.widget.Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            viewModel.consumeSaveFeedback()
+        }
+    }
 
     // ── 未保存修改拦截 ──
     val isDirty by viewModel.isDirty.collectAsState()
@@ -137,7 +145,6 @@ fun AppDetailScreen(
                 TextButton(onClick = {
                     showUnsavedDialog = false
                     viewModel.saveConfig()
-                    android.widget.Toast.makeText(context, configSavedText, Toast.LENGTH_SHORT).show()
                     onNavigateBack()
                 }) { Text(stringResource(R.string.unsaved_save), fontWeight = FontWeight.Medium) }
             },
@@ -159,7 +166,7 @@ fun AppDetailScreen(
                 title = { Text(state.appName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) },
                 navigationIcon = { IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
                 actions = {
-                    IconButton(onClick = { viewModel.saveConfig(); Toast.makeText(context, configSavedText, Toast.LENGTH_SHORT).show() }) {
+                    IconButton(onClick = { viewModel.saveConfig() }) {
                         Icon(Icons.Filled.Check, stringResource(R.string.save))
                     }
                 },

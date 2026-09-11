@@ -73,6 +73,7 @@
 
     <string name="enable_custom_icon">开启自定义通知图标</string>
     <string name="source_prefix">来源: %s</string>
+        <string name="save_blocked_no_icon">该策略未能生成规范图标，已自动保持关闭。</string>
     <string name="config_saved">配置已保存</string>
 
     <string name="strategy_fankes_label">通知图标适配</string>
