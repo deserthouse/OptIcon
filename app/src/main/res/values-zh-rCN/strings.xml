@@ -50,6 +50,8 @@
     <string name="credit_pzcn_desc">感谢《完美图标补全计划》团队对丰富 Android 图标生态的无私贡献。</string>
     <string name="credit_lsposed">LSPosed Framework</string>
     <string name="credit_lsposed_desc">一切的基石，谢谢你们。</string>
+    <string name="credit_iconify">MohamedRejworkshop / Iconify</string>
+    <string name="credit_iconify_desc">感谢 Iconify —— 其跨进程图标配送管线（共享目录模式）为本项目的生产配送方案提供了架构参考。</string>
 
     <string name="easter_egg_author">作者：澪狼</string>
     <string name="easter_egg_email">deserthouse98@gmail.com</string>
