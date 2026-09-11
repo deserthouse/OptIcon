@@ -174,7 +174,7 @@
     <string name="root_status_checking">Checking su access…</string>
     <string name="about_slogan">Make every notification icon native.</string>
     <string name="predictive_back_desc">Native back-swipe preview, always on (system effect on Android 13+) — why would you turn it off?</string>
-    <string name="predictive_back_desc_legacy">Regrettably, gesture preview isn&#039;t supported on this Android version (requires Android 13+).</string>
+    <string name="predictive_back_desc_legacy">Regrettably, gesture preview is not supported on this Android version (requires Android 13+).</string>
     <string name="empty_no_apps_title">No apps found</string>
     <string name="empty_no_apps_body">Try a different keyword or filter</string>
     <string name="empty_no_apps_clear">Clear search</string>

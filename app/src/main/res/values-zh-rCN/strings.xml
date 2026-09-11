@@ -60,7 +60,7 @@
     <string name="easter_egg_kanji_2">狼</string>
     <string name="easter_egg_author_suffix"></string>
     <string name="easter_egg_vibe_line">如果程序员可以自称 coder，那么我们玩 vibe coding 的是不是可以自称 vibrator？</string>
-    <string name="easter_egg_ai_note">OptIcon 不是我的第一个项目，但它是我第一个落地的项目。我是 Android 重度发烧友，你要说我是极客我也能脸不红心不跳地认了，但我从来不认为我是一个合格的开发者。原因很简单：我一行代码也看不懂，因此本项目实质上包含 100% 的 AI 成分和 0% 的人类成分。你固然可以对项目提出任何意见或者建议，但我不一定会改——是真的不会，不是不想。</string>
+    <string name="easter_egg_ai_note" formatted="false">OptIcon 不是我的第一个项目，但它是我第一个落地的项目。我是 Android 重度发烧友，你要说我是极客我也能脸不红心不跳地认了，但我从来不认为我是一个合格的开发者。原因很简单：我一行代码也看不懂，因此本项目实质上包含 100% 的 AI 成分和 0% 的人类成分。你固然可以对项目提出任何意见或者建议，但我不一定会改——是真的不会，不是不想。</string>
     <string name="easter_egg_extra_line">等会儿，上面这行字是我亲自编写的，所以人类成分或许勉强可以增加到 1%？</string>
     <string name="easter_egg_dry">别点了，一滴也没有了 😭</string>
     <string name="easter_egg_card_title">关于 vibe coding 的一点碎碎念</string>
