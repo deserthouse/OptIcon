@@ -478,9 +478,10 @@ private fun FilterChipRow(
         // background instead of clipping hard at the screen edge.
         Box(
             Modifier
-                .align(Alignment.CenterEnd)
-                .fillMaxHeight()
-                .width(28.dp)
+                // matchParentSize: does NOT influence the parent's size —
+                // fillMaxHeight here would balloon the row to full height
+                // and push the LazyColumn off-screen.
+                .matchParentSize()
                 .background(
                     androidx.compose.ui.graphics.Brush.horizontalGradient(
                         colors = listOf(
