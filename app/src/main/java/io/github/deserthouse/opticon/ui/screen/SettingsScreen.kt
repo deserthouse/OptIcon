@@ -306,12 +306,19 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                             )
                             Spacer(Modifier.width(14.dp))
                             Column {
-                                Text(
-                                    stringResource(R.string.easter_egg_author_name),
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
+                                Row(verticalAlignment = Alignment.Bottom) {
+                                    Text(
+                                        stringResource(R.string.easter_egg_author_name),
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        stringResource(R.string.easter_egg_author_handle),
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
                                 Text(
                                     stringResource(R.string.easter_egg_author_en),
                                     style = MaterialTheme.typography.labelMedium,
@@ -374,10 +381,10 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
             SettingsCard {
                 Column(Modifier.padding(vertical = 4.dp)) {
                     CreditEntry(stringResource(R.string.credit_fankes), stringResource(R.string.credit_fankes_desc), "https://github.com/fankes/AndroidNotifyIconAdapt")
-                    CreditEntry(stringResource(R.string.credit_howard), stringResource(R.string.credit_howard_desc), "https://github.com/Xposed-Modules-Repo/io.github.howard20181.notificationiconfix")
                     CreditEntry(stringResource(R.string.credit_pzcn), stringResource(R.string.credit_pzcn_desc), "https://github.com/pzcn/Perfect-Icons-Completion-Project")
-                    CreditEntry(stringResource(R.string.credit_lsposed), stringResource(R.string.credit_lsposed_desc), "https://github.com/libxposed/api")
+                    CreditEntry(stringResource(R.string.credit_howard), stringResource(R.string.credit_howard_desc), "https://github.com/Xposed-Modules-Repo/io.github.howard20181.notificationiconfix")
                     CreditEntry(stringResource(R.string.credit_iconify), stringResource(R.string.credit_iconify_desc), "https://github.com/MohamedRejworkshop/Iconify")
+                    CreditEntry(stringResource(R.string.credit_lsposed), stringResource(R.string.credit_lsposed_desc), "https://github.com/libxposed/api")
                 }
             }
             Spacer(Modifier.height(32.dp))
@@ -561,8 +568,13 @@ private fun SourceSection(
     Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-            if (syncing) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-            else IconButton(onClick = onSync, Modifier.size(40.dp)) { Icon(Icons.Rounded.Sync, "Sync", Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary) }
+            if (syncing) {
+                // Reserve the same 40dp footprint as the sync button — a bare
+                // 20dp spinner would shrink the header row mid-sync.
+                Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                }
+            } else IconButton(onClick = onSync, Modifier.size(40.dp)) { Icon(Icons.Rounded.Sync, "Sync", Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary) }
         }
         status?.let {
             val isFailure = it.contains("failed", ignoreCase = true) || it.contains("unavailable", ignoreCase = true) || it.contains("Invalid", ignoreCase = true)
