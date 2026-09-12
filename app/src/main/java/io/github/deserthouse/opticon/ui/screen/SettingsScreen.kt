@@ -41,6 +41,7 @@ import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Launch
 import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
@@ -87,6 +88,7 @@ import androidx.navigation.NavController
 import io.github.deserthouse.opticon.BuildConfig
 import io.github.deserthouse.opticon.R
 import io.github.deserthouse.opticon.util.PreferenceManager
+import io.github.deserthouse.opticon.util.TraceLogger
 import io.github.deserthouse.opticon.ui.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
 
@@ -181,6 +183,61 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
 
             // ── 界面 ──
             SectionTitle(stringResource(R.string.ui_section))
+            SettingsCard {
+                // Per-app locale is a system capability (Android 13+); on 12
+                // the row degrades to an honest "system only" note.
+                val localeSupported = android.os.Build.VERSION.SDK_INT >= 33
+                var showLangDialog by remember { mutableStateOf(false) }
+                SettingItem(
+                    Icons.Rounded.Translate,
+                    stringResource(R.string.language_title),
+                    if (localeSupported) stringResource(R.string.language_system)
+                    else stringResource(R.string.predictive_back_desc_legacy)
+                ) {
+                    TextButton(onClick = { if (localeSupported) showLangDialog = true }) {
+                        Text(
+                            if (localeSupported) stringResource(R.string.language_system)
+                            else "N/A",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (localeSupported) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                if (showLangDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showLangDialog = false },
+                        title = { Text(stringResource(R.string.language_title)) },
+                        text = {
+                            Column {
+                                listOf(
+                                    "" to stringResource(R.string.language_system),
+                                    "en" to "English",
+                                    "zh-CN" to "简体中文"
+                                ).forEach { (tag, label) ->
+                                    Row(
+                                        Modifier.fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable {
+                                                showLangDialog = false
+                                                applyAppLocale(context, tag)
+                                            }
+                                            .padding(vertical = 10.dp, horizontal = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(label, style = MaterialTheme.typography.bodyLarge)
+                                    }
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { showLangDialog = false }) {
+                                Text(stringResource(R.string.ok_label))
+                            }
+                        }
+                    )
+                }
+            }
             SettingsCard {
                 // Predictive back gesture preview is a system capability that
                 // only exists on Android 13+; on 12 the option degrades to a
@@ -776,5 +833,20 @@ private fun RuntimeStatusCard(
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (action != null) action()
+    }
+}
+
+/** Apply per-app locale (Android 13+). Empty tag = follow system.
+ *  The system persists it and recreates the activity; localization
+ *  applies to every locale-qualified resource automatically. */
+private fun applyAppLocale(context: android.content.Context, tag: String) {
+    if (android.os.Build.VERSION.SDK_INT < 33) return
+    val lm = context.getSystemService(android.app.LocaleManager::class.java) ?: return
+    try {
+        if (tag.isEmpty()) lm.applicationLocales = android.os.LocaleList.getEmptyLocaleList()
+        else lm.applicationLocales = android.os.LocaleList.forLanguageTags(tag)
+        TraceLogger.i("OptIcon/Settings", "app locale set: ${tag.ifEmpty { "system" }}")
+    } catch (e: Exception) {
+        TraceLogger.w("OptIcon/Settings", "setApplicationLocales failed: ${e.message}")
     }
 }

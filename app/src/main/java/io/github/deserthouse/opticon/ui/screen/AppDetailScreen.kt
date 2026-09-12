@@ -263,9 +263,17 @@ fun AppDetailScreen(
     }
 
     if (state.sheetVisible) {
-        AlgoWipSheet(onDismiss = viewModel::hideSheet, onScaleChange = viewModel::setScale,
-            onOffsetXChange = viewModel::setOffsetX, onOffsetYChange = viewModel::setOffsetY,
-            onThresholdChange = viewModel::setThreshold)
+        AlgoWipSheet(
+            onDismiss = viewModel::hideSheet,
+            scale = state.redrawParams.scale,
+            offsetX = state.redrawParams.offsetX,
+            offsetY = state.redrawParams.offsetY,
+            threshold = state.redrawParams.threshold.toFloat(),
+            onScaleChange = viewModel::setScale,
+            onOffsetXChange = viewModel::setOffsetX,
+            onOffsetYChange = viewModel::setOffsetY,
+            onThresholdChange = viewModel::setThreshold
+        )
     }
 }
 
@@ -444,6 +452,7 @@ private fun AlgoWipSection(onOpen: () -> Unit) {
 @Composable
 private fun AlgoWipSheet(
     onDismiss: () -> Unit,
+    scale: Float, offsetX: Float, offsetY: Float, threshold: Float,
     onScaleChange: (Float) -> Unit, onOffsetXChange: (Float) -> Unit, onOffsetYChange: (Float) -> Unit, onThresholdChange: (Int) -> Unit
 ) {
     androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)) {
@@ -453,15 +462,16 @@ private fun AlgoWipSheet(
             Text(stringResource(R.string.algo_panel_wip_body), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(16.dp))
 
-            // Show sliders as preview (non-functional)
-            SliderLabel(stringResource(R.string.algo_slider_scale), "1.00", 0.4f)
-            androidx.compose.material3.Slider(value = 1f, onValueChange = {}, enabled = false, valueRange = 0.5f..2f, modifier = Modifier.fillMaxWidth())
-            SliderLabel(stringResource(R.string.algo_slider_offset_x), "0", 0.4f)
-            androidx.compose.material3.Slider(value = 0f, onValueChange = {}, enabled = false, valueRange = -50f..50f, modifier = Modifier.fillMaxWidth())
-            SliderLabel(stringResource(R.string.algo_slider_offset_y), "0", 0.4f)
-            androidx.compose.material3.Slider(value = 0f, onValueChange = {}, enabled = false, valueRange = -50f..50f, modifier = Modifier.fillMaxWidth())
-            SliderLabel(stringResource(R.string.algo_slider_purity), "0", 0.4f)
-            androidx.compose.material3.Slider(value = 0f, onValueChange = {}, enabled = false, valueRange = 0f..255f, modifier = Modifier.fillMaxWidth())
+            // Live sliders — each change flows through the VM's debounced
+            // preview (300ms) and persists on save.
+            SliderLabel(stringResource(R.string.algo_slider_scale), "%.2f".format(scale))
+            androidx.compose.material3.Slider(value = scale, onValueChange = onScaleChange, valueRange = 0.5f..2f, modifier = Modifier.fillMaxWidth())
+            SliderLabel(stringResource(R.string.algo_slider_offset_x), "%.0f".format(offsetX))
+            androidx.compose.material3.Slider(value = offsetX, onValueChange = onOffsetXChange, valueRange = -50f..50f, modifier = Modifier.fillMaxWidth())
+            SliderLabel(stringResource(R.string.algo_slider_offset_y), "%.0f".format(offsetY))
+            androidx.compose.material3.Slider(value = offsetY, onValueChange = onOffsetYChange, valueRange = -50f..50f, modifier = Modifier.fillMaxWidth())
+            SliderLabel(stringResource(R.string.algo_slider_purity), "%.0f".format(threshold))
+            androidx.compose.material3.Slider(value = threshold, onValueChange = { onThresholdChange(it.toInt()) }, valueRange = 0f..255f, modifier = Modifier.fillMaxWidth())
         }
     }
 }

@@ -473,6 +473,7 @@ private fun FilterChipRow(
                 )
             )
         }
+        }
         // Right-edge fade so horizontally scrolling chips melt into the
         // background instead of clipping hard at the screen edge.
         Box(

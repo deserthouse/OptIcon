@@ -35,7 +35,10 @@
     <string name="verbose_logging">详细日志记录</string>
     <string name="verbose_logging_desc">将 Hook 层详细日志写入文件，用于问题诊断</string>
     <string name="ui_section">界面</string>
-    <string name="predictive_back">预测性返回手势动画</string>
+        <string name="language_title">语言</string>
+    <string name="language_system">跟随系统</string>
+    <string name="language_applied">重启应用后生效</string>
+<string name="predictive_back">预测性返回手势动画</string>
     <string name="about_section">关于</string>
     <string name="about_description">LSPosed API 102 \u00b7 Android 12+ 通知图标优化器</string>
     <string name="credits_section">致谢</string>
@@ -103,9 +106,9 @@
 
     <string name="strategy_algo_label">兼容重绘（非自适应图标）</string>
     <string name="strategy_algo_wip">施工中，目前的效果和调节器仍为计划功能，暂不可用。</string>
-    <string name="strategy_algo_open_panel_wip">点击查看计划功能（未完成）</string>
-    <string name="algo_panel_title_wip">可视化微调面板（未完成）</string>
-    <string name="algo_panel_wip_body">以下滑块仅是计划加入的功能预览。当前版本对它们的一切调整均不产生任何实际作用，相关算法仍在开发中。您可以先看看。</string>
+    <string name="strategy_algo_open_panel_wip">微调参数</string>
+    <string name="algo_panel_title_wip">策略三微调</string>
+    <string name="algo_panel_wip_body">拖动滑杆实时预览；保存后对新通知生效。</string>
 
     <string name="filter_all">全部应用</string>
     <string name="filter_configured">已修改</string>
