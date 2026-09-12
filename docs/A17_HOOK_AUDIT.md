@@ -51,3 +51,32 @@ NotificationRowIconViewInflaterFactory.createIconProvider(sbn, ctx, row)
 
 - SystemUI17 反编译 jadx 1.5.1，个别方法体失败（如 StatusBarIconView.set body）但签名完整可审计
 - API 37 google_apis 镜像 guest 内 screencap 存在 goldfish DMA 断言崩溃（模拟器工具链缺陷，与本项目无关）；纯净 AVD CleanA36/CleanA37 已保留作原生基准
+
+---
+
+# 附：Q1 API 34 回归（2026-09-12）
+
+**方法**：API 34 google_apis 镜像（build 2024-07-12）直接解包（GPT→super→system/system_ext），dexdump 签名审计。
+
+## 签名审计结果（9/9 通过）
+
+| Hook 目标 | API 34 实测签名 | 结论 |
+|---|---|---|
+| IconManager.createIcons | `(NotificationEntry)V` | ✅ |
+| IconManager.updateIcons | `(NotificationEntry)V`（单重载；36 移除、37 为 (entry,Z)——按名全重载匹配策略三代通吃） | ✅ |
+| IconManager.getIconDescriptor | `(NotificationEntry,Z)StatusBarIcon` | ✅ |
+| StatusBarIconView.set | `(StatusBarIcon)Z` | ✅ |
+| Notification.getSmallIcon / setSmallIcon | `()Icon` / `(Icon)V` | ✅ |
+| Notification.Builder.recoverBuilder | `(Context,Notification)Builder` 静态 | ✅ |
+| CachingIconView.setImageIcon | `(Icon)V` | ✅ |
+| NotificationIconStyleProvider / shouldShowAppIcon | **不存在**（16 引入） | ✅ v0.6.9 移除该 hook 在 34 零影响 |
+
+## 行为层证据
+- v0.2.2 时代（2026-07-05）已在 API 34 AVD (WHPX) 完成 hook 加载端到端验证 ✅
+- 本次静态审计 + 历史行为证据 = Q1 判定**通过**
+
+## 限制说明
+- rootAVD 工具链未随迁移保留，无法建 API 34 LSPosed 环境做防御 hook 触发取证；如未来需要，按 archive/memory/2026-09-09.md 的 rootAVD2026 流程重建
+- API 34 镜像在宿主机当前模拟器版本（37.1.11）下窗口模式挂死（3 次复现），App 层回归未执行；A36/37 正常——记录为工具链缺陷
+
+**Q1 关账：API 34 回归通过。**
