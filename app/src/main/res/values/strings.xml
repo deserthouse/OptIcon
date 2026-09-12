@@ -57,6 +57,7 @@
     <string name="credit_iconify_desc">Architecture reference for the cross-process icon delivery pipeline (shared-directory pattern).</string>
 
     <string name="easter_egg_author_name">澪狼</string>
+        <string name="easter_egg_author_handle">@deserthouse</string>
     <string name="easter_egg_author_en">Ling the Wolp</string>
     <string name="easter_egg_vibe_line">If programmers can call themselves coders, can those of us doing vibe coding call ourselves vibrators?</string>
     <string name="easter_egg_ai_note" formatted="false">OptIcon isn\'t my first project, but it\'s the first one I\'ve ever shipped. I\'m a hardcore Android enthusiast — call me a geek and I\'ll own it without blushing. I\'ve just never considered myself a qualified developer, for one simple reason: I can\'t read a single line of code. This project is, in essence, 100% AI and 0% human. Feel free to voice any feedback — whether it gets done is another matter. I genuinely can\'t, not just won\'t.</string>
