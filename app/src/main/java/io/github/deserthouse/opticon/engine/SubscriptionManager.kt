@@ -49,7 +49,11 @@ object SubscriptionManager {
             }
 
             onProgress?.invoke("Downloading...")
-            val json = NetworkExecutor.fetchStringSync(url)
+            val json = NetworkExecutor.fetchStringSync(url) { downloaded, total ->
+                val kb = downloaded / 1024
+                val text = if (total > 0) "$kb / ${total / 1024} KB (${downloaded * 100 / total} %)" else "$kb KB"
+                onProgress?.invoke("Downloading... $text")
+            }
 
             if (json == null) {
                 onResult(SyncResult(false, errorMessage = "下载失败，请检查网络或更换订阅源 / Download failed"))

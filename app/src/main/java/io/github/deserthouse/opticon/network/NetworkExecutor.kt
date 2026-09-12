@@ -69,17 +69,33 @@ object NetworkExecutor {
 
     /**
      * Synchronous fetch — use only on background thread (Dispatchers.IO).
-     * Returns body string or null on failure.
+     * Returns body string or null on failure. Optional byte-level progress
+     * callback (downloaded, total; total=-1 when server omits length).
      */
-    fun fetchStringSync(url: String): String? {
+    fun fetchStringSync(url: String, onProgress: ((Long, Long) -> Unit)? = null): String? {
         return try {
             val response = client.newCall(
                 Request.Builder().url(url).get().build()
             ).execute()
             if (!response.isSuccessful) { response.close(); return null }
-            val body = response.body?.string()
+            val body = response.body ?: run { response.close(); return null }
+            val text = if (onProgress != null) {
+                val total = body.contentLength()
+                val bos = java.io.ByteArrayOutputStream()
+                body.byteStream().use { input ->
+                    val buffer = ByteArray(8192)
+                    var read: Int
+                    var downloaded = 0L
+                    while (input.read(buffer).also { read = it } != -1) {
+                        bos.write(buffer, 0, read)
+                        downloaded += read
+                        onProgress.invoke(downloaded, total)
+                    }
+                }
+                bos.toString("UTF-8")
+            } else body.string()
             response.close()
-            body
+            text
         } catch (e: Exception) {
             null
         }

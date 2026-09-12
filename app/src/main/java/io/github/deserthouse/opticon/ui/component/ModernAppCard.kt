@@ -179,10 +179,10 @@ private fun AppIconCircle(entry: AppUiEntry) {
 
 @Composable
 private fun ModificationBadge(source: ModificationSource) {
-    val (label, color) = when (source) {
-        ModificationSource.ICON_LIBRARY -> "LIB" to MaterialTheme.colorScheme.primary
-        ModificationSource.ALGORITHM -> "ALG" to MaterialTheme.colorScheme.tertiary
-        ModificationSource.CUSTOM -> "USR" to MaterialTheme.colorScheme.secondary
+    val (labelRes, color) = when (source) {
+        ModificationSource.ICON_LIBRARY -> io.github.deserthouse.opticon.R.string.badge_source_lib to MaterialTheme.colorScheme.primary
+        ModificationSource.ALGORITHM -> io.github.deserthouse.opticon.R.string.badge_source_algo to MaterialTheme.colorScheme.tertiary
+        ModificationSource.CUSTOM -> io.github.deserthouse.opticon.R.string.badge_source_custom to MaterialTheme.colorScheme.secondary
         ModificationSource.NONE -> return
     }
     Surface(
@@ -191,7 +191,7 @@ private fun ModificationBadge(source: ModificationSource) {
         contentColor = MaterialTheme.colorScheme.onPrimary
     ) {
         Text(
-            text = label,
+            text = stringResource(labelRes),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -205,9 +205,11 @@ private fun AdaptiveStatusStrip(entry: AppUiEntry) {
         if (entry.iconCompliant == false) {
             StatusPill(text = stringResource(io.github.deserthouse.opticon.R.string.pill_noncompliant), active = true, alert = true)
         }
-        StatusPill(text = stringResource(io.github.deserthouse.opticon.R.string.pill_ania), active = entry.aniaAdapted)
-        StatusPill(text = stringResource(io.github.deserthouse.opticon.R.string.pill_picp), active = entry.picpAdapted)
-        StatusPill(text = stringResource(io.github.deserthouse.opticon.R.string.pill_adaptive), active = entry.hasAdaptiveIcon)
+        // Info-first: inactive capability pills are NOISE on every card —
+        // only show what's true. Inactive "adaptive/ANIA/PICP" pills removed.
+        if (entry.aniaAdapted) StatusPill(text = stringResource(io.github.deserthouse.opticon.R.string.pill_ania), active = true)
+        if (entry.picpAdapted) StatusPill(text = stringResource(io.github.deserthouse.opticon.R.string.pill_picp), active = true)
+        if (entry.hasAdaptiveIcon) StatusPill(text = stringResource(io.github.deserthouse.opticon.R.string.pill_adaptive), active = true)
         if (entry.isSystemApp) StatusPill(text = "System", active = false, dim = true)
     }
 }

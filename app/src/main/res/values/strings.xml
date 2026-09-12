@@ -35,7 +35,10 @@
     <string name="verbose_logging">Verbose Logging</string>
     <string name="verbose_logging_desc">Write detailed hook-layer logs to file for diagnostics</string>
     <string name="ui_section">UI</string>
-    <string name="predictive_back">Predictive Back Gesture</string>
+        <string name="language_title">Language</string>
+    <string name="language_system">Follow system</string>
+    <string name="language_applied">Restart to apply</string>
+<string name="predictive_back">Predictive Back Gesture</string>
     <string name="about_section">About</string>
     <string name="about_description">LSPosed API 102 · Android 12+ notification icon optimizer</string>
     <string name="credits_section">Credits</string>
@@ -103,9 +106,9 @@
 
     <string name="strategy_algo_label">Compatibility Redraw</string>
     <string name="strategy_algo_wip">Under development. The effects and controls are planned features and not yet available.</string>
-    <string name="strategy_algo_open_panel_wip">View planned features (unfinished)</string>
-    <string name="algo_panel_title_wip">Visual Tuning Panel (Unfinished)</string>
-    <string name="algo_panel_wip_body">The sliders below are a preview of planned features. In this version, adjusting them has no actual effect. The algorithm is still under development.</string>
+    <string name="strategy_algo_open_panel_wip">Fine-tune redraw</string>
+    <string name="algo_panel_title_wip">Fine-tune strategy 3</string>
+    <string name="algo_panel_wip_body">Adjust and watch the preview update live. Changes take effect for new notifications after you save.</string>
 
     <string name="filter_all">All Apps</string>
     <string name="filter_configured">Configured</string>
@@ -194,7 +197,10 @@
     <string name="hit_auto_miss">No source hit</string>
     <string name="hit_other">Other</string>
     <string name="toggle_preview_mode">Toggle preview mode</string>
-    <string name="pill_ania">Lib</string>
+    <string name="badge_source_lib">Rules</string>
+    <string name="badge_source_algo">Redraw</string>
+    <string name="badge_source_custom">Custom</string>
+<string name="pill_ania">Lib</string>
     <string name="pill_picp">Perfect</string>
     <string name="pill_adaptive">Adaptive</string>
     <string name="pill_compliant">Compliant</string>
