@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -448,11 +449,12 @@ private fun FilterChipRow(
         FilterMode.PICP_ADAPTED to stringResource(R.string.filter_picp),
         FilterMode.HAS_ADAPTIVE to stringResource(R.string.filter_adaptive)
     )
-    LazyRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(horizontal = 16.dp)
-    ) {
+    Box(Modifier.fillMaxWidth()) {
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 28.dp)
+        ) {
         items(filters) { (mode, label) ->
             FilterChip(
                 selected = current == mode,
@@ -471,6 +473,22 @@ private fun FilterChipRow(
                 )
             )
         }
+        // Right-edge fade so horizontally scrolling chips melt into the
+        // background instead of clipping hard at the screen edge.
+        Box(
+            Modifier
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight()
+                .width(28.dp)
+                .background(
+                    androidx.compose.ui.graphics.Brush.horizontalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0f),
+                            MaterialTheme.colorScheme.surfaceContainer
+                        )
+                    )
+                )
+        )
     }
 }
 

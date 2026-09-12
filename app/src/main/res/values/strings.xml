@@ -194,7 +194,10 @@
     <string name="hit_auto_miss">No source hit</string>
     <string name="hit_other">Other</string>
     <string name="toggle_preview_mode">Toggle preview mode</string>
-    <string name="pill_ania">Lib</string>
+    <string name="badge_source_lib">Rules</string>
+    <string name="badge_source_algo">Redraw</string>
+    <string name="badge_source_custom">Custom</string>
+<string name="pill_ania">Lib</string>
     <string name="pill_picp">Perfect</string>
     <string name="pill_adaptive">Adaptive</string>
     <string name="pill_compliant">Compliant</string>

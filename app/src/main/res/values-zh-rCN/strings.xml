@@ -190,7 +190,10 @@
     <string name="hit_auto_miss">无可用来源</string>
     <string name="hit_other">其他</string>
     <string name="toggle_preview_mode">切换预览模式</string>
-    <string name="pill_ania">ANIA 适配</string>
+    <string name="badge_source_lib">规则库</string>
+    <string name="badge_source_algo">重绘</string>
+    <string name="badge_source_custom">自定义</string>
+<string name="pill_ania">ANIA 适配</string>
     <string name="pill_picp">PICP 重绘</string>
     <string name="pill_adaptive">自适应</string>
     <string name="pill_compliant">符合规范</string>
