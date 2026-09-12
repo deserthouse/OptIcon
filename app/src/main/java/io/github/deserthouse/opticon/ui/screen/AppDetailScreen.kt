@@ -292,6 +292,8 @@ private fun StrategyCard(selected: Boolean = false, content: @Composable android
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = container)
     ) {
+        // Card-level clip so descendant ripples stay inside the outline.
+        Column(Modifier.clip(RoundedCornerShape(24.dp)), content = content)
         androidx.compose.foundation.layout.Column(
             modifier = Modifier.padding(vertical = 8.dp),
             content = content
@@ -303,7 +305,7 @@ private fun StrategyCard(selected: Boolean = false, content: @Composable android
 @Composable
 private fun StrategyRadio(label: String, desc: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
     val alpha = if (enabled) 1f else 0.4f
-    Row(modifier = Modifier.fillMaxWidth().then(if (enabled) Modifier.selectable(selected = selected, onClick = onClick) else Modifier).padding(vertical = 10.dp).then(Modifier), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier = Modifier.fillMaxWidth().then(if (enabled) Modifier.selectable(selected = selected, onClick = onClick) else Modifier).padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         RadioButton(selected = selected, onClick = onClick, enabled = enabled)
         Spacer(Modifier.size(8.dp))
         Column(Modifier.alpha(alpha)) {

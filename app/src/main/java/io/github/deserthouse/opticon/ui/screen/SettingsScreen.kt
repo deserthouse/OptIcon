@@ -585,7 +585,9 @@ private fun SourceSection(
         }
         sources.forEach { source ->
             Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                Row(Modifier.fillMaxWidth().clickable { onSelect(source.id) }.padding(vertical = 2.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth()
+                    .padding(vertical = 6.dp, horizontal = 4.dp)
+                    .clickable { onSelect(source.id) }, verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = activeId == source.id, onClick = { onSelect(source.id) }, modifier = Modifier.padding(end = 4.dp))
                     Text(getSourceDisplayName(source), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
                     IconButton(onClick = { onEditSource(source) }, Modifier.size(40.dp)) { Icon(Icons.Rounded.Edit, null, Modifier.size(18.dp)) }
@@ -770,7 +772,11 @@ private fun StatusRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), lineHeight = 14.sp)
             }
             if (checking) {
-                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                // Same 36dp footprint as the recheck button — prevents the
+                // row from shrinking while a check is in flight.
+                Box(Modifier.size(width = 44.dp, height = 36.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                }
             } else {
                 TextButton(onClick = onRecheck, modifier = Modifier.size(width = 44.dp, height = 36.dp),
                     contentPadding = PaddingValues(4.dp)) {
