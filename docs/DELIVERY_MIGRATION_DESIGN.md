@@ -85,3 +85,22 @@ FileObserver: 两路径都监听（读序即优先级）
 3. 存量迁移 + su 失败回落
 4. 模拟器（旧通道）+ 真机（新通道）全量回归
 5. 出 v0.7.0-alpha
+
+---
+
+## 七、批准决议（2026-09-17）
+
+**用户授权 AI 拍板（「不与既定原则冲突且功能正常即可」），草案批准，附三项修正：**
+
+| # | 修正 | 理由 |
+|---|---|---|
+| 1 | root 通道路径复用 hook 现有 `WORLD_BAKED_DIR`（`/data/local/tmp/opticon_baked`），不新设路径 | 代码连续性，避免双 legacy 路径 |
+| 2 | 并入 FileObserver 后缀 bug 修复（核验发现：`onEvent`/`preloadIcons` 按 `.png` 过滤，生产通道 `.opticon` 文件事件全被丢弃——热生效实际失效，注释与实现矛盾） | 不修则迁移后新通道热生效同样失效 |
+| 3 | S2 中 A/B 通道 SELinux 均不可读 → 保留 C（Downloads）为主通道，迁移搁置不强行 | 「保证功能正常」优先于通道洁癖 |
+
+**原则合规核查**：无新增依赖（root 本为 LSPosed 前提）✓ / su 失败自动回落保证功能 ✓ / PICP-ANIA 红线不涉及（通道为设备本地文件摆渡，不分发）✓ / 真机会话 AI 只读规则不变 ✓ / 版本纪律：观察者修复 PATCH、迁移本体 MINOR(v0.8.0) ✓
+
+**实施批次**（批准时挂起，后经用户指示解冻）：
+- 批次 1 · v0.7.5-alpha（自主）：FileObserver/preload 双后缀修复 + hook 启动通道探针日志
+- 批次 2 · S2 真机会话（~20min）：E1 /data/local/tmp 可读性 · E2 /data/adb 可读性 · E3 su 批量写延迟 · E4 旧通道存量。决策门：可读→批次 3；均不可读→保留 C 归档
+- 批次 3 · v0.8.0-alpha：DeliveryChannel 偏好（auto/手动）→ RootDeliveryWriter（单文件+批量单会话脚本）→ 读侧优先级翻转 → 存量迁移 → 双端回归
