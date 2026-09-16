@@ -195,7 +195,7 @@ fun AppDetailScreen(
             val enabled = state.methodEnabled
 
             // Strategy 1: Fankes
-            StrategyCard(selected = state.strategy == IconStrategy.FANKES) {
+            StrategyCard(selected = state.strategy == IconStrategy.FANKES, enabled = enabled, onClick = { viewModel.setStrategy(IconStrategy.FANKES) }) {
             val fankesHasIcon = remember(state.packageName) { IconLibEngine.hasIcon(state.packageName) }
             val fankesMeta = remember(state.packageName) { IconLibEngine.getMeta(state.packageName) }
             StrategyRadio(
@@ -230,7 +230,7 @@ fun AppDetailScreen(
             Spacer(Modifier.height(12.dp))
 
             // Strategy 2: Asset Import
-            StrategyCard(selected = state.strategy == IconStrategy.ASSET_IMPORT) {
+            StrategyCard(selected = state.strategy == IconStrategy.ASSET_IMPORT, enabled = enabled, onClick = { viewModel.setStrategy(IconStrategy.ASSET_IMPORT) }) {
             StrategyRadio(
                 label = stringResource(R.string.strategy_asset_label),
                 desc = stringResource(R.string.strategy_asset_desc),
@@ -246,7 +246,7 @@ fun AppDetailScreen(
             Spacer(Modifier.height(12.dp))
 
             // Strategy 3: Algorithm (WIP)
-            StrategyCard(selected = state.strategy == IconStrategy.ALGORITHM) {
+            StrategyCard(selected = state.strategy == IconStrategy.ALGORITHM, enabled = enabled, onClick = { viewModel.setStrategy(IconStrategy.ALGORITHM) }) {
             StrategyRadio(
                 label = stringResource(R.string.strategy_algo_label),
                 desc = stringResource(R.string.strategy_algo_wip),
@@ -280,7 +280,12 @@ fun AppDetailScreen(
 
 /** M3E strategy group card — 24dp radius, floats on layered background */
 @Composable
-private fun StrategyCard(selected: Boolean = false, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+private fun StrategyCard(
+    selected: Boolean = false,
+    enabled: Boolean = true,
+    onClick: (() -> Unit)? = null,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
+) {
     // M3E: selected strategy gets a primaryContainer wash — the card itself
     // answers "which one am I on", not just the radio dot.
     val container by animateColorAsState(
@@ -288,13 +293,28 @@ private fun StrategyCard(selected: Boolean = false, content: @Composable android
         else MaterialTheme.colorScheme.surfaceContainer,
         animationSpec = tween(220), label = "strategyCardBg"
     )
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = container)
-    ) {
-        // Card-level clip so descendant ripples stay inside the outline.
-        Column(Modifier.clip(RoundedCornerShape(24.dp)), content = content)
+    // Card-level click = the WHOLE card selects this strategy (visual and
+    // interactive areas match). Child clickables (radios, buttons, links)
+    // consume their own regions first; null onClick when the switch is off.
+    if (onClick != null) {
+        Card(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = container)
+        ) {
+            Column(Modifier.clip(RoundedCornerShape(24.dp)), content = content)
+        }
+    } else {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = container)
+        ) {
+            Column(Modifier.clip(RoundedCornerShape(24.dp)), content = content)
+        }
+    }
         androidx.compose.foundation.layout.Column(
             modifier = Modifier.padding(vertical = 8.dp),
             content = content
@@ -306,7 +326,7 @@ private fun StrategyCard(selected: Boolean = false, content: @Composable android
 @Composable
 private fun StrategyRadio(label: String, desc: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
     val alpha = if (enabled) 1f else 0.4f
-    Row(modifier = Modifier.fillMaxWidth().then(if (enabled) Modifier.selectable(selected = selected, onClick = onClick) else Modifier).padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp).then(if (enabled) Modifier.selectable(selected = selected, onClick = onClick) else Modifier), verticalAlignment = Alignment.CenterVertically) {
         RadioButton(selected = selected, onClick = onClick, enabled = enabled)
         Spacer(Modifier.size(8.dp))
         Column(Modifier.alpha(alpha)) {
@@ -367,7 +387,7 @@ private fun AssetImportPanel(state: io.github.deserthouse.opticon.ui.state.AppDe
 
 @Composable
 private fun AssetSubRadio(label: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth().then(if (enabled) Modifier.selectable(selected = selected, onClick = onClick) else Modifier).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).then(if (enabled) Modifier.selectable(selected = selected, onClick = onClick) else Modifier), verticalAlignment = Alignment.CenterVertically) {
         RadioButton(selected = selected, onClick = onClick, enabled = enabled)
         Spacer(Modifier.size(6.dp))
         Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
