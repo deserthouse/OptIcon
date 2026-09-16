@@ -315,11 +315,6 @@ private fun StrategyCard(
             Column(Modifier.clip(RoundedCornerShape(24.dp)), content = content)
         }
     }
-        androidx.compose.foundation.layout.Column(
-            modifier = Modifier.padding(vertical = 8.dp),
-            content = content
-        )
-    }
 }
 
 // Strategy radio with optional disable

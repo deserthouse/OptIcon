@@ -193,18 +193,17 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                     stringResource(R.string.language_title),
                     if (localeSupported) stringResource(R.string.language_system)
                     else stringResource(R.string.predictive_back_desc_legacy),
-                    onClick = if (localeSupported) ({ showLangDialog = true }) else null
-                ) {
-                    // Whole-row tap target via the row's own clickable below;
-                    // this text is visual only.
-                    Text(
-                        if (localeSupported) stringResource(R.string.language_system)
-                        else "N/A",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = if (localeSupported) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                    onClick = if (localeSupported) ({ showLangDialog = true }) else null,
+                    action = {
+                        Text(
+                            if (localeSupported) stringResource(R.string.language_system)
+                            else "N/A",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (localeSupported) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                )
                 if (showLangDialog) {
                     AlertDialog(
                         onDismissRequest = { showLangDialog = false },
@@ -846,7 +845,7 @@ private fun RuntimeStatusCard(
     Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
 }
 
-@Composable private fun SettingItem(icon: ImageVector, title: String, subtitle: String, action: @Composable (() -> Unit)? = null, onClick: (() -> Unit)? = null) {
+@Composable private fun SettingItem(icon: ImageVector, title: String, subtitle: String, onClick: (() -> Unit)? = null, action: @Composable (() -> Unit)? = null) {
     Row(Modifier.fillMaxWidth()
         .padding(vertical = 10.dp)
         .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier), verticalAlignment = Alignment.CenterVertically) {
