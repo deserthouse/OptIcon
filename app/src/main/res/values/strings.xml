@@ -39,7 +39,7 @@
     <string name="shade_mode_app">App icons</string>
     <string name="shade_mode_notif">Notification icons</string>
     <string name="shade_mode_pref">Respect app preference</string>
-    <string name="shade_icon_desc">Which icon to show at the left of notifications in the shade (Android 17+)</string>
+    <string name="shade_icon_desc">Which icon to show at the left of notifications in the shade (Android 17+). Applies to new notifications; restart SystemUI to rebind existing rows</string>
 <string name="language_title">Language</string>
     <string name="language_system">Follow system</string>
     <string name="language_applied">Restart to apply</string>
