@@ -148,6 +148,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     private var versionTapCount = 0
 
+    private val _shadeAppIconMode = MutableStateFlow(PreferenceManager.getShadeAppIconMode())
+    val shadeAppIconMode: StateFlow<String> = _shadeAppIconMode.asStateFlow()
+
+    fun setShadeAppIconMode(mode: String) {
+        PreferenceManager.setShadeAppIconMode(getApplication(), mode)
+        _shadeAppIconMode.value = mode
+    }
+
     fun setVerboseLogging(enabled: Boolean) {
         PreferenceManager.setVerboseLogging(enabled)
         TraceLogger.setLevel(if (enabled) TraceLogger.DEBUG else TraceLogger.INFO)

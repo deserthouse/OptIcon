@@ -93,6 +93,18 @@ object NotificationHook {
     /** rate-limit guard for master_switch stat checks */
     private val lastSwitchCheck = AtomicLong(0L)
 
+    /** Shade row icon mode: "app" (force app icon) / "notif" (force small
+     *  icon) / "pref" (respect the app's preferSmallIcon extra). */
+    @Volatile
+    private var shadeIconMode = "app"
+
+    /** mtime of shade_icon_mode when last read; -1 = file absent */
+    @Volatile
+    private var shadeIconModeMtime: Long = -1L
+
+    /** rate-limit guard for shade_icon_mode stat checks */
+    private val lastShadeModeCheck = AtomicLong(0L)
+
     private val currentPackage = ThreadLocal<String>()
 
     /** Package attribution channel for recoverBuilder hook: createIcons/updateIcons
@@ -121,6 +133,7 @@ object NotificationHook {
         hookRecoverBuilder(xposed)
         hookGetIconDescriptor(xposed, classLoader)
         hookStatusBarIconViewSet(xposed, classLoader)
+        hookShadeAppIcon(xposed, classLoader)
 
         TraceLogger.i(TAG, "Hooks installed")
         Thread({ reportHookAlive() }, "OptIconHeartbeat-Initial").start()
@@ -714,6 +727,87 @@ object NotificationHook {
             TraceLogger.i(TAG, "IconManager.getIconDescriptor hooked")
         } catch (e: Exception) {
             TraceLogger.e(TAG, "hookGetIconDescriptor failed: ${e.message}")
+        }
+    }
+
+    /** Android 17+: hook NotificationIconStyleProviderImpl.shouldShowAppIcon —
+     *  the system's switch for "show app icon vs small icon" in the shade row
+     *  (exists on 17, absent on 36 — silently skipped there). Mode comes from
+     *  the shared shade_icon_mode file (user setting, default "app" = AOSP
+     *  behavior): "notif" forces the (replaced) small icon, "pref" lets the
+     *  app's own preferSmallIcon extra decide via the original method. */
+    private fun hookShadeAppIcon(xposed: XposedInterface, classLoader: ClassLoader) {
+        try {
+            val impl = classLoader.loadClass(
+                "com.android.systemui.statusbar.notification.row.icon.NotificationIconStyleProviderImpl"
+            )
+            val methods = impl.declaredMethods.filter {
+                it.name == "shouldShowAppIcon" && it.returnType == java.lang.Boolean.TYPE
+            }
+            if (methods.isEmpty()) {
+                TraceLogger.i(TAG, "shouldShowAppIcon not found (pre-17), skipped")
+                return
+            }
+            for (m in methods) {
+                xposed.hook(m).setId("opticon:shouldShowAppIcon").intercept(
+                    XposedInterface.Hooker { chain ->
+                        try {
+                            if (!initialized) return@Hooker chain.proceed()
+                            maybeRefreshShadeMode()
+                            if (!masterEnabled || shadeIconMode == "pref") return@Hooker chain.proceed()
+                            shadeIconMode == "app"
+                        } catch (e: Exception) {
+                            TraceLogger.w(TAG, "shouldShowAppIcon hook: ${e.message}")
+                            try { chain.proceed() } catch (_: Exception) { false }
+                        }
+                    }
+                )
+            }
+            refreshShadeMode()
+            TraceLogger.i(TAG, "shouldShowAppIcon hooked (${methods.size}) — shade icon mode active")
+        } catch (e: Exception) {
+            TraceLogger.w(TAG, "hookShadeAppIcon skipped: ${e.message}")
+        }
+    }
+
+    /** Blocking read of the shade icon mode (shared dir first, legacy
+     *  filesDir fallback). MUST run off the main thread. */
+    private fun refreshShadeMode() {
+        try {
+            val shared = File(SHARED_ICON_DIR, "shade_icon_mode.opticon")
+            val dir = moduleFilesDir
+            val legacy = if (dir != null) File(dir, "shade_icon_mode") else null
+            val source = when {
+                shared.exists() -> shared
+                legacy != null && legacy.exists() -> legacy
+                else -> null
+            }
+            shadeIconModeMtime = source?.lastModified() ?: -1L
+            if (source != null) {
+                shadeIconMode = source.readText().trim().ifEmpty { "app" }
+            }
+        } catch (e: Exception) {
+            TraceLogger.w(TAG, "refreshShadeMode: ${e.message}")
+        }
+    }
+
+    /** Rate-limited hot re-check of shade_icon_mode (max one stat per 3s) */
+    private fun maybeRefreshShadeMode() {
+        val now = android.os.SystemClock.elapsedRealtime()
+        val last = lastShadeModeCheck.get()
+        if (now - last < MASTER_SWITCH_RECHECK_MS) return
+        if (!lastShadeModeCheck.compareAndSet(last, now)) return
+        try {
+            val shared = File(SHARED_ICON_DIR, "shade_icon_mode.opticon")
+            val dir = moduleFilesDir
+            val legacy = if (dir != null) File(dir, "shade_icon_mode") else null
+            val mtime = when {
+                shared.exists() -> shared.lastModified()
+                legacy != null && legacy.exists() -> legacy.lastModified()
+                else -> -1L
+            }
+            if (mtime != shadeIconModeMtime) refreshShadeMode()
+        } catch (_: Exception) {
         }
     }
 

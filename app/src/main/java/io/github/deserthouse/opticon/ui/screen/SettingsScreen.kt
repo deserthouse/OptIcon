@@ -108,6 +108,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
     val rechecking by viewModel.rechecking.collectAsState()
     val emojiUnlocked by viewModel.emojiUnlocked.collectAsState()
     val rambleExtraShown by viewModel.rambleExtraShown.collectAsState()
+    val shadeAppIconMode by viewModel.shadeAppIconMode.collectAsState()
     val aniaSources by viewModel.aniaSources.collectAsState()
     val activeAniaSource by viewModel.activeAniaSource.collectAsState()
     val aniaSyncing by viewModel.aniaSyncing.collectAsState()
@@ -188,6 +189,65 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                 // the row degrades to an honest "system only" note.
                 val localeSupported = android.os.Build.VERSION.SDK_INT >= 33
                 var showLangDialog by remember { mutableStateOf(false) }
+                var showShadeDialog by remember { mutableStateOf(false) }
+                val shadeModeLabel = when (shadeAppIconMode) {
+                    "notif" -> stringResource(R.string.shade_mode_notif)
+                    "pref" -> stringResource(R.string.shade_mode_pref)
+                    else -> stringResource(R.string.shade_mode_app)
+                }
+                SettingItem(
+                    Icons.Rounded.Extension,
+                    stringResource(R.string.shade_icon_title),
+                    stringResource(R.string.shade_icon_desc),
+                    onClick = { showShadeDialog = true }
+                ) {
+                    Text(
+                        shadeModeLabel,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                if (showShadeDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showShadeDialog = false },
+                        title = { Text(stringResource(R.string.shade_icon_title)) },
+                        text = {
+                            Column {
+                                listOf(
+                                    "app" to stringResource(R.string.shade_mode_app),
+                                    "notif" to stringResource(R.string.shade_mode_notif),
+                                    "pref" to stringResource(R.string.shade_mode_pref)
+                                ).forEach { (mode, label) ->
+                                    Row(
+                                        Modifier.fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable {
+                                                showShadeDialog = false
+                                                viewModel.setShadeAppIconMode(mode)
+                                            }
+                                            .padding(vertical = 10.dp, horizontal = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        RadioButton(
+                                            selected = shadeAppIconMode == mode,
+                                            onClick = {
+                                                showShadeDialog = false
+                                                viewModel.setShadeAppIconMode(mode)
+                                            }
+                                        )
+                                        Spacer(Modifier.size(8.dp))
+                                        Text(label, style = MaterialTheme.typography.bodyLarge)
+                                    }
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { showShadeDialog = false }) {
+                                Text(stringResource(R.string.ok_label))
+                            }
+                        }
+                    )
+                }
                 SettingItem(
                     Icons.Rounded.Translate,
                     stringResource(R.string.language_title),

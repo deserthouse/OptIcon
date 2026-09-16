@@ -84,6 +84,10 @@ object SharedIconStore {
     fun writeMasterSwitch(context: Context, enabled: Boolean): String? =
         writeBytes(context, "master_switch.opticon", if (enabled) "true".toByteArray() else "false".toByteArray())
 
+    /** Write the shade icon mode flag; content is "app"/"notif"/"pref". */
+    fun writeShadeIconMode(context: Context, mode: String): String? =
+        writeBytes(context, "shade_icon_mode.opticon", mode.toByteArray())
+
     /**
      * Delete an icon from the shared dir (user reverted an app).
      * Returns true if a row was actually removed.

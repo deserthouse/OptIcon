@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import io.github.deserthouse.opticon.engine.RedrawParams
+import io.github.deserthouse.opticon.engine.SharedIconStore
 
 /**
  * PreferenceManager — 模块配置持久化 (5 方案并列 + 云端订阅)
@@ -32,6 +33,7 @@ object PreferenceManager {
     private const val KEY_GLOBAL_VERBOSE_LOG = "global_verbose_log"
     private const val KEY_GLOBAL_PREDICTIVE_BACK = "global_predictive_back"
     private const val KEY_EMOJI_UNLOCKED = "emoji_unlocked"
+    private const val KEY_SHADE_ICON_MODE = "shade_icon_mode"
     private const val KEY_RAMBLE_EXTRA_SHOWN = "ramble_extra_shown"
     private const val KEY_AI_CONFIG = "ai_config"
     private const val KEY_SUBSCRIPTION_URLS = "subscription_urls"
@@ -249,6 +251,21 @@ object PreferenceManager {
 
     fun setEmojiUnlocked(unlocked: Boolean) {
         prefs?.edit { putBoolean(KEY_EMOJI_UNLOCKED, unlocked) }
+    }
+
+    // ━━━ Shade row icon mode (Android 17+ dropdown area) ━━━
+    // "app" = force app icon (AOSP default) · "notif" = force small icon ·
+    // "pref" = respect the app's own preferSmallIcon extra.
+    // Mirrored to the shared dir so the SystemUI hook can read it.
+
+    fun getShadeAppIconMode(): String =
+        prefs?.getString(KEY_SHADE_ICON_MODE, "app") ?: "app"
+
+    fun setShadeAppIconMode(context: Context, mode: String) {
+        prefs?.edit { putString(KEY_SHADE_ICON_MODE, mode) }
+        try {
+            SharedIconStore.writeShadeIconMode(context, mode)
+        } catch (_: Exception) {}
     }
 
     fun isRambleExtraShown(): Boolean =
