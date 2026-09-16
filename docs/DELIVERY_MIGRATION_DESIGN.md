@@ -129,3 +129,11 @@ FileObserver: 两路径都监听（读序即优先级）
 - 判定：SystemUI 进程内 OptIcon hook 当前未运行（用户手机今日更新 v0.7.4 后 LSPosed 提示重启作用域内应用，SystemUI 未重启 → 旧 hook 失效或未加载）。读取侧可读性结论**无法在 hook 未运行时测定**。
 - 原生行为实拍补充：com.android.shell（无 launcher 入口）通知行 = smallIcon 染色圆——与 shouldShowAppIcon 判定链一致。
 - 待用户两步后 AI 重测：① LSPosed Manager 确认 OptIcon 勾选 → 「重启系统界面」② 终端跑 /data/adb 两条 su 命令（见前）。探针文件已就位，重测仅需 ~5 分钟。
+
+### S2 补记 2（2026-09-17）：真机 adb 数据通道中断，按决策门归档
+
+- 重测过程中真机 adbd 数据通道反复中断（短命令可用、传输类命令 0 字节/设备消失），读取侧实证无法在本次会话完成。
+- **已确认事实**：A（shell_data_file）与 B（adb_data_file）在默认 SELinux 上下文下的写入均可行，但 platform_app 域的读取未获实证；且 runcon 转域在设备上被拒，无法离体模拟。
+- **按决议第 3 条归档：保留 C（Download/OptIcon via MediaStore）为主通道，迁移搁置。** 触发重启条件：AOSP 未来策略变化 / 发现新的可读域 / 用户主动要求。
+- 附带收获保留：FileObserver 双后缀修复（v0.7.5）对 C 通道热生效是实质修复；shouldShowAppIcon hook（#17）在 17 上的机制认知完整沉淀。
+- 探针测试文件已清理（su rm）。
