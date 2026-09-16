@@ -1,6 +1,7 @@
 package io.github.deserthouse.opticon.engine
 
 import android.content.Context
+import android.util.LruCache
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -111,6 +112,48 @@ object IconPackEngine {
             return drawableToBitmap(drawable, size)
         } catch (e: Exception) {
             return null
+        }
+    }
+
+    // ━━━ Grid preview pipeline (#12 fix): cache + throttle ━━━
+    // Scrolling a 7000+ icon pack used to spawn a full drawable decode per
+    // visible cell (getResourcesForApplication + getDrawable each) — that is
+    // the "scroll and crash" OOM source. Now: Resources cached per pack,
+    // decoded 48px bitmaps cached per (pack,drawable,size), decode throttled
+    // to 2 concurrent, and LruCache bounds memory (~512 × 9KB ≈ 4.6MB).
+
+    private val packResourcesCache = LruCache<String, android.content.res.Resources>(4)
+    private val previewCache = LruCache<String, Bitmap>(512)
+    private val decodeDispatcher = kotlinx.coroutines.Dispatchers.IO.limitedParallelism(2)
+
+    private fun packResources(context: Context, iconPackPkg: String): android.content.res.Resources? {
+        packResourcesCache.get(iconPackPkg)?.let { return it }
+        return try {
+            context.packageManager.getResourcesForApplication(iconPackPkg)
+                .also { packResourcesCache.put(iconPackPkg, it) }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /** Cached + throttled preview for grid scrolling. Suspends on the
+     *  2-permit decode dispatcher; repeat calls hit the LruCache. */
+    suspend fun loadIconPreviewCached(
+        context: Context, iconPackPkg: String, drawableName: String, size: Int = 48
+    ): Bitmap? = kotlinx.coroutines.withContext(decodeDispatcher) {
+        val key = "$iconPackPkg:$drawableName:$size"
+        previewCache.get(key)?.let { return@withContext it }
+        try {
+            val res = packResources(context, iconPackPkg) ?: return@withContext null
+            val drawableId = res.getIdentifier(drawableName, "drawable", iconPackPkg)
+            if (drawableId == 0) return@withContext null
+            val drawable = res.getDrawable(drawableId, null) ?: return@withContext null
+            val bmp = drawableToBitmap(drawable, size)
+            if (bmp != null) previewCache.put(key, bmp)
+            bmp
+        } catch (e: Exception) {
+            TraceLogger.w(TAG, "loadIconPreviewCached($drawableName): ${e.message}")
+            null
         }
     }
 
