@@ -104,3 +104,21 @@ FileObserver: 两路径都监听（读序即优先级）
 - 批次 1 · v0.7.5-alpha（自主）：FileObserver/preload 双后缀修复 + hook 启动通道探针日志
 - 批次 2 · S2 真机会话（~20min）：E1 /data/local/tmp 可读性 · E2 /data/adb 可读性 · E3 su 批量写延迟 · E4 旧通道存量。决策门：可读→批次 3；均不可读→保留 C 归档
 - 批次 3 · v0.8.0-alpha：DeliveryChannel 偏好（auto/手动）→ RootDeliveryWriter（单文件+批量单会话脚本）→ 读侧优先级翻转 → 存量迁移 → 双端回归
+
+---
+
+## 八、S2 真机探针 · 阶段记录（2026-09-17，PLK110 / PixelOS 17 / build CQ2A.260729.002）
+
+| 实验 | 结果 |
+|---|---|
+| E1 写入侧 | ✅ shell uid 成功写 `/data/local/tmp/opticon_baked/{3 个探针 png}`（context `shell_data_file`，chmod 644/755）——App 经 su -c 写入可行 |
+| E2 /data/adb | ⏸ adb 无 root 拒绝；待用户 su 执行两条命令（已提供） |
+| E1 读取侧（SystemUI 读 shell_data_file） | ⏸ **未完成**——采集被 USB 不稳定（device/offline 循环）+ 宿主截图管道损坏阻塞；且发现真机 SystemUI 当前**无 OptIcon hook 日志输出**（`logcat -d -b all` 全缓冲零命中），疑 SystemUI 未重启加载 v0.7.4 hook 或 LSPosed 作用域/总开关状态变化，待用户确认 |
+| 原生行为实拍（PixelOS 17） | ✅ 无 launcher 入口的系统通知（USB 调试）显示 **smallIcon 染色圆**（印证 shouldShowAppIcon 判定链）；带 largeIcon 的通知显示 app 图标 |
+
+**探针资产**（留在设备 `/data/local/tmp/opticon_baked/`）：android.png、com.android.shell.png、com.sankuai.meituan.takeoutnew.png（品红 96px 测试图，可辨识）；复测时文件已在位，重跑探针通知即可。
+
+**用户侧待执行**（S2 完成）：
+1. LSPosed Manager → 确认 OptIcon v0.7.4 勾选激活 → 重启系统界面
+2. 终端执行：`su -c "ls -Z /data/adb"` 与 `su -c "mkdir -p /data/adb/opticon && echo t > /data/adb/opticon/probe && chmod 644 /data/adb/opticon/probe && ls -Z /data/adb/opticon"`
+3. 之后 AI 重跑探针（通知已备）出读取侧结论
