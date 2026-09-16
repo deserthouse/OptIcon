@@ -192,9 +192,9 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                     Icons.Rounded.Translate,
                     stringResource(R.string.language_title),
                     if (localeSupported) stringResource(R.string.language_system)
-                    else stringResource(R.string.predictive_back_desc_legacy)
-                ) {
-                    TextButton(onClick = { if (localeSupported) showLangDialog = true }) {
+                    else stringResource(R.string.predictive_back_desc_legacy),
+                    onClick = if (localeSupported) ({ showLangDialog = true }) else null,
+                    action = {
                         Text(
                             if (localeSupported) stringResource(R.string.language_system)
                             else "N/A",
@@ -203,7 +203,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                             else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                }
+                )
                 if (showLangDialog) {
                     AlertDialog(
                         onDismissRequest = { showLangDialog = false },
@@ -845,8 +845,10 @@ private fun RuntimeStatusCard(
     Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
 }
 
-@Composable private fun SettingItem(icon: ImageVector, title: String, subtitle: String, action: @Composable (() -> Unit)? = null) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+@Composable private fun SettingItem(icon: ImageVector, title: String, subtitle: String, onClick: (() -> Unit)? = null, action: @Composable (() -> Unit)? = null) {
+    Row(Modifier.fillMaxWidth()
+        .padding(vertical = 10.dp)
+        .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier), verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, null, Modifier.padding(end = 12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
