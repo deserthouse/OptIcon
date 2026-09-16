@@ -122,3 +122,10 @@ FileObserver: 两路径都监听（读序即优先级）
 1. LSPosed Manager → 确认 OptIcon v0.7.4 勾选激活 → 重启系统界面
 2. 终端执行：`su -c "ls -Z /data/adb"` 与 `su -c "mkdir -p /data/adb/opticon && echo t > /data/adb/opticon/probe && chmod 644 /data/adb/opticon/probe && ls -Z /data/adb/opticon"`
 3. 之后 AI 重跑探针（通知已备）出读取侧结论
+
+### S2 补记（同日续）：读取侧实证被「SystemUI hook 未加载」阻塞
+
+- 端到端探针（`cmd notification post` 以 com.android.shell 发通知 + Path 1 品红测试图）结果：**通知行图标 = 着色原始 smallIcon，非品红替换图**；且 SystemUI 进程定向 logcat **零 OptIcon/NotifHook 日志**（连每次渲染都应触发的路径检查日志也没有）。
+- 判定：SystemUI 进程内 OptIcon hook 当前未运行（用户手机今日更新 v0.7.4 后 LSPosed 提示重启作用域内应用，SystemUI 未重启 → 旧 hook 失效或未加载）。读取侧可读性结论**无法在 hook 未运行时测定**。
+- 原生行为实拍补充：com.android.shell（无 launcher 入口）通知行 = smallIcon 染色圆——与 shouldShowAppIcon 判定链一致。
+- 待用户两步后 AI 重测：① LSPosed Manager 确认 OptIcon 勾选 → 「重启系统界面」② 终端跑 /data/adb 两条 su 命令（见前）。探针文件已就位，重测仅需 ~5 分钟。
