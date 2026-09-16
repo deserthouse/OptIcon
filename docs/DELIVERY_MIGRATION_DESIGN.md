@@ -137,3 +137,11 @@ FileObserver: 两路径都监听（读序即优先级）
 - **按决议第 3 条归档：保留 C（Download/OptIcon via MediaStore）为主通道，迁移搁置。** 触发重启条件：AOSP 未来策略变化 / 发现新的可读域 / 用户主动要求。
 - 附带收获保留：FileObserver 双后缀修复（v0.7.5）对 C 通道热生效是实质修复；shouldShowAppIcon hook（#17）在 17 上的机制认知完整沉淀。
 - 探针测试文件已清理（su rm）。
+
+### S2 最终补记（2026-09-17 解锁态实拍）：读取侧判定完成——A 通道确认不可行
+
+解锁手机后实拍确认：com.android.shell 的 PROBE 通知在 shade 行渲染的是**着色的原始 smallIcon（紫白气泡）**，而非 Path 1 的品红测试图——hook 运行中、文件存在且 shell 域可读，但 SystemUI（platform_app 域）读取 shell_data_file **被 SELinux 策略阻止**。
+
+**E1 读取侧判定：A 通道不可行（PixelOS 17 实证）。** E2（/data/adb）预期同判（同为非应用可读域），未单独验证。
+
+**最终决议（维持）**：保留 C（Download/OptIcon via MediaStore）为主通道，标准③ 迁移搁置。重启条件：AOSP 策略变化 / 新可读域 / 用户主动要求。探针文件已清理。
