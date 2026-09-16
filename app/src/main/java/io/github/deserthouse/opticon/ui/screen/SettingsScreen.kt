@@ -258,22 +258,22 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
 
             // ── 关于 ──
             SectionTitle(stringResource(R.string.about_section))
-            SettingsCard {
-                // Whole row = the level-1 easter-egg button. Locked: counts
-                // taps (🐾…🐺). Unlocked: a single tap collapses/expands,
-                // with the chevron kept purely as a visual affordance.
-                Row(
-                    Modifier.fillMaxWidth()
-                        // clip in the SAME chain as clickable so the ripple
-                        // follows the card's rounded outline
-                        .clip(RoundedCornerShape(16.dp))
-                        .padding(vertical = 6.dp)
-                        .clickable {
-                            if (emojiUnlocked) viewModel.toggleEasterEgg()
-                            else viewModel.onVersionTapped()
-                        },
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+            // Card-level onClick = the WHOLE card is the level-1 easter-egg
+            // button: ripple and hit area cover the full rounded outline.
+            // Locked: counts taps (🐾…🐺). Unlocked: any tap on non-interactive
+            // area collapses/expands; child clickables (ramble, links) consume
+            // their own regions first.
+            Card(
+                onClick = {
+                    if (emojiUnlocked) viewModel.toggleEasterEgg()
+                    else viewModel.onVersionTapped()
+                },
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)
+            ) {
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.Info, null, Modifier.padding(end = 12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Column(Modifier.weight(1f)) {
                         Text("OptIcon", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
@@ -374,6 +374,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                             }
                         }
                     }
+                }
                 }
             }
 
