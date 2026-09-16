@@ -281,15 +281,13 @@ object NotificationHook {
             val files = mutableListOf<File>()
             // Priority order mirrors loadIconForPackage: production shared dir
             // first, then tmp dir, then module filesDir (dev/root scenarios)
+            fun isIconFile(f: File) =
+                f.isFile && (f.name.endsWith(".png") || f.name.endsWith(SHARED_ICON_EXT))
             if (SHARED_ICON_DIR.isDirectory) {
-                SHARED_ICON_DIR.listFiles()
-                    ?.filter { it.isFile && it.name.endsWith(".png") }
-                    ?.let { files.addAll(it) }
+                SHARED_ICON_DIR.listFiles()?.filter(::isIconFile)?.let { files.addAll(it) }
             }
             if (WORLD_BAKED_DIR.isDirectory) {
-                WORLD_BAKED_DIR.listFiles()
-                    ?.filter { it.isFile && it.name.endsWith(".png") }
-                    ?.let { files.addAll(it) }
+                WORLD_BAKED_DIR.listFiles()?.filter(::isIconFile)?.let { files.addAll(it) }
             }
             val dir = moduleFilesDir
             if (dir != null) {
@@ -333,10 +331,12 @@ object NotificationHook {
             try {
                 val observer = object : FileObserver(sub.absolutePath, mask) {
                     override fun onEvent(event: Int, path: String?) {
-                        if (path == null || !path.endsWith(".png")) return
-                        val pkg = path.removeSuffix(SHARED_ICON_EXT).ifEmpty {
-                            path.removeSuffix(".png")
-                        }
+                        // Production channel files use .opticon; dev channels
+                        // use .png — both must invalidate the cache.
+                        if (path == null) return
+                        val isIconFile = path.endsWith(SHARED_ICON_EXT) || path.endsWith(".png")
+                        if (!isIconFile) return
+                        val pkg = path.removeSuffix(SHARED_ICON_EXT).removeSuffix(".png")
                         if (pkg.isNotEmpty()) {
                             iconCache.remove(pkg)
                             TraceLogger.d(TAG, "Cache invalidated: $pkg (${sub.name})")
