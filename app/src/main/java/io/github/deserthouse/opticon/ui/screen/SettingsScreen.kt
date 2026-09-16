@@ -313,10 +313,11 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
+                                    Spacer(Modifier.width(6.dp))
                                     Text(
                                         stringResource(R.string.easter_egg_author_handle),
                                         style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.onSurface
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                                 Text(
