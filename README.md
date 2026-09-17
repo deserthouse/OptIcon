@@ -29,7 +29,7 @@
 |---|---|---|
 | **通知图标适配** | 673+ 国内主流应用的适配规则库，开箱即用 | [AndroidNotifyIconAdapt](https://github.com/fankes/AndroidNotifyIconAdapt) (ANIA) |
 | **资产导入提取** | 从第三方图标包或系统自适应图标分层提取 | 本地 + [完美图标补全计划](https://github.com/pzcn/Perfect-Icons-Completion-Project) (PICP) |
-| **智能算法重绘** | 四角采样自过滤算法，无规则也能生成规范图标 | 内置引擎 |
+| **智能算法重绘** 🚧 | 四角采样自过滤算法，无规则也能生成规范图标（**施工中**：引擎管线已就绪，入口与控制面板尚未开放） | 内置引擎 |
 
 ### 运行时合规检测
 
@@ -102,7 +102,13 @@ OptIcon requests the `QUERY_ALL_PACKAGES` permission **solely to enumerate insta
 
 ## ⚠️ 免责声明 / Disclaimer
 
-> 本应用按“现状”提供，不含任何担保。使用本应用产生的任何后果（包括但不限于系统界面异常、通知丢失、功耗变化）由使用者自行承担。启用 root / Xposed 模块本身存在风险，请自行评估。本项目与 Google、Android、一加及文中提及的任何厂商/项目无隶属关系；各商标归其各自所有者所有。项目用途自决，开发者不对任何滥用行为负责。
+> 本项目为**兴趣使然的个人作品**，按“现状”提供，不含任何明示或默示的担保。
+>
+> - **功能不保证**：作者不保证任何功能在您的设备、ROM 或系统版本上正常运行；定制 ROM（MIUI / ColorOS / HyperOS 等）的私有行为可能造成无法预料的差异。
+> - **无开发承诺**：作者不对后续的开发计划、排期、功能路线或是否继续维护作任何承诺；项目可能随时放缓、暂停或归档。
+> - **风险自担**：使用本应用产生的任何后果（包括但不限于系统界面异常、通知丢失、功耗变化）由使用者自行承担；启用 root / Xposed 模块本身存在风险，请自行评估。
+> - **无关联声明**：本项目与 Google、Android、一加及文中提及的任何厂商/项目无隶属关系；各商标归其各自所有者所有。
+> - **用途自决**：项目用途由使用者自行决定，开发者不对任何滥用行为负责。
 >
 > This software is provided "as is", without warranty of any kind. Any consequence of using it (including but not limited to SystemUI issues, lost notifications, or battery impact) is at the user's own risk. Enabling root / Xposed modules carries inherent risks. This project is not affiliated with Google, Android, OnePlus, or any vendor/project mentioned; all trademarks belong to their respective owners.
 

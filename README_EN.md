@@ -26,7 +26,7 @@ Make every notification icon comply with native Android design guidelines
 |---|---|---|
 | **Notification icon adaptation** | Ready-to-use rule set covering 673+ mainstream apps | [AndroidNotifyIconAdapt](https://github.com/fankes/AndroidNotifyIconAdapt) (ANIA) |
 | **Adaptive asset import** | Layered extraction from third-party icon packs or system adaptive icons | Local + [Perfect-Icons-Completion-Project](https://github.com/pzcn/Perfect-Icons-Completion-Project) (PICP) |
-| **Algorithmic redraw** | Corner-sampling self-filter algorithm — generates compliant icons even without rules | Built-in engine |
+| **Algorithmic redraw** 🚧 | Corner-sampling self-filter algorithm — generates compliant icons even without rules (**WIP**: engine pipeline ready; entry point and control panel not yet exposed) | Built-in engine |
 
 ### Runtime compliance detection
 
@@ -96,7 +96,13 @@ OptIcon requests the `QUERY_ALL_PACKAGES` permission **solely to enumerate insta
 
 ## ⚠️ Disclaimer
 
-> This software is provided "as is", without warranty of any kind. Any consequence of using it (including but not limited to SystemUI issues, lost notifications, or battery impact) is at the user's own risk. Enabling root / Xposed modules carries inherent risks. This project is not affiliated with Google, Android, OnePlus, or any vendor/project mentioned; all trademarks belong to their respective owners.
+> This is a **hobby project** provided "as is", without any express or implied warranty.
+>
+> - **No functional guarantees**: the author makes no promise that any feature works on your device, ROM, or OS version; vendor-specific behavior (MIUI / ColorOS / HyperOS, etc.) may cause unpredictable differences.
+> - **No development commitments**: the author makes no commitments regarding future plans, schedules, roadmaps, or continued maintenance; the project may slow down, pause, or be archived at any time.
+> - **Use at your own risk**: any consequence of using it (including but not limited to SystemUI issues, lost notifications, or battery impact) is at the user's own risk. Enabling root / Xposed modules carries inherent risks.
+> - **No affiliation**: this project is not affiliated with Google, Android, OnePlus, or any vendor/project mentioned; all trademarks belong to their respective owners.
+> - **Your call**: how you use it is entirely up to you; the developer is not responsible for any misuse.
 
 ## 🤖 AI Disclosure
 
