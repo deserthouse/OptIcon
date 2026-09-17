@@ -39,3 +39,11 @@ icons/AndroidNotifyIconAdapt/
 archive/
 .kotlin/
 .workbuddy/
+
+# Internal working docs (local only, never public)
+memory/
+.zcode/
+MIGRATION_NOTES.md
+project_status.md
+tests/
+OptIcon_internal_backup/
