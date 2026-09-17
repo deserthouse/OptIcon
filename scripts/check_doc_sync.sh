@@ -11,6 +11,7 @@ check() { # $1=file $2=pattern $3=label
 echo "build.gradle.kts: v$V / code $C"
 check project_status.md            "versionName: $V | versionCode: $C" "project_status 头部"
 check MIGRATION_NOTES.md           "当前版本 v$V / versionCode $C"     "MIGRATION_NOTES 待办区标题"
+check MIGRATION_NOTES.md           "当前: \`v$V\` / versionCode $C"     "MIGRATION_NOTES 当前版本行"
 if grep -q "待真机 S1 复验\|待宿主 GPU 复位\|等用户批）" MIGRATION_NOTES.md; then
   echo "  WARN  MIGRATION_NOTES 存在疑似过期表述，请人工复核"; fi
 [ $fail -eq 0 ] && echo "SYNC PASS" || { echo "SYNC FAIL — 修正后再打 tag"; exit 1; }
