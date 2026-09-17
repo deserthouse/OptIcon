@@ -99,6 +99,7 @@
     <string name="strategy_asset_a_wip_hint">该功能目前尚未完成，但您仍然可以查看已安装图标包内的图标。</string>
     <string name="strategy_asset_open_pack_app">跳转到图标包应用</string>
     <string name="no_icon_packs_installed">未安装任何图标包，请从 Play 商店安装。</string>
+    <string name="select_icon_pack_hint">请选择一个图标包</string>
     <string name="select_icon_pack">选择图标包</string>
     <string name="icons_available">个图标可用</string>
     <string name="strategy_asset_b_label">应用自适应图标分层拆解</string>

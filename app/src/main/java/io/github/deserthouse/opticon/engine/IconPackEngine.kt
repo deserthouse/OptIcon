@@ -96,7 +96,10 @@ object IconPackEngine {
         } catch (e: Exception) {
             TraceLogger.w(TAG, "listAllIcons failed: ${e.message}")
         }
-        return result
+        // Real packs (e.g. Pure) ship duplicate <item> lines (same component+drawable
+        // repeated); the browse grid keys on this pair, so duplicates crash Compose
+        // with "Key was already used".
+        return result.distinctBy { it.componentRaw to it.drawableName }
     }
 
     /**

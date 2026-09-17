@@ -394,7 +394,8 @@ private fun AssetSubRadio(label: String, selected: Boolean, enabled: Boolean, on
 @Composable
 private fun IconPackSection(state: io.github.deserthouse.opticon.ui.state.AppDetailState, viewModel: AppDetailViewModel) {
     var expanded by remember { mutableStateOf(false) }
-    val selLabel = state.iconPacks.find { it.packageName == state.selectedIconPack }?.label ?: stringResource(R.string.select_icon_pack)
+    val selLabel = state.iconPacks.find { it.packageName == state.selectedIconPack }?.label
+        ?: stringResource(R.string.select_icon_pack_hint)
     val ctx = LocalContext.current
     Column {
         ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {

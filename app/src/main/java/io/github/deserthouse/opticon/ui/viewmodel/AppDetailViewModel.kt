@@ -100,7 +100,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                     emojiUnlocked = PreferenceManager.isEmojiUnlocked(),
                     redrawParams = loadSavedParams(packageName),
                     iconPacks = packs,
-                    selectedIconPack = packs.firstOrNull()?.packageName
+                    selectedIconPack = null
                 )
             }
 
