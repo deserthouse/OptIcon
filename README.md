@@ -18,8 +18,6 @@
 ---
 
 > **OptIcon** 是一个 [LSPosed](https://github.com/LSPosed/LSPosed) 模块，用于将不规范的彩色通知图标替换为符合原生 Android 设计规范的 Material You 图标。
->
-> OptIcon is an [LSPosed](https://github.com/LSPosed/LSPosed) module that normalizes non-compliant colorful notification icons into native Android Material You style.
 
 ## ✨ 功能特性
 
@@ -49,8 +47,7 @@
   <img src="docs/screenshots/list_current.png" width="270" alt="应用列表"/>
   <img src="docs/screenshots/detail.png" width="270" alt="应用详情"/>
   <img src="docs/screenshots/list_dark.png" width="270" alt="深色模式"/>
-</p>
-
+</p
 ## 🚀 安装使用
 
 ### 环境要求
@@ -98,7 +95,6 @@
 
 OptIcon 申请 `QUERY_ALL_PACKAGES`（查询全部应用）权限。**该权限仅用于在应用列表中枚举设备上已安装、可能发送通知的应用**，以供用户逐个配置图标策略——通知并不只来自带桌面图标的应用（实测一台设备上 41% 的包没有 launcher 入口，其中包括 Play 服务等高频通知来源）。OptIcon 不收集、不上传任何数据，无遥测、无网络回传。
 
-OptIcon requests the `QUERY_ALL_PACKAGES` permission **solely to enumerate installed apps that may send notifications**, so the user can configure icon strategies per app — notifications do not only come from apps with launcher entries (on a real device, 41% of packages lack a launcher activity, including high-frequency notifiers like Play services). OptIcon collects nothing, uploads nothing, and contains no telemetry.
 
 ## ⚠️ 免责声明 / Disclaimer
 
@@ -109,14 +105,10 @@ OptIcon requests the `QUERY_ALL_PACKAGES` permission **solely to enumerate insta
 > - **风险自担**：使用本应用产生的任何后果（包括但不限于系统界面异常、通知丢失、功耗变化）由使用者自行承担；启用 root / Xposed 模块本身存在风险，请自行评估。
 > - **无关联声明**：本项目与 Google、Android、一加及文中提及的任何厂商/项目无隶属关系；各商标归其各自所有者所有。
 > - **用途自决**：项目用途由使用者自行决定，开发者不对任何滥用行为负责。
->
-> This software is provided "as is", without warranty of any kind. Any consequence of using it (including but not limited to SystemUI issues, lost notifications, or battery impact) is at the user's own risk. Enabling root / Xposed modules carries inherent risks. This project is not affiliated with Google, Android, OnePlus, or any vendor/project mentioned; all trademarks belong to their respective owners.
 
 ## 🤖 AI 使用声明 / AI Disclosure
 
 > 本项目由 AI（大语言模型）深度参与开发——包括架构设计、代码实现、测试与文档；人类（[@deserthouse](https://github.com/deserthouse)）提出需求、进行验收并拥有最终决策权。
->
-> This project was developed with substantial AI (LLM) assistance — architecture, implementation, testing, and documentation; the human ([@deserthouse](https://github.com/deserthouse)) provides requirements, acceptance testing, and final decisions.
 
 ## ⚖️ 开源协议
 
