@@ -47,3 +47,6 @@ MIGRATION_NOTES.md
 project_status.md
 tests/
 OptIcon_internal_backup/
+
+# Session temp artifacts
+.tmp_*
