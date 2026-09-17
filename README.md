@@ -85,7 +85,7 @@
 
 本项目的诞生离不开以下项目与开发者：
 
-- **[fankes / AndroidNotifyIconAdapt](https://github.com/fankes/AndroidNotifyIconAdapt)** —— 「Android 通知图标规范适配计划」，673+ 应用适配规则的基石
+- **[fankes / AndroidNotifyIconAdapt](https://github.com/fankes/AndroidNotifyIconAdapt)** —— 「Android 通知图标规范适配计划」，特别感谢 fankes **慷慨地书面授权**本项目使用其团队的 673+ 应用适配规则库（致谢之首）
 - **[pzcn / Perfect-Icons-Completion-Project](https://github.com/pzcn/Perfect-Icons-Completion-Project)** —— 「完美图标补全计划」，高质量分层图标资产
 - **[Howard20181 / NotificationIconFix](https://github.com/Howard20181/NotificationIconFix)** —— 通知图标修复的先行者，本项目的重要灵感来源
 - **[LSPosed Team](https://github.com/LSPosed)** —— 现代 Xposed 框架
