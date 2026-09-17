@@ -420,7 +420,7 @@ private fun IconPackSection(state: io.github.deserthouse.opticon.ui.state.AppDet
                 modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.height(4.dp))
             val displayIcons = remember(state.iconPackIcons, iconQuery, state.packageName, state.appName) {
-                sortPackIcons(state.iconPackIcons, state.packageName, state.appName, iconQuery)
+                IconPackEngine.sortPackIcons(state.iconPackIcons, state.packageName, state.appName, iconQuery)
             }
             Text("${displayIcons.size}/${state.iconPackIcons.size} ${stringResource(R.string.icons_available)}",
                 style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -436,36 +436,9 @@ private fun IconPackSection(state: io.github.deserthouse.opticon.ui.state.AppDet
 }
 
 /**
- * Launcher-style picker ordering (cf. Nova/Lawnchair): icons the pack already
- * maps to this app's component float to the top, then entries whose drawable
- * name hints at the app (label or package segment), then everything else
- * alphabetically. [query] filters across drawable name and component.
+ * Launcher-style picker ordering moved to [IconPackEngine.sortPackIcons]
+ * (pure logic, unit-tested); kept out of the UI layer.
  */
-private fun sortPackIcons(
-    icons: List<IconPackEngine.PackIconEntry>,
-    targetPkg: String,
-    appLabel: String,
-    query: String
-): List<IconPackEngine.PackIconEntry> {
-    val q = query.trim().lowercase()
-    val filtered = if (q.isEmpty()) icons else icons.filter {
-        it.drawableName.lowercase().contains(q) || it.componentRaw.lowercase().contains(q)
-    }
-    val pkgSeg = targetPkg.substringAfterLast('.').lowercase()
-    val label = appLabel.lowercase().replace(" ", "")
-    val pkgHint = if (pkgSeg.length >= 3) pkgSeg else ""
-    val labelHint = if (label.length >= 3) label else ""
-    return filtered.sortedWith(
-        compareBy(
-            { if (it.componentPackage == targetPkg) 0 else 1 },
-            { e ->
-                val d = e.drawableName.lowercase()
-                if ((pkgHint.isNotEmpty() && d.contains(pkgHint)) || (labelHint.isNotEmpty() && d.contains(labelHint))) 0 else 1
-            },
-            { it.drawableName.lowercase() }
-        )
-    )
-}
 
 @OptIn(kotlinx.coroutines.FlowPreview::class)
 @Composable

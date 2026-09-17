@@ -40,6 +40,62 @@ object IconPackEngine {
         val drawableName: String
     )
 
+    /**
+     * Launcher-style picker ordering (cf. Nova/Lawnchair): icons the pack already
+     * maps to this app's component float to the top, then entries whose drawable
+     * name hints at the app (label or package segment), then everything else
+     * alphabetically. With a [query], entries are first tiered: exact match >
+     * prefix > substring > subsequence fuzzy (min 3 chars). A query naming the
+     * app itself (label or package) is treated as "icons for this app": instead
+     * of discarding everything, its hint-matched icons survive the filter.
+     */
+    internal fun sortPackIcons(
+        icons: List<PackIconEntry>,
+        targetPkg: String,
+        appLabel: String,
+        query: String
+    ): List<PackIconEntry> {
+        val q = query.trim().lowercase()
+        val pkgSeg = targetPkg.substringAfterLast('.').lowercase()
+        val label = appLabel.lowercase().replace(" ", "")
+        val pkgHint = if (pkgSeg.length >= 3) pkgSeg else ""
+        val labelHint = if (label.length >= 3) label else ""
+        // "wechat"/"com.tencent.wechat" queries should surface the app's icons
+        val targetsApp = q.length >= 3 && (
+            label.replace(" ", "").contains(q) || (labelHint.isNotEmpty() && q.contains(labelHint)) ||
+            targetPkg.lowercase().contains(q) || (pkgHint.isNotEmpty() && q.contains(pkgHint))
+        )
+        fun subseq(s: String): Boolean {
+            var i = 0
+            for (ch in s) if (i < q.length && ch == q[i]) i++
+            return i == q.length
+        }
+        val filtered = if (q.isEmpty()) icons.map { it to 0 } else icons.mapNotNull { e ->
+            val d = e.drawableName.lowercase()
+            val c = e.componentRaw.lowercase()
+            val tier = when {
+                d == q || c == q -> 0
+                d.startsWith(q) || c.startsWith(q) -> 1
+                d.contains(q) || c.contains(q) -> 2
+                targetsApp && (d.contains(pkgHint) || d.contains(labelHint)) -> 2
+                q.length >= 3 && subseq(d) -> 3
+                else -> return@mapNotNull null
+            }
+            e to tier
+        }
+        return filtered.sortedWith(
+            compareBy(
+                { it.second },
+                { if (it.first.componentPackage == targetPkg) 0 else 1 },
+                { e ->
+                    val d = e.first.drawableName.lowercase()
+                    if ((pkgHint.isNotEmpty() && d.contains(pkgHint)) || (labelHint.isNotEmpty() && d.contains(labelHint))) 0 else 1
+                },
+                { it.first.drawableName.lowercase() }
+            )
+        ).map { it.first }
+    }
+
     /** 查询已安装的第三方图标包 */
     fun listInstalledIconPacks(context: Context): List<IconPackInfo> {
         val pm = context.packageManager

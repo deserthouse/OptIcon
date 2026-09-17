@@ -182,14 +182,10 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                 }
             }
 
-            // ── 界面 ──
-            SectionTitle(stringResource(R.string.ui_section))
+            // ── 通知图标样式（模块对 shade 的行为） ──
+            SectionTitle(stringResource(R.string.notif_style_section))
             SettingsCard {
-                // Per-app locale is a system capability (Android 13+); on 12
-                // the row degrades to an honest "system only" note.
-                val localeSupported = android.os.Build.VERSION.SDK_INT >= 33
-                var showLangDialog by remember { mutableStateOf(false) }
-                var showShadeDialog by remember { mutableStateOf(false) }
+                var showShadeSheet by remember { mutableStateOf(false) }
                 val shadeModeLabel = when (shadeAppIconMode) {
                     "notif" -> stringResource(R.string.shade_mode_notif)
                     "pref" -> stringResource(R.string.shade_mode_pref)
@@ -199,7 +195,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                     Icons.Rounded.Extension,
                     stringResource(R.string.shade_icon_title),
                     stringResource(R.string.shade_icon_desc),
-                    onClick = { showShadeDialog = true }
+                    onClick = { showShadeSheet = true }
                 ) {
                     Text(
                         shadeModeLabel,
@@ -207,98 +203,65 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
-                if (showShadeDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showShadeDialog = false },
-                        title = { Text(stringResource(R.string.shade_icon_title)) },
-                        text = {
-                            Column {
-                                listOf(
-                                    "app" to stringResource(R.string.shade_mode_app),
-                                    "notif" to stringResource(R.string.shade_mode_notif),
-                                    "pref" to stringResource(R.string.shade_mode_pref)
-                                ).forEach { (mode, label) ->
-                                    Row(
-                                        Modifier.fillMaxWidth()
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .clickable {
-                                                showShadeDialog = false
-                                                viewModel.setShadeAppIconMode(mode)
-                                            }
-                                            .padding(vertical = 10.dp, horizontal = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        RadioButton(
-                                            selected = shadeAppIconMode == mode,
-                                            onClick = {
-                                                showShadeDialog = false
-                                                viewModel.setShadeAppIconMode(mode)
-                                            }
-                                        )
-                                        Spacer(Modifier.size(8.dp))
-                                        Text(label, style = MaterialTheme.typography.bodyLarge)
-                                    }
-                                }
-                            }
-                        },
-                        confirmButton = {
-                            TextButton(onClick = { showShadeDialog = false }) {
-                                Text(stringResource(R.string.ok_label))
-                            }
-                        }
+                if (showShadeSheet) {
+                    RadioSheet(
+                        title = stringResource(R.string.shade_icon_title),
+                        selected = shadeAppIconMode,
+                        options = listOf(
+                            RadioOption("app", stringResource(R.string.shade_mode_app), stringResource(R.string.shade_mode_app_desc)),
+                            RadioOption("notif", stringResource(R.string.shade_mode_notif), stringResource(R.string.shade_mode_notif_desc)),
+                            RadioOption("pref", stringResource(R.string.shade_mode_pref), stringResource(R.string.shade_mode_pref_desc))
+                        ),
+                        onSelect = { viewModel.setShadeAppIconMode(it); showShadeSheet = false },
+                        onDismiss = { showShadeSheet = false }
                     )
+                }
+            }
+
+            // ── 应用（App 自身的外壳行为） ──
+            SectionTitle(stringResource(R.string.app_section))
+            SettingsCard {
+                // Per-app locale is a system capability (Android 13+); on 12
+                // the row degrades to an honest "system only" note.
+                val localeSupported = android.os.Build.VERSION.SDK_INT >= 33
+                var showLangSheet by remember { mutableStateOf(false) }
+                val currentLocaleTag = if (localeSupported) remember {
+                    val lm = context.getSystemService(android.app.LocaleManager::class.java)
+                    lm?.applicationLocales?.toLanguageTags().orEmpty()
+                } else ""
+                val langLabel = when {
+                    !localeSupported -> "N/A"
+                    currentLocaleTag.startsWith("zh") -> "简体中文"
+                    currentLocaleTag.startsWith("en") -> "English"
+                    else -> stringResource(R.string.language_system)
                 }
                 SettingItem(
                     Icons.Rounded.Translate,
                     stringResource(R.string.language_title),
-                    if (localeSupported) stringResource(R.string.language_system)
-                    else stringResource(R.string.predictive_back_desc_legacy),
-                    onClick = if (localeSupported) ({ showLangDialog = true }) else null,
+                    stringResource(R.string.language_desc),
+                    onClick = if (localeSupported) ({ showLangSheet = true }) else null,
                     action = {
                         Text(
-                            if (localeSupported) stringResource(R.string.language_system)
-                            else "N/A",
+                            langLabel,
                             style = MaterialTheme.typography.labelMedium,
                             color = if (localeSupported) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 )
-                if (showLangDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showLangDialog = false },
-                        title = { Text(stringResource(R.string.language_title)) },
-                        text = {
-                            Column {
-                                listOf(
-                                    "" to stringResource(R.string.language_system),
-                                    "en" to "English",
-                                    "zh-CN" to "简体中文"
-                                ).forEach { (tag, label) ->
-                                    Row(
-                                        Modifier.fillMaxWidth()
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .clickable {
-                                                showLangDialog = false
-                                                applyAppLocale(context, tag)
-                                            }
-                                            .padding(vertical = 10.dp, horizontal = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(label, style = MaterialTheme.typography.bodyLarge)
-                                    }
-                                }
-                            }
-                        },
-                        confirmButton = {
-                            TextButton(onClick = { showLangDialog = false }) {
-                                Text(stringResource(R.string.ok_label))
-                            }
-                        }
+                if (showLangSheet) {
+                    RadioSheet(
+                        title = stringResource(R.string.language_title),
+                        selected = currentLocaleTag,
+                        options = listOf(
+                            RadioOption("", stringResource(R.string.language_system), null),
+                            RadioOption("en", "English", null),
+                            RadioOption("zh-CN", "简体中文", null)
+                        ),
+                        onSelect = { applyAppLocale(context, it); showLangSheet = false },
+                        onDismiss = { showLangSheet = false }
                     )
                 }
-            }
-            SettingsCard {
                 // Predictive back gesture preview is a system capability that
                 // only exists on Android 13+; on 12 the option degrades to a
                 // plain back press (harmless). Be honest per OS version.
@@ -930,5 +893,51 @@ private fun applyAppLocale(context: android.content.Context, tag: String) {
         TraceLogger.i("OptIcon/Settings", "app locale set: ${tag.ifEmpty { "system" }}")
     } catch (e: Exception) {
         TraceLogger.w("OptIcon/Settings", "setApplicationLocales failed: ${e.message}")
+    }
+}
+
+private data class RadioOption<T>(val value: T, val label: String, val desc: String?)
+
+/** M3 bottom-sheet single-choice picker: the whole row is the hit target,
+ *  selected option carries the primary color + medium weight, options can
+ *  carry a supporting description. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun <T> RadioSheet(
+    title: String,
+    options: List<RadioOption<T>>,
+    selected: T,
+    onSelect: (T) -> Unit,
+    onDismiss: () -> Unit
+) {
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp)) {
+            Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(12.dp)); HorizontalDivider(); Spacer(Modifier.height(4.dp))
+            options.forEach { opt ->
+                val selectedHere = opt.value == selected
+                Row(
+                    Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable { onSelect(opt.value) }
+                        .padding(horizontal = 4.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(selected = selectedHere, onClick = { onSelect(opt.value) })
+                    Spacer(Modifier.size(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            opt.label,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = if (selectedHere) FontWeight.Medium else null,
+                            color = if (selectedHere) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        )
+                        if (opt.desc != null) {
+                            Text(opt.desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        }
     }
 }

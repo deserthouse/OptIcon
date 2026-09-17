@@ -20,7 +20,7 @@ kotlin {
     }
 }
 
-val MODULE_VERSION_NAME = "0.7.8-alpha"
+val MODULE_VERSION_NAME = "0.8.0-alpha"
 
 android {
     namespace = "io.github.deserthouse.opticon"
@@ -30,7 +30,7 @@ android {
         applicationId = "io.github.deserthouse.opticon"
         minSdk = 31  // Android 12 minimum — full Material You generation (dynamic color since API 31)
         targetSdk = 37
-        versionCode = 44
+        versionCode = 45
         versionName = MODULE_VERSION_NAME
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -91,6 +91,8 @@ androidComponents {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
+
     // ━━━ libxposed API 102 ━━━
     compileOnly("io.github.libxposed:api:102.0.0")
 
