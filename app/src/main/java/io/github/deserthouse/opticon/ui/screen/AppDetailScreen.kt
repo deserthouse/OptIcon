@@ -79,6 +79,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -424,11 +425,17 @@ private fun IconPackSection(state: io.github.deserthouse.opticon.ui.state.AppDet
     }
 }
 
+@OptIn(kotlinx.coroutines.FlowPreview::class)
 @Composable
 private fun IconPackIconCard(entry: IconPackEngine.PackIconEntry, iconPackPkg: String, selected: Boolean, onSelect: () -> Unit) {
     val context = LocalContext.current
     var preview by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
-    LaunchedEffect(entry) { preview = withContext(Dispatchers.IO) { IconPackEngine.loadIconPreview(context, iconPackPkg, entry.drawableName, 48) } }
+    // Debounce: cards flying past during a fling never reach the decode
+    // queue — only cells that settle for >60ms cost a decode.
+    LaunchedEffect(entry) {
+        delay(60)
+        preview = IconPackEngine.loadIconPreviewCached(context, iconPackPkg, entry.drawableName, 48)
+    }
     Card(onClick = onSelect, shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer)) {
         Column(Modifier.padding(4.dp), Arrangement.Center, Alignment.CenterHorizontally) {
             if (preview != null) Image(preview!!.asImageBitmap(), entry.drawableName, Modifier.size(32.dp))
