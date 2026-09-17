@@ -244,7 +244,8 @@ object IconPackEngine {
             val drawable = packRes.getDrawable(drawableId, null) ?: return null
 
             // AdaptiveIcon → take foreground; flat pack (CandyBar PNG/vector) → use drawable as-is
-            val foreground = if (drawable is AdaptiveIconDrawable) {
+            val isAdaptive = drawable is AdaptiveIconDrawable
+            val foreground = if (isAdaptive) {
                 drawable.foreground
             } else {
                 TraceLogger.d(TAG, "Icon pack $iconPackPkg flat drawable for $targetPkg (non-adaptive pack)")
@@ -252,7 +253,12 @@ object IconPackEngine {
             }
 
             val bitmap = drawableToBitmap(foreground, 96)
-            val white = IconTint.toWhite(bitmap) ?: return null
+            // #18: flat composed icons are opaque full-bleed — a plain alpha
+            // silhouette degenerates into a solid disc. Key the glyph against
+            // the icon's own background instead; unreliable keying returns
+            // null so the caller falls back rather than baking a wrong disc.
+            val white = (if (isAdaptive) IconTint.toWhite(bitmap)
+                        else IconTint.glyphKeyWhite(bitmap)) ?: return null
             if (bitmap !== white) bitmap.recycle()
 
             // 默认缩放 0.60~0.70

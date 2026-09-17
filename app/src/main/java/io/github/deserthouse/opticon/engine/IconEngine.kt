@@ -84,7 +84,10 @@ object IconEngine {
             val drawableId = packRes.getIdentifier(drawableName, "drawable", iconPackPkg)
             if (drawableId == 0) return BakeResult(null, "Icon pack drawable not found: $drawableName")
             val drawable = packRes.getDrawable(drawableId, null) ?: return BakeResult(null, "Icon pack drawable null")
-            val foreground = if (drawable is android.graphics.drawable.AdaptiveIconDrawable) {
+            // #18: mirror IconPackEngine.extractForPackage — flat composed
+            // icons need glyph keying, a plain alpha silhouette is a disc.
+            val isAdaptive = drawable is android.graphics.drawable.AdaptiveIconDrawable
+            val foreground = if (isAdaptive) {
                 drawable.foreground
             } else {
                 drawable
@@ -93,7 +96,8 @@ object IconEngine {
             val canvas = Canvas(bitmap)
             foreground.setBounds(0, 0, OUTPUT_SIZE, OUTPUT_SIZE)
             foreground.draw(canvas)
-            val white = IconTint.toWhite(bitmap) ?: return BakeResult(null, "Icon pack tint failed")
+            val white = (if (isAdaptive) IconTint.toWhite(bitmap)
+                         else IconTint.glyphKeyWhite(bitmap)) ?: return BakeResult(null, "Icon pack glyph keying failed")
             if (bitmap !== white) bitmap.recycle()
             val scaled = IconTint.scaleAndTintWhite(white, params.scale.coerceIn(0.5f, 1.0f), OUTPUT_SIZE)
                 ?: white
