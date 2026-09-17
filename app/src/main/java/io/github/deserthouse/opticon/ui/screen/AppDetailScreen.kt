@@ -414,16 +414,57 @@ private fun IconPackSection(state: io.github.deserthouse.opticon.ui.state.AppDet
         }
         if (state.iconPackIcons.isNotEmpty()) {
             Spacer(Modifier.height(4.dp))
-            Text("${state.iconPackIcons.size} ${stringResource(R.string.icons_available)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            var iconQuery by remember(state.selectedIconPack) { mutableStateOf("") }
+            OutlinedTextField(iconQuery, { iconQuery = it }, singleLine = true,
+                placeholder = { Text(stringResource(R.string.icon_pack_search_hint)) },
+                modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(4.dp))
+            val displayIcons = remember(state.iconPackIcons, iconQuery, state.packageName, state.appName) {
+                sortPackIcons(state.iconPackIcons, state.packageName, state.appName, iconQuery)
+            }
+            Text("${displayIcons.size}/${state.iconPackIcons.size} ${stringResource(R.string.icons_available)}",
+                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(4.dp))
             LazyVerticalGrid(columns = GridCells.Fixed(4), contentPadding = PaddingValues(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.height(180.dp)) {
-                items(state.iconPackIcons.size, key = { "${state.iconPackIcons[it].componentRaw}_${state.iconPackIcons[it].drawableName}" }) { i ->
-                    val entry = state.iconPackIcons[i]
+                items(displayIcons.size, key = { "${displayIcons[it].componentRaw}_${displayIcons[it].drawableName}" }) { i ->
+                    val entry = displayIcons[i]
                     IconPackIconCard(entry, selPkg ?: "", state.selectedPackIconDrawable == entry.drawableName) { viewModel.setSelectedPackIconDrawable(entry.drawableName) }
                 }
             }
         }
     }
+}
+
+/**
+ * Launcher-style picker ordering (cf. Nova/Lawnchair): icons the pack already
+ * maps to this app's component float to the top, then entries whose drawable
+ * name hints at the app (label or package segment), then everything else
+ * alphabetically. [query] filters across drawable name and component.
+ */
+private fun sortPackIcons(
+    icons: List<IconPackEngine.PackIconEntry>,
+    targetPkg: String,
+    appLabel: String,
+    query: String
+): List<IconPackEngine.PackIconEntry> {
+    val q = query.trim().lowercase()
+    val filtered = if (q.isEmpty()) icons else icons.filter {
+        it.drawableName.lowercase().contains(q) || it.componentRaw.lowercase().contains(q)
+    }
+    val pkgSeg = targetPkg.substringAfterLast('.').lowercase()
+    val label = appLabel.lowercase().replace(" ", "")
+    val pkgHint = if (pkgSeg.length >= 3) pkgSeg else ""
+    val labelHint = if (label.length >= 3) label else ""
+    return filtered.sortedWith(
+        compareBy(
+            { if (it.componentPackage == targetPkg) 0 else 1 },
+            { e ->
+                val d = e.drawableName.lowercase()
+                if ((pkgHint.isNotEmpty() && d.contains(pkgHint)) || (labelHint.isNotEmpty() && d.contains(labelHint))) 0 else 1
+            },
+            { it.drawableName.lowercase() }
+        )
+    )
 }
 
 @OptIn(kotlinx.coroutines.FlowPreview::class)

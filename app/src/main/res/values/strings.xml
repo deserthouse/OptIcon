@@ -99,6 +99,7 @@
     <string name="strategy_asset_a_wip_hint">This feature is under development. You can still browse installed icon packs.</string>
     <string name="strategy_asset_open_pack_app">Open icon pack app</string>
     <string name="no_icon_packs_installed">No icon packs installed. Install one from Play Store.</string>
+    <string name="icon_pack_search_hint">Search icons or app name</string>
     <string name="select_icon_pack_hint">Select an icon pack</string>
     <string name="select_icon_pack">Select icon pack</string>
     <string name="icons_available"> icons available</string>
