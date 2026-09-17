@@ -2,9 +2,6 @@
 
 # OptIcon
 
-[简体中文](README.md) · [English](README_EN.md)
-
-
 **Android 通知图标规范化工具 —— 覆盖完整 Material You 世代**
 
 让每一个通知图标都符合原生 Android 设计规范
@@ -12,6 +9,8 @@
 [![License](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Android%2012%2B-green.svg)](#-兼容性)
 [![API](https://img.shields.io/badge/LSPosed-API%20102-orange.svg)](https://github.com/libxposed/api)
+
+[简体中文](README.md) · [English](README_EN.md)
 
 </div>
 
