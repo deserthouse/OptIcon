@@ -10,8 +10,8 @@
 让每一个通知图标都符合原生 Android 设计规范
 
 [![License](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Android%2012%2B-green.svg)]()
-[![API](https://img.shields.io/badge/LSPosed-API%20102-orange.svg)]()
+[![Platform](https://img.shields.io/badge/Platform-Android%2012%2B-green.svg)(#-兼容性)
+[![API](https://img.shields.io/badge/LSPosed-API%20102-orange.svg)(https://github.com/libxposed/api)
 
 </div>
 
