@@ -105,7 +105,7 @@ object NetworkExecutor {
      * Quick connectivity check — GET GitHub Raw README, callback with true/false.
      */
     fun checkConnectivity(onResult: (Boolean) -> Unit) {
-        fetchStringAsync("https://raw.githubusercontent.com/fankes/AndroidNotifyIconAdapt/main/README.md",
+        fetchStringAsync("https://raw.githubusercontent.com/BetterAndroid/android-notification-icon-project/main/README.md",
             onSuccess = { onResult(true) },
             onFailure = { onResult(false) }
         )
@@ -119,11 +119,15 @@ object NetworkExecutor {
             val response = client.newCall(
                 Request.Builder().url(url).get().build()
             ).execute()
-            if (!response.isSuccessful) { response.close(); return null }
+            if (!response.isSuccessful) {
+                android.util.Log.w("OptIcon/Net", "fetchBytesSync HTTP ${response.code} $url")
+                response.close(); return null
+            }
             val bytes = response.body?.bytes()
             response.close()
             bytes
         } catch (e: Exception) {
+            android.util.Log.w("OptIcon/Net", "fetchBytesSync failed $url: ${e.message}")
             null
         }
     }

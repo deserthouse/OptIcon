@@ -286,10 +286,11 @@ object PreferenceManager {
         val isBuiltin: Boolean = false
     )
 
-    /** 内置源 — 只保留 GitHub Raw 直连（无需授权） */
+    /** 内置源 — 只保留 GitHub Raw 直连（无需授权）。
+     *  id "ania_raw" 为历史遗留内部标识（老用户已存偏好），实际已指向 ANIP。 */
     val BUILTIN_ANIA_SOURCES = listOf(
-        SubscriptionSource("ania_raw", "Android 通知图标规范适配计划（AndroidNotifyIconAdapt）",
-            "https://raw.githubusercontent.com/fankes/AndroidNotifyIconAdapt/main/APP/NotifyIconsSupportConfig.json",
+        SubscriptionSource("ania_raw", "Android 通知图标项目（ANIP，原 AndroidNotifyIconAdapt）",
+            io.github.deserthouse.opticon.engine.AnipSync.BASE,
             "", true),
     )
 

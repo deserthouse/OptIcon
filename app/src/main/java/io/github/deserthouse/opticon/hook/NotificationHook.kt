@@ -225,7 +225,24 @@ object NotificationHook {
 
             // Plan B: ANIP-style in-process rules sync — the hook process
             // downloads ANIA icons itself into its own cacheDir (no IPC).
-            getSystemUiContext()?.let { HookLibSync.start(it) }
+            // Needs the REAL SystemUI Application context: getSystemUiContext()
+            // keeps the "android" package whose cacheDir is inaccessible.
+            Thread({
+                try {
+                    val atClass = Class.forName("android.app.ActivityThread")
+                    val current = atClass.getDeclaredMethod("currentApplication")
+                    var app: Context? = null
+                    for (i in 1..20) {
+                        app = current.invoke(null) as? Context
+                        if (app != null) break
+                        Thread.sleep(2500)
+                    }
+                    app?.let { HookLibSync.start(it) }
+                        ?: TraceLogger.w(TAG, "HookLibSync skipped: SystemUI Application never ready")
+                } catch (e: Exception) {
+                    TraceLogger.w(TAG, "HookLibSync boot: ${e.message}")
+                }
+            }, "OptIconHookSyncBoot").apply { isDaemon = true }.start()
         } catch (e: Exception) {
             TraceLogger.w(TAG, "initHook: ${e.message}")
             masterEnabled = true

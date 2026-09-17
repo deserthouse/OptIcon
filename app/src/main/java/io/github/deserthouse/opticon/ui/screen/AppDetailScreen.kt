@@ -218,7 +218,7 @@ fun AppDetailScreen(
                         Column(Modifier.padding(12.dp)) {
                             Text(stringResource(R.string.strategy_fankes_submit_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
                             Spacer(Modifier.height(4.dp))
-                            OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/fankes/AndroidNotifyIconAdapt/issues/new"))) },
+                            OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://betterandroid.github.io/android-notification-icon-project/en/contribute/request"))) },
                                 modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                                 Text(stringResource(R.string.strategy_fankes_submit_btn), fontSize = 13.sp)
                             }

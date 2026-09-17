@@ -232,6 +232,10 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
             if (json != null) {
                 IconLibEngine.ingestJson(context, json)
                 TraceLogger.i(TAG, "Subscription rules loaded: ${IconLibEngine.getIndexedCount()} entries")
+            } else if (IconLibEngine.hasMetaIndex(context)) {
+                // ANIP source: sync wrote fankes_cache/meta.json directly
+                IconLibEngine.initializeFromFiles(context, emptyList())
+                TraceLogger.i(TAG, "ANIP rules loaded: ${IconLibEngine.getIndexedCount()} entries")
             } else {
                 TraceLogger.i(TAG, "No rules downloaded yet — visit Settings to sync")
             }

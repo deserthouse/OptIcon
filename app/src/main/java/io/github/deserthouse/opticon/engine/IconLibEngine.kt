@@ -29,7 +29,10 @@ object IconLibEngine {
     private const val TAG = "OptIcon/IconLibEngine"
     private const val ICON_SIZE_PX_TARGET = 96
     private const val L1_CACHE_MAX_ENTRIES = 20
-    private const val CACHE_DIR = "fankes_cache"
+
+    /** Cache dir name — public so sync writers (AnipSync) share the layout. */
+    const val CACHE_DIR_ACCESSIBLE = "fankes_cache"
+    private const val CACHE_DIR = CACHE_DIR_ACCESSIBLE
     private const val META_FILE = "meta.json"
 
     // Lightweight metadata (no Base64)
@@ -84,6 +87,10 @@ object IconLibEngine {
         }
         return true
     }
+
+    /** True when a previously synced meta.json exists (ANIP direct-write). */
+    fun hasMetaIndex(context: Context): Boolean =
+        File(File(context.filesDir, CACHE_DIR_ACCESSIBLE), META_FILE).exists()
 
     fun hasIcon(packageName: String): Boolean {
         if (!isInitialized) return false

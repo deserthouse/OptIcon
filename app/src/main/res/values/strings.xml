@@ -56,7 +56,7 @@
     <string name="ok_label">OK</string>
 
     <string name="credit_fankes">Fankes / AndroidNotifyIconAdapt</string>
-    <string name="credit_fankes_desc">Special thanks — generously granted permission to use their 673+ app adaptation rules</string>
+    <string name="credit_fankes_desc">Special thanks — generously authorized this project to use the standardized monochrome icon resources of the team (now ANIP, Apache-2.0)</string>
     <string name="credit_howard">Howard20181 / NotificationIconFix</string>
     <string name="credit_howard_desc">Thanks to Howard20181\'s Notification Icon Fix project for inspiration.</string>
     <string name="credit_pzcn">pzcn / Perfect-Icons-Completion-Project</string>
@@ -125,12 +125,12 @@
 
     <string name="filter_all">All Apps</string>
     <string name="filter_configured">Configured</string>
-    <string name="filter_ania">ANIA Adapted</string>
+    <string name="filter_ania">ANIP Adapted</string>
     <string name="filter_picp">PICP Redrawn</string>
     <string name="filter_adaptive">Adaptive</string>
 
-    <string name="chip_ania_adapted">ANIA Adapted</string>
-    <string name="chip_ania_not">ANIA Not Adapted</string>
+    <string name="chip_ania_adapted">ANIP Adapted</string>
+    <string name="chip_ania_not">ANIP Not Adapted</string>
     <string name="chip_picp_adapted">PICP Adapted</string>
     <string name="chip_picp_not">PICP Not Adapted</string>
     <string name="chip_adaptive_yes">Adaptive</string>
@@ -155,8 +155,9 @@
     <!-- Subscription sources -->
     <string name="ania_section_title">Notification Icon Sources</string>
     <string name="picp_section_title">App Icon Sources</string>
-    <string name="source_ania_raw">Android Notification Icon Adaptation Project (AndroidNotifyIconAdapt)</string>
-    <string name="source_ania_raw_desc">Android notification icon standard adaptation project maintained by Fankes and team.\nhttps://github.com/fankes/AndroidNotifyIconAdapt</string>
+    <string name="source_ania_raw">Android Notification Icon Project (ANIP, formerly AndroidNotifyIconAdapt)</string>
+    <string name="source_ania_raw_desc">Standardized monochrome notification icon resources maintained by the BetterAndroid community (lead: fankes).
+https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="source_picp_github">Perfect Icons Completion Project (Perfect-Icons-Completion-Project)</string>
     <string name="source_picp_github_desc">Perfect icon completion project maintained by pzcn and the community.\nhttps://github.com/pzcn/Perfect-Icons-Completion-Project</string>
     <string name="add_source_title">Add Source</string>
@@ -169,7 +170,7 @@
     <string name="cancel_btn">Cancel</string>
     <string name="save_btn">Save</string>
     <string name="add_custom_btn">Add Custom</string>
-    <string name="restore_default_ania">Restore Default ANIA Source</string>
+    <string name="restore_default_ania">Restore Default ANIP Source</string>
     <string name="restore_default_picp">Restore Default PICP Source</string>
 
     <!-- v0.3.0-alpha ModernAppCard + AppListScreen -->

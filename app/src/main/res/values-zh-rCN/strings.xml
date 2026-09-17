@@ -56,7 +56,7 @@
     <string name="ok_label">确定</string>
 
     <string name="credit_fankes">Fankes / AndroidNotifyIconAdapt</string>
-    <string name="credit_fankes_desc">特别感谢：fankes 慷慨地授权本项目使用其团队《Android 通知图标规范适配计划》的 673+ 应用适配规则库。</string>
+    <string name="credit_fankes_desc">特别感谢：fankes 慷慨地授权本项目使用其团队《Android 通知图标规范适配计划》的规范化单色图标资源（现已更名 ANIP，Apache-2.0）。</string>
     <string name="credit_howard">Howard20181 / NotificationIconFix</string>
     <string name="credit_howard_desc">感谢 Howard20181 —— 其技术路径为本项目提供了重要的灵感与参考。</string>
     <string name="credit_pzcn">pzcn / Perfect-Icons-Completion-Project</string>
@@ -125,12 +125,12 @@
 
     <string name="filter_all">全部应用</string>
     <string name="filter_configured">已修改</string>
-    <string name="filter_ania">ANIA 适配</string>
+    <string name="filter_ania">ANIP 适配</string>
     <string name="filter_picp">PICP 重绘</string>
     <string name="filter_adaptive">自适应</string>
 
-    <string name="chip_ania_adapted">已适配</string>
-    <string name="chip_ania_not">未适配</string>
+    <string name="chip_ania_adapted">ANIP 适配</string>
+    <string name="chip_ania_not">ANIP 未适配</string>
     <string name="chip_picp_adapted">完美图标</string>
     <string name="chip_picp_not">无完美图标</string>
     <string name="chip_adaptive_yes">自适应</string>
@@ -155,8 +155,9 @@
     <!-- 订阅源管理 -->
     <string name="ania_section_title">通知图标订阅源</string>
     <string name="picp_section_title">应用图标订阅源</string>
-    <string name="source_ania_raw">通知图标适配规则库（官方源）</string>
-    <string name="source_ania_raw_desc">由 Fankes 及团队维护的 Android 通知图标规范适配计划，提供 673+ 应用的通知图标适配规则。\nhttps://github.com/fankes/AndroidNotifyIconAdapt</string>
+    <string name="source_ania_raw">Android 通知图标项目（ANIP，原 AndroidNotifyIconAdapt）</string>
+    <string name="source_ania_raw_desc">由 BetterAndroid 社区维护（发起人：fankes）的标准化单色通知图标资源。
+https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="source_picp_github">完美图标补全计划（官方源）</string>
     <string name="source_picp_github_desc">由 pzcn 及社区维护的完美图标补全计划，为海量应用提供高质量的自适应图标资源。\nhttps://github.com/pzcn/Perfect-Icons-Completion-Project</string>
     <string name="add_source_title">添加订阅源</string>
@@ -169,7 +170,7 @@
     <string name="cancel_btn">取消</string>
     <string name="save_btn">保存</string>
     <string name="add_custom_btn">添加自定义源</string>
-    <string name="restore_default_ania">恢复默认图标适配源</string>
+    <string name="restore_default_ania">恢复默认 ANIP 图标源</string>
     <string name="restore_default_picp">恢复默认完美图标源</string>
 
 
@@ -209,7 +210,7 @@
     <string name="badge_source_lib">规则库</string>
     <string name="badge_source_algo">重绘</string>
     <string name="badge_source_custom">自定义</string>
-<string name="pill_ania">ANIA 适配</string>
+<string name="pill_ania">ANIP 适配</string>
     <string name="pill_picp">PICP 重绘</string>
     <string name="pill_adaptive">自适应</string>
     <string name="pill_compliant">符合规范</string>

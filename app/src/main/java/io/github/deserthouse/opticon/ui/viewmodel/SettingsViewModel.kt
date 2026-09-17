@@ -183,12 +183,18 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     onResult = { r ->
                         _aniaSyncStatus.value = when {
                             !r.success -> r.errorMessage ?: "Sync failed"
-                            r.wasChanged -> "ANIA synced ${r.iconCount} icons - restart SystemUI"
-                            else -> "ANIA up to date (${r.iconCount} icons)"
+                            r.wasChanged -> "ANIP synced ${r.iconCount} icons - restart SystemUI"
+                            else -> "ANIP up to date (${r.iconCount} icons)"
                         }
                         if (r.success && r.wasChanged) {
                             _aniaIconCount.value = r.iconCount
-                            SubscriptionManager.readRulesJson(ctx)?.let { IconLibEngine.ingestJson(ctx, it) }
+                            // ANIP sync writes fankes_cache + meta.json directly;
+                            // legacy base64 sources still go through ingestJson.
+                            if (SubscriptionManager.readRulesJson(ctx) != null) {
+                                IconLibEngine.ingestJson(ctx, SubscriptionManager.readRulesJson(ctx)!!)
+                            } else {
+                                IconLibEngine.initializeFromFiles(ctx, emptyList())
+                            }
                             // Publish all fankes_cache icons to the shared Downloads
                             // dir so the SystemUI hook can read them (SELinux-safe)
                             io.github.deserthouse.opticon.engine.SharedIconStore

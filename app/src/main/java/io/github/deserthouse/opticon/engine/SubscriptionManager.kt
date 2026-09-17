@@ -48,6 +48,22 @@ object SubscriptionManager {
                 return@checkConnectivity
             }
 
+            // ANIP source (manifest + per-app PNG) — resource-sync, no base64 JSON
+            if (url.startsWith(AnipSync.BASE)) {
+                onProgress?.invoke("Fetching ANIP manifests...")
+                val count = AnipSync.syncTo(
+                    File(context.filesDir, IconLibEngine.CACHE_DIR_ACCESSIBLE),
+                    onProgress
+                )
+                if (count <= 0) {
+                    onResult(SyncResult(false, errorMessage = "Invalid data from source"))
+                    return@checkConnectivity
+                }
+                File(context.filesDir, HASH_FILE).writeText("$count", Charsets.UTF_8)
+                onResult(SyncResult(true, iconCount = count, wasChanged = true))
+                return@checkConnectivity
+            }
+
             onProgress?.invoke("Downloading...")
             val json = NetworkExecutor.fetchStringSync(url) { downloaded, total ->
                 val kb = downloaded / 1024
