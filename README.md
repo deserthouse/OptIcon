@@ -2,6 +2,9 @@
 
 # OptIcon
 
+[简体中文](README.md) · [English](README_EN.md)
+
+
 **Android 通知图标规范化工具 —— 覆盖完整 Material You 世代**
 
 让每一个通知图标都符合原生 Android 设计规范
@@ -83,13 +86,13 @@
 
 ## 🤝 致谢
 
-本项目的诞生离不开以下项目与开发者：
+本项目的诞生离不开以下项目与开发者（与应用内致谢同序同文）：
 
-- **[fankes / AndroidNotifyIconAdapt](https://github.com/fankes/AndroidNotifyIconAdapt)** —— 「Android 通知图标规范适配计划」，特别感谢 fankes **慷慨地书面授权**本项目使用其团队的 673+ 应用适配规则库（致谢之首）
-- **[pzcn / Perfect-Icons-Completion-Project](https://github.com/pzcn/Perfect-Icons-Completion-Project)** —— 「完美图标补全计划」，高质量分层图标资产
-- **[Howard20181 / NotificationIconFix](https://github.com/Howard20181/NotificationIconFix)** —— 通知图标修复的先行者，本项目的重要灵感来源
-- **[LSPosed Team](https://github.com/LSPosed)** —— 现代 Xposed 框架
-- **[MohamedRejworkshop / Iconify](https://github.com/MohamedRejworkshop/Iconify)** —— 跨进程文件配送架构参考
+- **[fankes / AndroidNotifyIconAdapt](https://github.com/fankes/AndroidNotifyIconAdapt)** —— 特别感谢：fankes 慷慨地授权本项目使用其团队《Android 通知图标规范适配计划》的 673+ 应用适配规则库。
+- **[pzcn / Perfect-Icons-Completion-Project](https://github.com/pzcn/Perfect-Icons-Completion-Project)** —— 感谢《完美图标补全计划》团队对丰富 Android 图标生态的无私贡献。
+- **[Howard20181 / NotificationIconFix](https://github.com/Howard20181/NotificationIconFix)** —— 感谢 Howard20181，其技术路径为本项目提供了重要的灵感与参考。
+- **[MohamedRejworkshop / Iconify](https://github.com/MohamedRejworkshop/Iconify)** —— 感谢 Iconify，其跨进程图标配送管线（共享目录模式）为本项目的生产配送方案提供了架构参考。
+- **[LSPosed Team](https://github.com/LSPosed)** —— 一切的基石，谢谢你们。
 
 ## 🔐 权限说明（QUERY_ALL_PACKAGES 豁免声明 / Permission Disclosure）
 
