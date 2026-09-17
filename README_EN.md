@@ -24,7 +24,7 @@ Make every notification icon comply with native Android design guidelines
 
 | Strategy | Description | Source |
 |---|---|---|
-| **Notification icon adaptation** | Ready-to-use rule set covering 673+ mainstream apps | [AndroidNotifyIconAdapt](https://github.com/fankes/AndroidNotifyIconAdapt) (ANIA) |
+| **Notification icon adaptation** | Ready-to-use rule set covering mainstream apps | [Android Notification Icon Project](https://github.com/BetterAndroid/android-notification-icon-project) (ANIP, formerly ANIA) |
 | **Adaptive asset import** | Layered extraction from third-party icon packs or system adaptive icons | Local + [Perfect-Icons-Completion-Project](https://github.com/pzcn/Perfect-Icons-Completion-Project) (PICP) |
 | **Algorithmic redraw** 🚧 | Corner-sampling self-filter algorithm — generates compliant icons even without rules (**WIP**: engine pipeline ready; entry point and control panel not yet exposed) | Built-in engine |
 
@@ -50,6 +50,8 @@ Whenever an app posts a notification, OptIcon automatically evaluates whether it
 
 ## 🚀 Installation
 
+**[📥 Get the latest release from Releases](https://github.com/deserthouse/OptIcon/releases)**
+
 ### Requirements
 
 - Android 12+ (API 31, the first Material You release)
@@ -63,6 +65,29 @@ Whenever an app posts a notification, OptIcon automatically evaluates whether it
 3. Restart SystemUI (or reboot)
 4. Open OptIcon and sync the rule set in Settings
 5. Pick an app in the list → choose a strategy → save
+
+## ❓ FAQ
+
+**Enabled but nothing changes?**
+Check in order: ① is the module enabled in LSPosed Manager; ② is **System UI** checked as its scope — the scope checkbox can silently drop after reinstalling or updating the module, and this is the number-one suspect; ③ after changing the scope, restart SystemUI (or reboot).
+
+**Do icon changes require a restart?**
+No. Rules and baked icons are watched by FileObserver in real time and apply on save; if it doesn't take effect on a particular ROM, restarting SystemUI is enough.
+
+**Something looks off on MIUI / OnePlus / other custom ROMs?**
+The project is developed against AOSP as the mainline, with OOS (OnePlus 15) as the primary real-device environment; vendor-specific behavior (MIUI / HyperOS / ColorOS, etc.) may cause differences, and per-vendor adaptation is not guaranteed.
+
+**Does it phone home?**
+It only accesses the corresponding repositories when you explicitly sync the rule set or download icon assets; no subscriptions, no telemetry, no crash reporting, nothing uploaded.
+
+## 📊 Compatibility
+
+| Item | Support |
+|---|---|
+| Minimum | Android 12 (API 31) |
+| Target | Android 17 (API 37) |
+| Verified | API 36 end-to-end (AOSP emulator + LSPosed v2.2.0); Android 17 (OOS real device) |
+| Custom ROMs | AOSP as the mainline; OOS (OnePlus 15) as the primary real-device environment — others theoretically work, untested |
 
 ## 🛠️ How it works
 
@@ -78,13 +103,14 @@ Whenever an app posts a notification, OptIcon automatically evaluates whether it
 ```
 
 - **Path A**: the app writes to a shared public directory via MediaStore; the SystemUI hook reads it directly (the mass-deployment pattern proven by [Iconify](https://github.com/MohamedRejworkshop/Iconify))
+- **Path B**: the SystemUI process downloads the rule set by itself (ANIP architecture, zero cross-process traffic)
 - **Compliance detection**: piggybacks on the existing createIcons hook, measuring the original icon's monochromaticity at near-zero cost
 
 ## 🤝 Credits
 
 Special thanks to the following projects and developers (mirrors the in-app credits):
 
-- **[fankes / AndroidNotifyIconAdapt](https://github.com/fankes/AndroidNotifyIconAdapt)** — special thanks to fankes for generously authorizing this project to use the team's 673+ app adaptation rule set of the "Android Notification Icon Standard Adaptation" project.
+- **[BetterAndroid / Android Notification Icon Project](https://github.com/BetterAndroid/android-notification-icon-project)** (formerly AndroidNotifyIconAdapt / ANIA) — special thanks to fankes for generously authorizing this project to use the adaptation rule set of the "Android Notification Icon Standard Adaptation" project, which is now maintained by the BetterAndroid organization.
 - **[pzcn / Perfect-Icons-Completion-Project](https://github.com/pzcn/Perfect-Icons-Completion-Project)** — thanks to the PICP team for their selfless contribution to the Android icon ecosystem.
 - **[Howard20181 / NotificationIconFix](https://github.com/Howard20181/NotificationIconFix)** — thanks to Howard20181; the technical approach was an important source of inspiration.
 - **[MohamedRejworkshop / Iconify](https://github.com/MohamedRejworkshop/Iconify)** — thanks to Iconify; its cross-process icon delivery pipeline (shared-directory pattern) served as an architecture reference.
@@ -112,17 +138,8 @@ OptIcon requests the `QUERY_ALL_PACKAGES` permission **solely to enumerate insta
 
 This project is open-sourced under the [AGPL-3.0](LICENSE) license.
 
-- The ANIA rule set (AGPL-3.0) is consumed via runtime download and is not bundled or redistributed
+- Notification icon rule resources come from [ANIP](https://github.com/BetterAndroid/android-notification-icon-project) (formerly ANIA): licensed AGPL-3.0 during the ANIA era and Apache-2.0 under ANIP; consumed via runtime download, never bundled or redistributed
 - PICP icon assets are downloaded on demand for personal use and are not redistributed (see its repository for details)
-
-## 📊 Compatibility
-
-| Item | Support |
-|---|---|
-| Minimum | Android 12 (API 31) |
-| Target | Android 17 (API 37) |
-| Verified | API 36 end-to-end (AOSP emulator + LSPosed v2.2.0); Android 17 (OOS real device) |
-| Custom ROMs | AOSP as the mainline; OOS (OnePlus 15) as the primary real-device environment — others theoretically work, untested |
 
 ---
 

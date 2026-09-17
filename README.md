@@ -24,7 +24,7 @@
 
 | 策略 | 说明 | 来源 |
 |---|---|---|
-| **通知图标适配** | 673+ 国内主流应用的适配规则库，开箱即用 | [AndroidNotifyIconAdapt](https://github.com/fankes/AndroidNotifyIconAdapt) (ANIA) |
+| **通知图标适配** | 国内主流应用的适配规则库，开箱即用 | [Android Notification Icon Project](https://github.com/BetterAndroid/android-notification-icon-project)（ANIP，前 ANIA） |
 | **资产导入提取** | 从第三方图标包或系统自适应图标分层提取 | 本地 + [完美图标补全计划](https://github.com/pzcn/Perfect-Icons-Completion-Project) (PICP) |
 | **智能算法重绘** 🚧 | 四角采样自过滤算法，无规则也能生成规范图标（**施工中**：引擎管线已就绪，入口与控制面板尚未开放） | 内置引擎 |
 
@@ -46,8 +46,11 @@
   <img src="docs/screenshots/list_current.png" width="270" alt="应用列表"/>
   <img src="docs/screenshots/detail.png" width="270" alt="应用详情"/>
   <img src="docs/screenshots/list_dark.png" width="270" alt="深色模式"/>
-</p
+</p>
+
 ## 🚀 安装使用
+
+**[📥 前往 Releases 下载最新版本](https://github.com/deserthouse/OptIcon/releases)**
 
 ### 环境要求
 
@@ -62,6 +65,29 @@
 3. 重启系统界面（或整机重启）
 4. 打开 OptIcon，在设置中同步图标规则库
 5. 在应用列表中选择应用 → 选择策略 → 保存
+
+## ❓ 常见问题
+
+**启用后没有效果？**
+依次检查：① LSPosed Manager 中模块是否已启用；② 作用域是否勾选了**系统界面（SystemUI）**——覆盖安装或更新模块后作用域勾选可能掉落，这是失效的第一嫌疑；③ 作用域变更后需重启系统界面（或整机重启）。
+
+**修改图标后需要重启吗？**
+不需要。规则与烘焙产物通过 FileObserver 实时监听，保存即热生效；若个别 ROM 上未生效，重启系统界面即可。
+
+**小米 / 一加等定制 ROM 上表现异常？**
+项目以 AOSP 为主线开发，OOS（一加 15）为第一真机环境；定制 ROM 的私有行为（MIUI / HyperOS / ColorOS 等）可能造成差异，不作逐家适配承诺。
+
+**会联网吗？上传数据吗？**
+仅在你主动同步规则库或下载图标资产时访问对应仓库；无订阅推送、无遥测、无崩溃上报、不上传任何数据。
+
+## 📊 兼容性
+
+| 项目 | 支持情况 |
+|---|---|
+| 最低版本 | Android 12 (API 31) |
+| 目标版本 | Android 17 (API 37) |
+| 已验证 | API 36 端到端（AOSP 模拟器 + LSPosed v2.2.0）；Android 17（OOS 真机）验收中 |
+| 定制 ROM | 以 AOSP 为主线开发；OOS（一加 15）为第一真机环境，其余理论可用不保证 |
 
 ## 🛠️ 工作原理
 
@@ -84,7 +110,7 @@
 
 本项目的诞生离不开以下项目与开发者（与应用内致谢同序同文）：
 
-- **[fankes / AndroidNotifyIconAdapt](https://github.com/fankes/AndroidNotifyIconAdapt)** —— 特别感谢：fankes 慷慨地授权本项目使用其团队《Android 通知图标规范适配计划》的 673+ 应用适配规则库。
+- **[BetterAndroid / Android Notification Icon Project](https://github.com/BetterAndroid/android-notification-icon-project)**（前 AndroidNotifyIconAdapt / ANIA）—— 特别感谢：fankes 慷慨地授权本项目使用其团队《Android 通知图标规范适配计划》的适配规则库，该计划现已由 BetterAndroid 组织延续维护。
 - **[pzcn / Perfect-Icons-Completion-Project](https://github.com/pzcn/Perfect-Icons-Completion-Project)** —— 感谢《完美图标补全计划》团队对丰富 Android 图标生态的无私贡献。
 - **[Howard20181 / NotificationIconFix](https://github.com/Howard20181/NotificationIconFix)** —— 感谢 Howard20181，其技术路径为本项目提供了重要的灵感与参考。
 - **[MohamedRejworkshop / Iconify](https://github.com/MohamedRejworkshop/Iconify)** —— 感谢 Iconify，其跨进程图标配送管线（共享目录模式）为本项目的生产配送方案提供了架构参考。
@@ -113,17 +139,8 @@ OptIcon 申请 `QUERY_ALL_PACKAGES`（查询全部应用）权限。**该权限�
 
 本项目采用 [AGPL-3.0](LICENSE) 协议开源。
 
-- ANIA 规则库（AGPL-3.0）以运行时下载方式使用，不内置分发
+- 通知图标规则资源来自 [ANIP](https://github.com/BetterAndroid/android-notification-icon-project)（前 ANIA）：ANIA 时期以 AGPL-3.0 授权，现 ANIP 以 Apache-2.0 授权；均以运行时下载方式使用，不内置分发
 - PICP 图标资产按需下载供用户个人使用，不重分发（详见其仓库说明）
-
-## 📊 兼容性
-
-| 项目 | 支持情况 |
-|---|---|
-| 最低版本 | Android 12 (API 31) |
-| 目标版本 | Android 17 (API 37) |
-| 已验证 | API 36 端到端（AOSP 模拟器 + LSPosed v2.2.0）；Android 17（OOS 真机）验收中 |
-| 定制 ROM | 以 AOSP 为主线开发；OOS（一加 15）为第一真机环境，其余理论可用不保证 |
 
 ---
 
