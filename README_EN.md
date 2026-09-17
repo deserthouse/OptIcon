@@ -9,6 +9,7 @@ Make every notification icon comply with native Android design guidelines
 [![License](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Android%2012%2B-green.svg)](#-compatibility)
 [![API](https://img.shields.io/badge/LSPosed-API%20102-orange.svg)](https://github.com/libxposed/api)
+[![Release](https://img.shields.io/github/v/release/deserthouse/OptIcon?include_prereleases&color=yellow&style=flat-square)](https://github.com/deserthouse/OptIcon/releases)
 
 [简体中文](README.md) · [English](README_EN.md)
 
