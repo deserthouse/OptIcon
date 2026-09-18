@@ -53,6 +53,7 @@
     <string name="color_override_color_desc">保留此应用通知图标的原始色彩</string>
     <string name="manual_upload_image">上传图片</string>
     <string name="use_captured_original">使用抓取的原始图标</string>
+    <string name="algo_source_title">图标来源</string>
     <string name="algo_source_self">应用自身图标</string>
     <string name="algo_source_upload">上传图片</string>
     <string name="algo_source_captured">抓取的原始图标</string>

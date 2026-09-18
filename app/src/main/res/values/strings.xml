@@ -53,6 +53,7 @@
     <string name="color_override_color_desc">Keep the notification icon in its original colors</string>
     <string name="manual_upload_image">Upload image</string>
     <string name="use_captured_original">Use captured original</string>
+    <string name="algo_source_title">Icon source</string>
     <string name="algo_source_self">App own icon</string>
     <string name="algo_source_upload">Upload image</string>
     <string name="algo_source_captured">Captured original</string>

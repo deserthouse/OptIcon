@@ -288,36 +288,57 @@ fun AppDetailScreen(
             )
             AnimatedVisibility(visible = enabled && state.strategy == IconStrategy.ALGORITHM) {
                 Column {
-                    // Strategy-3 source picker: app's own icon (zero-friction
+                    // Strategy-3 source picker: app own icon (zero-friction
                     // default) / local upload / captured original (#14).
                     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
-                        AssetSubRadio(stringResource(R.string.algo_source_self), state.algoSource == io.github.deserthouse.opticon.ui.state.AlgoSource.SELF, enabled) {
-                            viewModel.setAlgoSource(io.github.deserthouse.opticon.ui.state.AlgoSource.SELF)
+                        var showSourceSheet by remember { mutableStateOf(false) }
+                        val sourceLabel = when (state.algoSource) {
+                            io.github.deserthouse.opticon.ui.state.AlgoSource.SELF -> stringResource(R.string.algo_source_self)
+                            else -> stringResource(R.string.algo_source_upload)
                         }
-                        AssetSubRadio(stringResource(R.string.algo_source_upload), state.algoSource == io.github.deserthouse.opticon.ui.state.AlgoSource.LOCAL_FILE, enabled) {
-                            viewModel.setAlgoSource(io.github.deserthouse.opticon.ui.state.AlgoSource.LOCAL_FILE)
-                            pickLauncher.launch("image/*")
-                        }
-                        val originalFile = remember(state.packageName) {
-                            java.io.File(android.os.Environment.getExternalStoragePublicDirectory(
-                                android.os.Environment.DIRECTORY_DOWNLOADS), "OptIcon/originals/${state.packageName}.png")
-                        }
-                        val capturedAvailable = state.hasOriginalCaptured && originalFile.exists()
-                        AssetSubRadio(
-                            stringResource(R.string.algo_source_captured),
-                            state.algoSource == io.github.deserthouse.opticon.ui.state.AlgoSource.LOCAL_FILE && state.customIconPath == originalFile.absolutePath,
-                            enabled && capturedAvailable
+                        SettingItem(
+                            Icons.Rounded.Source,
+                            stringResource(R.string.algo_source_title),
+                            sourceLabel,
+                            onClick = { showSourceSheet = true }
                         ) {
-                            viewModel.setAlgoSource(io.github.deserthouse.opticon.ui.state.AlgoSource.LOCAL_FILE)
-                            viewModel.setCustomIconPath(originalFile.absolutePath)
+                            Text(sourceLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                        }
+                        if (showSourceSheet) {
+                            RadioSheet(
+                                title = stringResource(R.string.algo_source_title),
+                                selected = state.algoSource.name,
+                                options = listOf(
+                                    RadioOption("SELF", stringResource(R.string.algo_source_self), null),
+                                    RadioOption("LOCAL", stringResource(R.string.algo_source_upload), null)
+                                ),
+                                onSelect = { pick ->
+                                    when (pick) {
+                                        "SELF" -> viewModel.setAlgoSource(io.github.deserthouse.opticon.ui.state.AlgoSource.SELF)
+                                        "LOCAL" -> {
+                                            viewModel.setAlgoSource(io.github.deserthouse.opticon.ui.state.AlgoSource.LOCAL_FILE)
+                                            showSourceSheet = false
+                                            pickLauncher.launch("image/*")
+                                        }
+                                    }
+                                },
+                                onDismiss = { showSourceSheet = false }
+                            )
+                        }
+                        if (state.algoSource == io.github.deserthouse.opticon.ui.state.AlgoSource.LOCAL_FILE && !state.customIconPath.isNullOrBlank()) {
+                            Text(
+                                text = state.customIconPath.substringAfterLast('/'),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 44.dp, bottom = 4.dp)
+                            )
                         }
                     }
                     AlgoWipSection(viewModel::showSheet)
                 }
             }
-            }
 
-            Spacer(Modifier.height(24.dp))
+Spacer(Modifier.height(24.dp))
         }
     }
 

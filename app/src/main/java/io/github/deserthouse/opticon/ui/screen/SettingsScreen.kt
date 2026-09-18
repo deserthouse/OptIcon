@@ -943,14 +943,14 @@ private fun applyAppLocale(context: android.content.Context, tag: String) {
     }
 }
 
-internal data class RadioOption<T>(val value: T, val label: String, val desc: String?)
+data class RadioOption<T>(val value: T, val label: String, val desc: String?)
 
 /** M3 bottom-sheet single-choice picker: the whole row is the hit target,
  *  selected option carries the primary color + medium weight, options can
  *  carry a supporting description. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun <T> RadioSheet(
+fun <T> RadioSheet(
     title: String,
     options: List<RadioOption<T>>,
     selected: T,
