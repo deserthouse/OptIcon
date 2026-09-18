@@ -64,6 +64,7 @@
     <string name="language_applied">重启应用后生效</string>
 <string name="predictive_back">预测性返回手势动画</string>
     <string name="about_section">关于</string>
+    <string name="repo_link_label">项目地址</string>
     <string name="about_description">LSPosed API 102 \u00b7 Android 12+ 通知图标优化器</string>
     <string name="credits_section">致谢</string>
     <string name="info_title">提示</string>

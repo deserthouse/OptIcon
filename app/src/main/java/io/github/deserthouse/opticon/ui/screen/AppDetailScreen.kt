@@ -379,7 +379,7 @@ private fun StrategyCard(
 @Composable
 private fun StrategyRadio(label: String, desc: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
     val alpha = if (enabled) 1f else 0.4f
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp).then(if (enabled) Modifier.selectable(selected = selected, onClick = onClick) else Modifier), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier = Modifier.fillMaxWidth().then(if (enabled) Modifier.selectable(selected = selected, onClick = onClick) else Modifier).padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         RadioButton(selected = selected, onClick = onClick, enabled = enabled)
         Spacer(Modifier.size(8.dp))
         Column(Modifier.alpha(alpha)) {
@@ -440,7 +440,7 @@ private fun AssetImportPanel(state: io.github.deserthouse.opticon.ui.state.AppDe
 
 @Composable
 private fun AssetSubRadio(label: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).then(if (enabled) Modifier.selectable(selected = selected, onClick = onClick) else Modifier), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier = Modifier.fillMaxWidth().then(if (enabled) Modifier.selectable(selected = selected, onClick = onClick) else Modifier).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         RadioButton(selected = selected, onClick = onClick, enabled = enabled)
         Spacer(Modifier.size(6.dp))
         Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)

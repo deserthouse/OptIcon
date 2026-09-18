@@ -324,6 +324,35 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                     }
                 }
 
+                // Project home link — always visible, below the description.
+                // Child clickable consumes its own taps (never feeds the egg
+                // counter); row-level hit target, credits-link visual idiom.
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/deserthouse/OptIcon"))) }
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        stringResource(R.string.repo_link_label),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "github.com/deserthouse/OptIcon",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Icon(
+                        Icons.Rounded.Launch, stringResource(R.string.repo_link_label),
+                        Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+
                 AnimatedVisibility(
                     visible = easterEggExpanded,
                     enter = expandVertically() + fadeIn(),
@@ -370,7 +399,10 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                             lineHeight = 18.sp
                         )
                         Spacer(Modifier.height(8.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/deserthouse"))) }) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/deserthouse"))) }
+                        .padding(vertical = 6.dp)) {
                             Text("github.com/deserthouse", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.width(4.dp))
                             Icon(Icons.Rounded.Launch, "GitHub", Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
@@ -623,8 +655,8 @@ private fun SourceSection(
         sources.forEach { source ->
             Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 Row(Modifier.fillMaxWidth()
-                    .padding(vertical = 6.dp, horizontal = 4.dp)
-                    .clickable { onSelect(source.id) }, verticalAlignment = Alignment.CenterVertically) {
+                    .clickable { onSelect(source.id) }
+                    .padding(vertical = 6.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = activeId == source.id, onClick = { onSelect(source.id) }, modifier = Modifier.padding(end = 4.dp))
                     Text(getSourceDisplayName(source), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
                     IconButton(onClick = { onEditSource(source) }, Modifier.size(40.dp)) { Icon(Icons.Rounded.Edit, null, Modifier.size(18.dp)) }
@@ -638,7 +670,10 @@ private fun SourceSection(
                     Column(Modifier.padding(start = 44.dp, end = 4.dp)) {
                         if (descText.isNotBlank()) Text(descText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (linkUrl != null) {
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(linkUrl))) }) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(linkUrl))) }
+                                .padding(vertical = 6.dp)) {
                                 Text(linkUrl, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                                 Spacer(Modifier.width(4.dp))
                                 Icon(Icons.Rounded.Launch, "Open", Modifier.size(12.dp), tint = MaterialTheme.colorScheme.primary)
@@ -882,8 +917,8 @@ private fun RuntimeStatusCard(
 
 @Composable internal fun SettingItem(icon: ImageVector, title: String, subtitle: String, onClick: (() -> Unit)? = null, action: @Composable (() -> Unit)? = null) {
     Row(Modifier.fillMaxWidth()
-        .padding(vertical = 10.dp)
-        .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier), verticalAlignment = Alignment.CenterVertically) {
+        .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+        .padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, null, Modifier.padding(end = 12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)

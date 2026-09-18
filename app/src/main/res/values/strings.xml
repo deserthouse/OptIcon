@@ -64,6 +64,7 @@
     <string name="language_applied">Restart to apply</string>
 <string name="predictive_back">Predictive Back Gesture</string>
     <string name="about_section">About</string>
+    <string name="repo_link_label">Project home</string>
     <string name="about_description">LSPosed API 102 · Android 12+ notification icon optimizer</string>
     <string name="credits_section">Credits</string>
     <string name="info_title">Info</string>

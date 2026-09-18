@@ -99,17 +99,23 @@ object SharedIconStore {
     fun writeColorMode(context: Context, mode: String): String? =
         writeBytes(context, "color_mode.opticon", mode.toByteArray())
 
-    fun readColorMode(): String? =
-        colorModeFile().takeIf { it.exists() }?.readText()?.trim()
+    /** App-side reads of the public dir can EACCES when the file's owner is
+     *  not this app (shell-pushed fixtures, hook-written rows) — degrade to
+     *  null (= default policy) instead of crashing the UI. */
+    fun readColorMode(): String? = try {
+        colorModeFile().takeIf { it.isFile }?.readText()?.trim()
+    } catch (_: Exception) { null }
 
     fun writeColorOverride(context: Context, pkg: String, value: String): String? =
         writeBytes(context, "$pkg.opticon", value.toByteArray(), subDir = "color_override")
 
-    fun deleteColorOverride(context: Context, pkg: String): Boolean =
+    fun deleteColorOverride(context: Context, pkg: String): Boolean = try {
         colorOverrideFile(pkg).delete()
+    } catch (_: Exception) { false }
 
-    fun readColorOverride(pkg: String): String? =
-        colorOverrideFile(pkg).takeIf { it.exists() }?.readText()?.trim()
+    fun readColorOverride(pkg: String): String? = try {
+        colorOverrideFile(pkg).takeIf { it.isFile }?.readText()?.trim()
+    } catch (_: Exception) { null }
 
     // ━━ #14 original notification icon archive (hook passive capture) ━━
 
