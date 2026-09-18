@@ -88,6 +88,35 @@ object SharedIconStore {
     fun writeShadeIconMode(context: Context, mode: String): String? =
         writeBytes(context, "shade_icon_mode.opticon", mode.toByteArray())
 
+    // ━━ #13 color strategy matrix: global mode + per-app override ━━
+
+    /** Global color policy file; content "off" | "force_mono". */
+    fun colorModeFile(): File = File(publicDir(), "color_mode.opticon")
+
+    /** Per-app override file; content "mono" | "color". */
+    fun colorOverrideFile(pkg: String): File = File(File(publicDir(), "color_override"), "$pkg.opticon")
+
+    fun writeColorMode(context: Context, mode: String): String? =
+        writeBytes(context, "color_mode.opticon", mode.toByteArray())
+
+    fun readColorMode(): String? =
+        colorModeFile().takeIf { it.exists() }?.readText()?.trim()
+
+    fun writeColorOverride(context: Context, pkg: String, value: String): String? =
+        writeBytes(context, "color_override/$pkg.opticon", value.toByteArray())
+
+    fun deleteColorOverride(context: Context, pkg: String): Boolean =
+        colorOverrideFile(pkg).delete()
+
+    fun readColorOverride(pkg: String): String? =
+        colorOverrideFile(pkg).takeIf { it.exists() }?.readText()?.trim()
+
+    // ━━ #14 original notification icon archive (hook passive capture) ━━
+
+    fun originalsDir(): File = File(publicDir(), "originals")
+
+    fun originalIconFile(pkg: String): File = File(originalsDir(), "$pkg.png")
+
     /**
      * Delete an icon from the shared dir (user reverted an app).
      * Returns true if a row was actually removed.

@@ -35,6 +35,8 @@ data class AppDetailState(
 
     // Strategy 2: Algorithm Overdrive
     val algoSource: AlgoSource = AlgoSource.LOCAL_FILE,
+    val colorOverride: String? = null,
+    val hasOriginalCaptured: Boolean = false,
     val customIconPath: String? = null,
     val materialIconName: String? = null,
     val emojiText: String? = null,

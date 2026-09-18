@@ -42,6 +42,17 @@
     <string name="shade_mode_notif_desc">显示通知自带的图标</string>
     <string name="shade_mode_pref">跟随应用偏好</string>
     <string name="shade_mode_pref_desc">尊重每个应用自行声明的图标偏好</string>
+    <string name="force_mono_title">强制单色（实验性）</string>
+    <string name="force_mono_desc">将 OptIcon 未替换应用的彩色通知图标统一置灰。关闭 = Android 16 原生行为（通知栏图标按原色渲染）。可在每个应用详情页单独覆盖</string>
+    <string name="color_policy_title">色彩策略</string>
+    <string name="color_policy_desc">此应用的通知图标如何处理色彩（立即生效）</string>
+    <string name="color_override_inherit">跟随全局</string>
+    <string name="color_override_mono">强制单色</string>
+    <string name="color_override_mono_desc">即使全局开关关闭，也将此应用的彩色通知图标置灰</string>
+    <string name="color_override_color">保持原色</string>
+    <string name="color_override_color_desc">保留此应用通知图标的原始色彩</string>
+    <string name="manual_upload_image">上传图片</string>
+    <string name="use_captured_original">使用抓取的原始图标</string>
     <string name="shade_icon_desc">通知列表左侧显示的图标类型（Android 17+）。切换后对新通知生效；已显示的行随其更新刷新，或重启 SystemUI 立即应用</string>
     <string name="app_section">应用</string>
 <string name="language_title">语言</string>

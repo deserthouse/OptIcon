@@ -30,6 +30,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.rounded.BugReport
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.ExpandLess
@@ -109,6 +110,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
     val emojiUnlocked by viewModel.emojiUnlocked.collectAsState()
     val rambleExtraShown by viewModel.rambleExtraShown.collectAsState()
     val shadeAppIconMode by viewModel.shadeAppIconMode.collectAsState()
+    val forceMono by viewModel.forceMono.collectAsState()
     val aniaSources by viewModel.aniaSources.collectAsState()
     val activeAniaSource by viewModel.activeAniaSource.collectAsState()
     val aniaSyncing by viewModel.aniaSyncing.collectAsState()
@@ -215,6 +217,16 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                         onSelect = { viewModel.setShadeAppIconMode(it); showShadeSheet = false },
                         onDismiss = { showShadeSheet = false }
                     )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            SettingsCard {
+                SettingItem(
+                    Icons.Rounded.Palette,
+                    stringResource(R.string.force_mono_title),
+                    stringResource(R.string.force_mono_desc)
+                ) {
+                    Switch(checked = forceMono, onCheckedChange = { viewModel.setForceMono(it) })
                 }
             }
 
@@ -868,7 +880,7 @@ private fun RuntimeStatusCard(
     Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
 }
 
-@Composable private fun SettingItem(icon: ImageVector, title: String, subtitle: String, onClick: (() -> Unit)? = null, action: @Composable (() -> Unit)? = null) {
+@Composable internal fun SettingItem(icon: ImageVector, title: String, subtitle: String, onClick: (() -> Unit)? = null, action: @Composable (() -> Unit)? = null) {
     Row(Modifier.fillMaxWidth()
         .padding(vertical = 10.dp)
         .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier), verticalAlignment = Alignment.CenterVertically) {
@@ -896,14 +908,14 @@ private fun applyAppLocale(context: android.content.Context, tag: String) {
     }
 }
 
-private data class RadioOption<T>(val value: T, val label: String, val desc: String?)
+internal data class RadioOption<T>(val value: T, val label: String, val desc: String?)
 
 /** M3 bottom-sheet single-choice picker: the whole row is the hit target,
  *  selected option carries the primary color + medium weight, options can
  *  carry a supporting description. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun <T> RadioSheet(
+internal fun <T> RadioSheet(
     title: String,
     options: List<RadioOption<T>>,
     selected: T,
