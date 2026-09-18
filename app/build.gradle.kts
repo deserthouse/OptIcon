@@ -20,7 +20,7 @@ kotlin {
     }
 }
 
-val MODULE_VERSION_NAME = "0.8.1-alpha"
+val MODULE_VERSION_NAME = "0.8.2-alpha"
 
 android {
     namespace = "io.github.deserthouse.opticon"
@@ -30,7 +30,7 @@ android {
         applicationId = "io.github.deserthouse.opticon"
         minSdk = 31  // Android 12 minimum — full Material You generation (dynamic color since API 31)
         targetSdk = 37
-        versionCode = 46
+        versionCode = 47
         versionName = MODULE_VERSION_NAME
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
