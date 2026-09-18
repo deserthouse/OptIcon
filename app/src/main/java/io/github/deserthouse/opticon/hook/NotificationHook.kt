@@ -194,7 +194,7 @@ object NotificationHook {
             )
             TraceLogger.i(TAG, "Hook alive reported (pid=${android.os.Process.myPid()})")
             true
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             TraceLogger.w(TAG, "reportHookAlive: ${e.message}")
             false
         }
@@ -240,11 +240,11 @@ object NotificationHook {
                     }
                     app?.let { HookLibSync.start(it) }
                         ?: TraceLogger.w(TAG, "HookLibSync skipped: SystemUI Application never ready")
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     TraceLogger.w(TAG, "HookLibSync boot: ${e.message}")
                 }
             }, "OptIconHookSyncBoot").apply { isDaemon = true }.start()
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             TraceLogger.w(TAG, "initHook: ${e.message}")
             masterEnabled = true
         } finally {
@@ -268,7 +268,7 @@ object NotificationHook {
             masterSwitchMtime = source?.lastModified() ?: -1L
             masterEnabled = source == null || source.readText().trim() != "false"
             TraceLogger.i(TAG, "Master switch: $masterEnabled (source: ${source?.absolutePath ?: "absent, default on"})")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             TraceLogger.w(TAG, "refreshMasterSwitch: ${e.message}")
         }
     }
@@ -324,7 +324,7 @@ object NotificationHook {
                 if (loadIconForPackage(pkg) != null) loaded++
             }
             TraceLogger.i(TAG, "Preloaded $loaded icons into cache (${files.size} candidates)")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             TraceLogger.w(TAG, "preloadIcons: ${e.message}")
         }
     }
@@ -367,7 +367,7 @@ object NotificationHook {
                 else if (sub.name == BAKED_DIR) bakedObserver = observer
                 else fankesObserver = observer
                 TraceLogger.i(TAG, "FileObserver started on ${sub.absolutePath}")
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 TraceLogger.w(TAG, "FileObserver(${sub.name}) failed: ${e.message}")
             }
         }
@@ -387,14 +387,14 @@ object NotificationHook {
 
                         val bitmap = loadIconForPackage(pkg) ?: return@Hooker chain.proceed()
                         Icon.createWithBitmap(bitmap)
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         TraceLogger.w(TAG, "getSmallIcon hook: ${e.message}")
                         try { chain.proceed() } catch (_: Exception) { null }
                     }
                 }
             )
             TraceLogger.i(TAG, "Notification.getSmallIcon hooked")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             TraceLogger.e(TAG, "hookGetSmallIcon failed: ${e.message}")
         }
     }
@@ -503,7 +503,7 @@ object NotificationHook {
                                     }
                                 }
                             }
-                        } catch (e: Exception) {
+                        } catch (e: Throwable) {
                             TraceLogger.w(TAG, "createIcons replace: ${e.message}")
                         }
                         chain.proceed()
@@ -511,7 +511,7 @@ object NotificationHook {
                 )
             }
             TraceLogger.i(TAG, "IconManager.createIcons hooked (${candidates.size} overload)")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             TraceLogger.e(TAG, "hookCreateIcons failed: ${e.message}")
         }
     }
@@ -558,7 +558,7 @@ object NotificationHook {
                                     }
                                 }
                             }
-                        } catch (e: Exception) {
+                        } catch (e: Throwable) {
                             TraceLogger.w(TAG, "updateIcons replace: ${e.message}")
                         }
                         chain.proceed()
@@ -566,7 +566,7 @@ object NotificationHook {
                 )
             }
             TraceLogger.i(TAG, "IconManager.updateIcons hooked (" + candidates.size + " overload)")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             TraceLogger.w(TAG, "hookUpdateIcons skipped: ${e.message}")
         }
     }
@@ -617,7 +617,7 @@ object NotificationHook {
                                     }
                                 }
                             }
-                        } catch (e: Exception) {
+                        } catch (e: Throwable) {
                             TraceLogger.w(TAG, "CachingIconView hook: ${e.message}")
                         }
                         chain.proceed()
@@ -625,7 +625,7 @@ object NotificationHook {
                 )
             }
             TraceLogger.i(TAG, "CachingIconView.setImageIcon hooked (${methods.size})")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             TraceLogger.w(TAG, "hookCachingIconView skipped: ${e.message}")
         }
     }
@@ -681,14 +681,14 @@ object NotificationHook {
                                 }
                             }
                         }
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         TraceLogger.w(TAG, "recoverBuilder hook: ${e.message}")
                     }
                     builder
                 }
             )
             TraceLogger.i(TAG, "Notification.Builder.recoverBuilder hooked")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             TraceLogger.w(TAG, "hookRecoverBuilder skipped: ${e.message}")
         }
     }
@@ -734,14 +734,14 @@ object NotificationHook {
                             )
                             TraceLogger.d(TAG, "StatusBarIconView.set: $pkg -> drawable forced")
                         }
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         TraceLogger.w(TAG, "StatusBarIconView.set hook: ${e.message}")
                     }
                     result
                 }
             )
             TraceLogger.i(TAG, "StatusBarIconView.set hooked")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             TraceLogger.e(TAG, "hookStatusBarIconViewSet failed: ${e.message}")
         }
     }
@@ -787,14 +787,14 @@ object NotificationHook {
                                 TraceLogger.d(TAG, "getIconDescriptor: $pkg -> no bitmap cached")
                             }
                         }
-                    } catch (e: Exception) {
+                    } catch (e: Throwable) {
                         TraceLogger.w(TAG, "getIconDescriptor hook: ${e.message}")
                     }
                     result
                 }
             )
             TraceLogger.i(TAG, "IconManager.getIconDescriptor hooked")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             TraceLogger.e(TAG, "hookGetIconDescriptor failed: ${e.message}")
         }
     }
@@ -825,7 +825,7 @@ object NotificationHook {
                             maybeRefreshShadeMode()
                             if (!masterEnabled || shadeIconMode == "pref") return@Hooker chain.proceed()
                             shadeIconMode == "app"
-                        } catch (e: Exception) {
+                        } catch (e: Throwable) {
                             TraceLogger.w(TAG, "shouldShowAppIcon hook: ${e.message}")
                             try { chain.proceed() } catch (_: Exception) { false }
                         }
@@ -834,7 +834,7 @@ object NotificationHook {
             }
             refreshShadeMode()
             TraceLogger.i(TAG, "shouldShowAppIcon hooked (${methods.size}) — shade icon mode active")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             TraceLogger.w(TAG, "hookShadeAppIcon skipped: ${e.message}")
         }
     }
@@ -855,7 +855,7 @@ object NotificationHook {
             if (source != null) {
                 shadeIconMode = source.readText().trim().ifEmpty { "app" }
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             TraceLogger.w(TAG, "refreshShadeMode: ${e.message}")
         }
     }
@@ -966,7 +966,7 @@ object NotificationHook {
         return try {
             val sysUiCtx = getSystemUiContext() ?: return null
             sysUiCtx.createPackageContext(MODULE_PKG, Context.CONTEXT_IGNORE_SECURITY)
-        } catch (e: Exception) { null }
+        } catch (e: Throwable) { null }
     }
 
     private fun getSystemUiContext(): Context? {
@@ -975,6 +975,6 @@ object NotificationHook {
             val currentAT = atClass.getDeclaredMethod("currentActivityThread").invoke(null)
             val getSysUiCtx = atClass.getDeclaredMethod("getSystemUiContext")
             getSysUiCtx.invoke(currentAT) as? Context
-        } catch (e: Exception) { null }
+        } catch (e: Throwable) { null }
     }
 }

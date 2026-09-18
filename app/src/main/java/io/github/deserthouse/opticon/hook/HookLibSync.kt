@@ -91,7 +91,7 @@ object HookLibSync {
             val count = io.github.deserthouse.opticon.engine.AnipSync.syncTo(dir(context))
             TraceLogger.i(TAG, "ingested $count rule icons into hook-local cache")
             return count > 0
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             TraceLogger.w(TAG, "syncNow: ${e.message}")
             return false
         } finally {

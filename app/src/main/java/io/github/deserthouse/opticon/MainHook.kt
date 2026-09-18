@@ -31,7 +31,7 @@ class MainHook : XposedModule() {
             // Off the SystemUI startup path: this is a synchronous binder call
             // that may cold-start the module process — never block SystemUI boot
             Thread({ writeHookInstalledFlag(true) }, "OptIconFlagWriter").start()
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             TraceLogger.e(TAG, "Failed to install notification hooks", e)
         }
     }
@@ -63,7 +63,7 @@ class MainHook : XposedModule() {
             }
             ctx.contentResolver.call(uri, "set_flag", null, bundle)
             TraceLogger.i(TAG, "Hook installed flag + PID written")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             TraceLogger.w(TAG, "Failed to set hook installed flag: ${e.message}")
         }
     }
