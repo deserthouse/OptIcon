@@ -53,6 +53,9 @@
     <string name="color_override_color_desc">Keep the notification icon in its original colors</string>
     <string name="manual_upload_image">Upload image</string>
     <string name="use_captured_original">Use captured original</string>
+    <string name="algo_source_self">App own icon</string>
+    <string name="algo_source_upload">Upload image</string>
+    <string name="algo_source_captured">Captured original</string>
     <string name="shade_icon_desc">Which icon to show at the left of notifications in the shade (Android 17+). Applies to new notifications; restart SystemUI to rebind existing rows</string>
     <string name="app_section">App</string>
 <string name="language_title">Language</string>
@@ -129,9 +132,9 @@
     <string name="strategy_asset_c_link">→ Go to Perfect Icons Project GitHub</string>
 
     <string name="strategy_algo_label">Compatibility Redraw</string>
-    <string name="strategy_algo_wip">Under development. The effects and controls are planned features and not yet available.</string>
+    <string name="strategy_algo_wip">Redraw any icon into a compliant glyph — no rules or icon packs needed. Fine-tune with sliders.</string>
     <string name="strategy_algo_open_panel_wip">Fine-tune redraw</string>
-    <string name="algo_panel_title_wip">Fine-tune strategy 3</string>
+    <string name="algo_panel_title_wip">Fine-tune redraw</string>
     <string name="algo_panel_wip_body">Adjust and watch the preview update live. Changes take effect for new notifications after you save.</string>
 
     <string name="filter_all">All Apps</string>

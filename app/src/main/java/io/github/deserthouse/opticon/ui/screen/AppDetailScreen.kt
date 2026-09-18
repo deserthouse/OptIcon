@@ -288,22 +288,28 @@ fun AppDetailScreen(
             )
             AnimatedVisibility(visible = enabled && state.strategy == IconStrategy.ALGORITHM) {
                 Column {
-                    // #14 手动图标源：本地上传 / 抓取的原始通知图标
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { pickLauncher.launch("image/*") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp)) {
-                            Text(stringResource(R.string.manual_upload_image), maxLines = 1)
+                    // Strategy-3 source picker: app's own icon (zero-friction
+                    // default) / local upload / captured original (#14).
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+                        AssetSubRadio(stringResource(R.string.algo_source_self), state.algoSource == io.github.deserthouse.opticon.ui.state.AlgoSource.SELF, enabled) {
+                            viewModel.setAlgoSource(io.github.deserthouse.opticon.ui.state.AlgoSource.SELF)
+                        }
+                        AssetSubRadio(stringResource(R.string.algo_source_upload), state.algoSource == io.github.deserthouse.opticon.ui.state.AlgoSource.LOCAL_FILE, enabled) {
+                            viewModel.setAlgoSource(io.github.deserthouse.opticon.ui.state.AlgoSource.LOCAL_FILE)
+                            pickLauncher.launch("image/*")
                         }
                         val originalFile = remember(state.packageName) {
                             java.io.File(android.os.Environment.getExternalStoragePublicDirectory(
                                 android.os.Environment.DIRECTORY_DOWNLOADS), "OptIcon/originals/${state.packageName}.png")
                         }
-                        OutlinedButton(
-                            onClick = { viewModel.setCustomIconPath(originalFile.absolutePath) },
-                            enabled = state.hasOriginalCaptured && originalFile.exists(),
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp)
+                        val capturedAvailable = state.hasOriginalCaptured && originalFile.exists()
+                        AssetSubRadio(
+                            stringResource(R.string.algo_source_captured),
+                            state.algoSource == io.github.deserthouse.opticon.ui.state.AlgoSource.LOCAL_FILE && state.customIconPath == originalFile.absolutePath,
+                            enabled && capturedAvailable
                         ) {
-                            Text(stringResource(R.string.use_captured_original), maxLines = 1)
+                            viewModel.setAlgoSource(io.github.deserthouse.opticon.ui.state.AlgoSource.LOCAL_FILE)
+                            viewModel.setCustomIconPath(originalFile.absolutePath)
                         }
                     }
                     AlgoWipSection(viewModel::showSheet)

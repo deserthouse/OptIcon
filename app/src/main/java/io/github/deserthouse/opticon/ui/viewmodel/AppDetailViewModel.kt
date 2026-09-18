@@ -396,6 +396,20 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                 }
             }
             IconStrategy.ALGORITHM -> when (s.algoSource) {
+                AlgoSource.SELF -> {
+                    // Zero-friction default: redraw the app's own launcher
+                    // icon through the four-corner self-filter pipeline.
+                    IconEngine.bake(
+                        context = context,
+                        packageName = s.packageName,
+                        method = io.github.deserthouse.opticon.util.PreferenceManager.IconMethod.SELF_FILTER,
+                        branch = null,
+                        params = s.redrawParams,
+                        localPath = null,
+                        materialIconName = null,
+                        emojiText = null
+                    )
+                }
                 AlgoSource.LOCAL_FILE -> {
                     if (s.customIconPath.isNullOrBlank()) IconEngine.BakeResult(null, "Algo: no file selected")
                     else {

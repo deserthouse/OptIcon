@@ -103,7 +103,7 @@ object SharedIconStore {
         colorModeFile().takeIf { it.exists() }?.readText()?.trim()
 
     fun writeColorOverride(context: Context, pkg: String, value: String): String? =
-        writeBytes(context, "color_override/$pkg.opticon", value.toByteArray())
+        writeBytes(context, "$pkg.opticon", value.toByteArray(), subDir = "color_override")
 
     fun deleteColorOverride(context: Context, pkg: String): Boolean =
         colorOverrideFile(pkg).delete()
@@ -158,12 +158,14 @@ object SharedIconStore {
     private fun collection(): Uri =
         MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
 
-    private fun writeBytes(context: Context, fileName: String, bytes: ByteArray): String? {
+    private fun writeBytes(context: Context, fileName: String, bytes: ByteArray, subDir: String? = null): String? {
         ensureNoMedia(context)
         migrateLegacyNames(context)
         return try {
             val resolver = context.contentResolver
-            val relativePath = "Download/$DIR_NAME"
+            // DISPLAY_NAME must be a bare file name — subdirectories belong
+            // in RELATIVE_PATH only (a slash in DISPLAY_NAME fails silently).
+            val relativePath = "Download/$DIR_NAME" + (subDir?.let { "/$it" } ?: "")
 
             // Remove any existing row with the same name in our sub-directory
             deleteByName(context, fileName)

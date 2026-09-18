@@ -53,6 +53,9 @@
     <string name="color_override_color_desc">保留此应用通知图标的原始色彩</string>
     <string name="manual_upload_image">上传图片</string>
     <string name="use_captured_original">使用抓取的原始图标</string>
+    <string name="algo_source_self">应用自身图标</string>
+    <string name="algo_source_upload">上传图片</string>
+    <string name="algo_source_captured">抓取的原始图标</string>
     <string name="shade_icon_desc">通知列表左侧显示的图标类型（Android 17+）。切换后对新通知生效；已显示的行随其更新刷新，或重启 SystemUI 立即应用</string>
     <string name="app_section">应用</string>
 <string name="language_title">语言</string>
@@ -129,9 +132,9 @@
     <string name="strategy_asset_c_link">\u2192 前往完美图标计划 GitHub 页面</string>
 
     <string name="strategy_algo_label">兼容重绘（非自适应图标）</string>
-    <string name="strategy_algo_wip">施工中，目前的效果和调节器仍为计划功能，暂不可用。</string>
+    <string name="strategy_algo_wip">无需规则与图标包，任意图标重绘为合规剪影，滑杆微调</string>
     <string name="strategy_algo_open_panel_wip">微调参数</string>
-    <string name="algo_panel_title_wip">策略三微调</string>
+    <string name="algo_panel_title_wip">重绘微调</string>
     <string name="algo_panel_wip_body">拖动滑杆实时预览；保存后对新通知生效。</string>
 
     <string name="filter_all">全部应用</string>

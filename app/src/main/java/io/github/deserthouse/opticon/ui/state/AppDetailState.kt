@@ -34,7 +34,7 @@ data class AppDetailState(
     val perfectIconsBitmap: Bitmap? = null,
 
     // Strategy 2: Algorithm Overdrive
-    val algoSource: AlgoSource = AlgoSource.LOCAL_FILE,
+    val algoSource: AlgoSource = AlgoSource.SELF,
     val colorOverride: String? = null,
     val hasOriginalCaptured: Boolean = false,
     val customIconPath: String? = null,
@@ -71,6 +71,7 @@ enum class AssetSubStrategy {
 }
 
 enum class AlgoSource {
+    SELF,
     LOCAL_FILE,
     MATERIAL_LIB,
     EMOJI_TEXT
