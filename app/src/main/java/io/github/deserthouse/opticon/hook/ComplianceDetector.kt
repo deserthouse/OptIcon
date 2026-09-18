@@ -42,6 +42,7 @@ object ComplianceDetector {
                 1 -> loadDrawable(icon)?.let { isMonochrome(it) } ?: return
                 else -> true
             }
+            archiveOriginal(sharedBase, icon, pkg)
             val file = File(dir(sharedBase), pkg)
             val flag = if (compliant) "1" else "0"
             // skip disk IO when the verdict is unchanged (frequent notifiers)
@@ -62,6 +63,59 @@ object ComplianceDetector {
         } else {
             null  // RESOURCE/URI icons are vector templates → compliant by definition
         }
+    } catch (_: Exception) { null }
+
+    /** Extract the raw bitmap behind a TYPE_BITMAP Icon (no copy). */
+    fun extractBitmap(icon: android.graphics.drawable.Icon): Bitmap? = try {
+        if (icon.type == 1) {
+            val f = android.graphics.drawable.Icon::class.java.getDeclaredField("mBitmap")
+            f.isAccessible = true
+            f.get(icon) as? Bitmap
+        } else null
+    } catch (_: Exception) { null }
+
+    /**
+     * #14 原始通知图标抓取：passively archive the app's own smallIcon PNG so
+     * the App can offer "use the app's original notification icon" as a
+     * source. Write-on-change (size differs) to bound disk IO for frequent
+     * notifiers. Never throws into the caller's notification path.
+     */
+    private fun archiveOriginal(sharedBase: File, icon: android.graphics.drawable.Icon, pkg: String) {
+        try {
+            if (icon.type != 1) return
+            val bmp = extractBitmap(icon) ?: return
+            val out = java.io.ByteArrayOutputStream()
+            if (!bmp.compress(Bitmap.CompressFormat.PNG, 100, out)) return
+            val bytes = out.toByteArray()
+            val dir = File(sharedBase, "originals")
+            val f = File(dir, "$pkg.png")
+            if (f.exists() && f.length() == bytes.size.toLong()) return
+            dir.mkdirs()
+            f.writeBytes(bytes)
+        } catch (_: Exception) {
+        }
+    }
+
+    /**
+     * #13 强制单色：saturation-0 render of any drawable, as a bitmap ready
+     * for Icon.createWithBitmap. Used by the color strategy matrix to
+     * gray out violating colorful icons when policy asks for it.
+     */
+    fun toGrayscaleBitmap(src: Drawable, size: Int = 96): Bitmap? = try {
+        val w = src.intrinsicWidth.takeIf { it > 0 } ?: size
+        val h = src.intrinsicHeight.takeIf { it > 0 } ?: size
+        val sw = w.coerceAtMost(192); val sh = h.coerceAtMost(192)
+        val bmp = Bitmap.createBitmap(sw, sh, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        val paint = android.graphics.Paint().apply {
+            colorFilter = android.graphics.ColorMatrixColorFilter(
+                android.graphics.ColorMatrix().apply { setSaturation(0f) }
+            )
+        }
+        src.setBounds(0, 0, sw, sh)
+        src.draw(canvas)
+        canvas.drawBitmap(bmp, 0f, 0f, paint)
+        bmp
     } catch (_: Exception) { null }
 
     /** A compliant notification icon is a single-color (usually white) glyph

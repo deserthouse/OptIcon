@@ -1,6 +1,7 @@
 package io.github.deserthouse.opticon.hook
 
 import android.app.Notification
+import android.graphics.drawable.Drawable
 import android.content.ContentResolver
 import android.content.Context
 import android.graphics.Bitmap
@@ -407,6 +408,46 @@ object NotificationHook {
      *  Method lookup uses semantic matching (name + param type + return
      *  void) with silent fallback, so signature drift across Android
      *  versions never breaks hook installation. */
+    // ━━ #13 色彩策略矩阵 ━━
+    // color_mode.opticon: "off" | "force_mono"（全局，默认 off）
+    // color_override/<pkg>.opticon: "mono" | "color"（每应用覆盖，优先于全局）
+    private var colorModeStamp: Pair<Long, String>? = null
+    private val colorOverrideStamps = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, String>>()
+
+    private fun readColorMode(): String {
+        val f = java.io.File(SHARED_ICON_DIR, "color_mode.opticon")
+        val m = try { f.lastModified() } catch (_: Exception) { 0L }
+        colorModeStamp?.let { (stamp, value) -> if (stamp == m) return value }
+        val value = try { f.takeIf { it.isFile }?.readText()?.trim() } catch (_: Exception) { null } ?: "off"
+        colorModeStamp = m to value
+        return value
+    }
+
+    private fun readColorOverride(pkg: String): String? {
+        val f = java.io.File(java.io.File(SHARED_ICON_DIR, "color_override"), "$pkg.opticon")
+        val m = try { f.lastModified() } catch (_: Exception) { 0L }
+        colorOverrideStamps[pkg]?.let { (stamp, value) -> if (stamp == m) return value }
+        val value = try { f.takeIf { it.isFile }?.readText()?.trim() } catch (_: Exception) { null }
+        if (value != null) colorOverrideStamps[pkg] = m to value
+        return value
+    }
+
+    /** Effective #13 policy: "mono" when this notification's icon must be
+     *  forced grayscale, "color" when a keep-color override wins. */
+    private fun colorPolicyWantsMono(pkg: String): Boolean = when (readColorOverride(pkg)) {
+        "mono" -> true
+        "color" -> false
+        else -> readColorMode() == "force_mono"
+    }
+
+    private fun iconDrawableOf(n: android.app.Notification): Drawable? = try {
+        // Must use the REAL SystemUI Application context: the SystemContext
+        // ("android" package) cannot resolve other apps' resource icons.
+        val atClass = Class.forName("android.app.ActivityThread")
+        val app = atClass.getDeclaredMethod("currentApplication").invoke(null) as? Context
+        n.smallIcon?.loadDrawable(app)
+    } catch (_: Exception) { null }
+
     private fun hookCreateIcons(xposed: XposedInterface, classLoader: ClassLoader) {
         try {
             val entryClass = classLoader.loadClass(
@@ -448,6 +489,17 @@ object NotificationHook {
                                         setSmallIcon.invoke(sbn.notification, Icon.createWithBitmap(bitmap))
                                         val t = sbn.notification.smallIcon?.type
                                         TraceLogger.i(TAG, "createIcons: $pkg -> setSmallIcon replaced (icon.type=$t)")
+                                    } else {
+                                        // #13 色彩策略矩阵: no bake — optionally force mono
+                                        TraceLogger.i(TAG, "createIcons: $pkg no bake, colorPolicyWantsMono=${colorPolicyWantsMono(pkg)}")
+                                        if (colorPolicyWantsMono(pkg)) {
+                                            val d = iconDrawableOf(sbn.notification)
+                                            val gray = if (d != null) ComplianceDetector.toGrayscaleBitmap(d) else null
+                                            if (gray != null) {
+                                                setSmallIcon.invoke(sbn.notification, Icon.createWithBitmap(gray))
+                                                TraceLogger.i(TAG, "createIcons: $pkg -> forced monochrome (color policy)")
+                                            }
+                                        }
                                     }
                                 }
                             }
