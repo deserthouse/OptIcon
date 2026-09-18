@@ -100,7 +100,9 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                     emojiUnlocked = PreferenceManager.isEmojiUnlocked(),
                     redrawParams = loadSavedParams(packageName),
                     iconPacks = packs,
-                    selectedIconPack = null
+                    selectedIconPack = null,
+                    colorOverride = io.github.deserthouse.opticon.engine.SharedIconStore.readColorOverride(packageName),
+                    hasOriginalCaptured = io.github.deserthouse.opticon.engine.SharedIconStore.originalIconFile(packageName).exists()
                 )
             }
 
@@ -245,6 +247,15 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         _isDirty.value = true
         _state.update { it.copy(customIconPath = path) }
         debouncePreview()
+    }
+
+    /** #13 每应用色彩覆盖：null=继承全局, "mono"=强制单色, "color"=保持原色。
+     *  立即写共享目录（hook 侧 mtime 缓存即时感知），不随保存流程。 */
+    fun setColorOverride(value: String?) {
+        val ctx = getApplication<Application>()
+        if (value == null) io.github.deserthouse.opticon.engine.SharedIconStore.deleteColorOverride(ctx, _state.value.packageName)
+        else io.github.deserthouse.opticon.engine.SharedIconStore.writeColorOverride(ctx, _state.value.packageName, value)
+        _state.update { it.copy(colorOverride = value) }
     }
     fun setEmojiText(text: String?) {
         _isDirty.value = true

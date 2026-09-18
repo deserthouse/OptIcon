@@ -156,6 +156,19 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _shadeAppIconMode.value = mode
     }
 
+    // ━━ #13 色彩策略矩阵：全局强制单色（默认关，写共享文件供 hook 读取） ━━
+    private val _forceMono = MutableStateFlow(
+        io.github.deserthouse.opticon.engine.SharedIconStore.readColorMode() == "force_mono"
+    )
+    val forceMono: StateFlow<Boolean> = _forceMono.asStateFlow()
+
+    fun setForceMono(enabled: Boolean) {
+        io.github.deserthouse.opticon.engine.SharedIconStore.writeColorMode(
+            getApplication(), if (enabled) "force_mono" else "off"
+        )
+        _forceMono.value = enabled
+    }
+
     fun setVerboseLogging(enabled: Boolean) {
         PreferenceManager.setVerboseLogging(enabled)
         TraceLogger.setLevel(if (enabled) TraceLogger.DEBUG else TraceLogger.INFO)

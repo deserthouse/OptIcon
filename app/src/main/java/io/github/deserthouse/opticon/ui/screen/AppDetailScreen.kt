@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.rounded.Cloud
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Email
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Map
@@ -191,6 +192,36 @@ fun AppDetailScreen(
                     Switch(state.methodEnabled, viewModel::setMethodEnabled)
                 }
             }
+            Spacer(Modifier.height(8.dp))
+            StrategyCard {
+                var showColorSheet by remember { mutableStateOf(false) }
+                val colorLabel = when (state.colorOverride) {
+                    "mono" -> stringResource(R.string.color_override_mono)
+                    "color" -> stringResource(R.string.color_override_color)
+                    else -> stringResource(R.string.color_override_inherit)
+                }
+                SettingItem(
+                    Icons.Rounded.Palette,
+                    stringResource(R.string.color_policy_title),
+                    stringResource(R.string.color_policy_desc),
+                    onClick = { showColorSheet = true }
+                ) {
+                    Text(colorLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                }
+                if (showColorSheet) {
+                    RadioSheet(
+                        title = stringResource(R.string.color_policy_title),
+                        selected = state.colorOverride ?: "",
+                        options = listOf(
+                            RadioOption("", stringResource(R.string.color_override_inherit), null),
+                            RadioOption("mono", stringResource(R.string.color_override_mono), stringResource(R.string.color_override_mono_desc)),
+                            RadioOption("color", stringResource(R.string.color_override_color), stringResource(R.string.color_override_color_desc))
+                        ),
+                        onSelect = { viewModel.setColorOverride(it.ifBlank { null }); showColorSheet = false },
+                        onDismiss = { showColorSheet = false }
+                    )
+                }
+            }
             Spacer(Modifier.height(12.dp))
 
             val enabled = state.methodEnabled
@@ -256,7 +287,27 @@ fun AppDetailScreen(
                 onClick = { viewModel.setStrategy(IconStrategy.ALGORITHM) }
             )
             AnimatedVisibility(visible = enabled && state.strategy == IconStrategy.ALGORITHM) {
-                AlgoWipSection(viewModel::showSheet)
+                Column {
+                    // #14 手动图标源：本地上传 / 抓取的原始通知图标
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { pickLauncher.launch("image/*") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp)) {
+                            Text(stringResource(R.string.manual_upload_image), maxLines = 1)
+                        }
+                        val originalFile = remember(state.packageName) {
+                            java.io.File(android.os.Environment.getExternalStoragePublicDirectory(
+                                android.os.Environment.DIRECTORY_DOWNLOADS), "OptIcon/originals/${state.packageName}.png")
+                        }
+                        OutlinedButton(
+                            onClick = { viewModel.setCustomIconPath(originalFile.absolutePath) },
+                            enabled = state.hasOriginalCaptured && originalFile.exists(),
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(stringResource(R.string.use_captured_original), maxLines = 1)
+                        }
+                    }
+                    AlgoWipSection(viewModel::showSheet)
+                }
             }
             }
 
