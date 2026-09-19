@@ -297,7 +297,7 @@ fun AppDetailScreen(
                             else -> stringResource(R.string.algo_source_upload)
                         }
                         SettingItem(
-                            Icons.Rounded.Source,
+                            Icons.Rounded.Tune,
                             stringResource(R.string.algo_source_title),
                             sourceLabel,
                             onClick = { showSourceSheet = true }
@@ -326,8 +326,9 @@ fun AppDetailScreen(
                             )
                         }
                         if (state.algoSource == io.github.deserthouse.opticon.ui.state.AlgoSource.LOCAL_FILE && !state.customIconPath.isNullOrBlank()) {
+                            val path = state.customIconPath ?: ""
                             Text(
-                                text = state.customIconPath.substringAfterLast('/'),
+                                text = path.substringAfterLast('/'),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(start = 44.dp, bottom = 4.dp)
@@ -335,10 +336,10 @@ fun AppDetailScreen(
                         }
                     }
                     AlgoWipSection(viewModel::showSheet)
+                    }
                 }
             }
-
-Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(24.dp))
         }
     }
 
