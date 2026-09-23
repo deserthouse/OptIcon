@@ -95,6 +95,7 @@ import io.github.deserthouse.opticon.R
 import io.github.deserthouse.opticon.engine.IconLibEngine
 import io.github.deserthouse.opticon.engine.IconPackEngine
 import io.github.deserthouse.opticon.engine.PicpEngine
+import io.github.deserthouse.opticon.ui.component.SelectionRow
 import io.github.deserthouse.opticon.ui.component.PreviewCard
 import io.github.deserthouse.opticon.ui.state.AssetSubStrategy
 import io.github.deserthouse.opticon.ui.state.IconStrategy
@@ -231,7 +232,7 @@ fun AppDetailScreen(
             StrategyCard(selected = state.strategy == IconStrategy.FANKES, enabled = enabled, onClick = { viewModel.setStrategy(IconStrategy.FANKES) }) {
             val fankesHasIcon = remember(state.packageName) { IconLibEngine.hasIcon(state.packageName) }
             val fankesMeta = remember(state.packageName) { IconLibEngine.getMeta(state.packageName) }
-            StrategyRadio(
+            SelectionRow(
                 label = stringResource(R.string.strategy_fankes_label),
                 desc = if (fankesHasIcon) stringResource(R.string.strategy_fankes_covered, fankesMeta?.contributorName ?: "")
                        else stringResource(R.string.strategy_fankes_not_covered),
@@ -264,7 +265,7 @@ fun AppDetailScreen(
 
             // Strategy 2: Asset Import
             StrategyCard(selected = state.strategy == IconStrategy.ASSET_IMPORT, enabled = enabled, onClick = { viewModel.setStrategy(IconStrategy.ASSET_IMPORT) }) {
-            StrategyRadio(
+            SelectionRow(
                 label = stringResource(R.string.strategy_asset_label),
                 desc = stringResource(R.string.strategy_asset_desc),
                 selected = state.strategy == IconStrategy.ASSET_IMPORT,
@@ -280,7 +281,7 @@ fun AppDetailScreen(
 
             // Strategy 3: Algorithm (WIP)
             StrategyCard(selected = state.strategy == IconStrategy.ALGORITHM, enabled = enabled, onClick = { viewModel.setStrategy(IconStrategy.ALGORITHM) }) {
-            StrategyRadio(
+            SelectionRow(
                 label = stringResource(R.string.strategy_algo_label),
                 desc = stringResource(R.string.strategy_algo_wip),
                 selected = state.strategy == IconStrategy.ALGORITHM,
@@ -400,7 +401,7 @@ private fun StrategyCard(
 
 // Strategy radio with optional disable
 @Composable
-private fun StrategyRadio(label: String, desc: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
+private fun SelectionRow(label: String, desc: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
     val alpha = if (enabled) 1f else 0.4f
     Row(modifier = Modifier.fillMaxWidth().then(if (enabled) Modifier.selectable(selected = selected, onClick = onClick) else Modifier).padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         RadioButton(selected = selected, onClick = onClick, enabled = enabled)
@@ -418,13 +419,13 @@ private fun AssetImportPanel(state: io.github.deserthouse.opticon.ui.state.AppDe
         val alpha = if (enabled) 1f else 0.4f
 
         // 1st: Adaptive Decompose
-        AssetSubRadio(stringResource(R.string.strategy_asset_b_label), state.assetSubStrategy == AssetSubStrategy.ADAPTIVE_DECOMPOSE, enabled) { viewModel.setAssetSubStrategy(AssetSubStrategy.ADAPTIVE_DECOMPOSE) }
+        SelectionRow(stringResource(R.string.strategy_asset_b_label), state.assetSubStrategy == AssetSubStrategy.ADAPTIVE_DECOMPOSE, enabled, onClick = { viewModel.setAssetSubStrategy(AssetSubStrategy.ADAPTIVE_DECOMPOSE) })
         AnimatedVisibility(state.assetSubStrategy == AssetSubStrategy.ADAPTIVE_DECOMPOSE) { AdaptiveDecomposeSection(state) }
 
         // 2nd: Perfect Icons
         val ctx = LocalContext.current
         val picpHasIcon = remember(state.packageName) { PicpEngine.hasIcon(state.packageName, ctx) }
-        AssetSubRadio(stringResource(R.string.strategy_picp_label), state.assetSubStrategy == AssetSubStrategy.PERFECT_ICONS, enabled) { viewModel.setAssetSubStrategy(AssetSubStrategy.PERFECT_ICONS) }
+        SelectionRow(stringResource(R.string.strategy_picp_label), state.assetSubStrategy == AssetSubStrategy.PERFECT_ICONS, enabled, onClick = { viewModel.setAssetSubStrategy(AssetSubStrategy.PERFECT_ICONS) })
         AnimatedVisibility(state.assetSubStrategy == AssetSubStrategy.PERFECT_ICONS) {
             Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 if (picpHasIcon) {
@@ -450,7 +451,7 @@ private fun AssetImportPanel(state: io.github.deserthouse.opticon.ui.state.AppDe
         }
 
         // 3rd: Icon Pack (WIP)
-        AssetSubRadio(stringResource(R.string.strategy_asset_a_label), state.assetSubStrategy == AssetSubStrategy.ICON_PACK, enabled) { viewModel.setAssetSubStrategy(AssetSubStrategy.ICON_PACK) }
+        SelectionRow(stringResource(R.string.strategy_asset_a_label), state.assetSubStrategy == AssetSubStrategy.ICON_PACK, enabled, onClick = { viewModel.setAssetSubStrategy(AssetSubStrategy.ICON_PACK) })
         AnimatedVisibility(state.assetSubStrategy == AssetSubStrategy.ICON_PACK) {
             Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 if (state.iconPacks.isEmpty()) Text(stringResource(R.string.no_icon_packs_installed), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
@@ -458,15 +459,6 @@ private fun AssetImportPanel(state: io.github.deserthouse.opticon.ui.state.AppDe
                 Text(stringResource(R.string.strategy_asset_a_wip_hint), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-    }
-}
-
-@Composable
-private fun AssetSubRadio(label: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth().then(if (enabled) Modifier.selectable(selected = selected, onClick = onClick) else Modifier).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        RadioButton(selected = selected, onClick = onClick, enabled = enabled)
-        Spacer(Modifier.size(6.dp))
-        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 
