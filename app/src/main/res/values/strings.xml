@@ -30,7 +30,10 @@
 
     <string name="module_control">Module Control</string>
     <string name="master_switch">Master Switch</string>
-    <string name="master_switch_desc">When off, all hooks are physically disconnected (requires SystemUI restart)</string>
+    <string name="master_switch_desc">Turn off to disable all icon replacement</string>
+    <string name="master_off_dialog_title">Turn off master switch?</string>
+    <string name="master_off_dialog_text">Hooks fully disconnect after the next SystemUI restart.</string>
+    <string name="action_turn_off">Turn off</string>
     <string name="debug">Debug</string>
     <string name="verbose_logging">Verbose Logging</string>
     <string name="verbose_logging_desc">Write detailed hook-layer logs to file for diagnostics</string>
@@ -43,7 +46,7 @@
     <string name="shade_mode_pref">Respect app preference</string>
     <string name="shade_mode_pref_desc">Follow the icon preference each app declares</string>
     <string name="force_mono_title">Force monochrome (experimental)</string>
-    <string name="force_mono_desc">Gray out colorful notification icons of apps OptIcon does not replace. Off = Android 16 native behavior (shade icons render in original color). Per-app overrides in each app detail page</string>
+    <string name="force_mono_desc">Gray out notification icons that OptIcon doesn\'t replace</string>
     <string name="color_policy_title">Color policy</string>
     <string name="color_policy_desc">How the notification icon handles color for this app (applies immediately)</string>
     <string name="color_override_inherit">Inherit global</string>
@@ -57,7 +60,7 @@
     <string name="algo_source_self">App own icon</string>
     <string name="algo_source_upload">Upload image</string>
     <string name="algo_source_captured">Captured original</string>
-    <string name="shade_icon_desc">Which icon to show at the left of notifications in the shade (Android 17+). Applies to new notifications; restart SystemUI to rebind existing rows</string>
+    <string name="shade_icon_desc">Which icon the shade rows show (Android 17+)</string>
     <string name="app_section">App</string>
 <string name="language_title">Language</string>
     <string name="language_desc">Display language for the app itself (Android 13+)</string>
@@ -70,6 +73,7 @@
     <string name="credits_section">Credits</string>
     <string name="info_title">Info</string>
     <string name="ok_label">OK</string>
+    <string name="cancel">Cancel</string>
 
     <string name="credit_fankes">Fankes / AndroidNotifyIconAdapt</string>
     <string name="credit_fankes_desc">Special thanks — generously authorized this project to use the standardized monochrome icon resources of the team (now ANIP, Apache-2.0)</string>
@@ -248,6 +252,7 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="sync_picp_done">Synced %1$d packages, %2$d icons cached</string>
     <string name="sync_picp_failed">PICP sync failed</string>
     <string name="sync_failed">Sync failed</string>
+    <string name="sync_write_failed">Couldn\'t write the setting — storage unavailable</string>
     <string name="toggle_preview_mode">Toggle preview mode</string>
     <string name="badge_source_lib">Rules</string>
     <string name="badge_source_algo">Redraw</string>

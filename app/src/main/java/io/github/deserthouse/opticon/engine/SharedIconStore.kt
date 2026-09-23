@@ -63,11 +63,14 @@ object SharedIconStore {
             // gone, files remain) — every later insert then collides into
             // "(N)" renames and the hook reads stale orphan files forever.
             val cr = context.contentResolver
-            cr.delete(android.provider.MediaStore.Files.getContentUri("external"),
+            val removed = cr.delete(android.provider.MediaStore.Files.getContentUri("external"),
                 android.provider.MediaStore.MediaColumns.DATA + " LIKE ?",
                 arrayOf("%/Download/OptIcon/%.opticon.png"))
-            prefs.edit().putBoolean("legacy_migrated", true).apply()
-        } catch (_: Exception) { }
+            prefs.edit().putBoolean("legacy_migrated", true)
+                .putInt("legacy_migrated_rows", removed).apply()
+        } catch (e: Exception) {
+            android.util.Log.w("OptIcon/Store", "legacy migration failed: ${e.message}")
+        }
     }
 
     fun ensureNoMedia(context: Context): Boolean {
@@ -183,47 +186,55 @@ object SharedIconStore {
             // (it opens the canonical base name). Updating the row keeps the
             // stored name stable forever.
             existingRowUri(context, fileName)?.let { rowUri ->
-                try {
-                    resolver.openOutputStream(rowUri, "wt")?.use { it.write(bytes) } ?: return null
-                    return resolver.query(
-                        rowUri, arrayOf(MediaStore.Downloads.DATA), null, null, null
-                    )?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
-                } catch (_: Exception) {
-                    // fall through to fresh insert below
-                }
+                updateExistingRow(resolver, rowUri, bytes)?.let { return it }
             }
-            return try {
-                deleteByName(context, fileName)
+            return insertFresh(context, fileName, relativePath, bytes, subDir)
+        } catch (e: Exception) {
+            null
+        }
+    }
 
-                // Physical orphan guard: a file on disk with no MediaStore row
-                // (fixture pushed by shell, DB wiped underneath us) makes every
-                // insert collide into "(N)" renames that the hook never reads.
-                // The app owns its contributed files — direct-path delete works.
-                try {
-                    File(File(publicDir(), subDir ?: ""), fileName).delete()
-                } catch (_: Exception) { }
+    /** Overwrite the existing row in place — never renames, so the canonical
+     *  base name the SystemUI hook reads stays valid. Returns null when the
+     *  in-place write fails, letting the caller fall back to a fresh insert. */
+    private fun updateExistingRow(
+        resolver: android.content.ContentResolver, rowUri: android.net.Uri, bytes: ByteArray
+    ): String? {
+        return try {
+            resolver.openOutputStream(rowUri, "wt")?.use { it.write(bytes) } ?: return null
+            resolver.query(rowUri, arrayOf(MediaStore.Downloads.DATA), null, null, null)
+                ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+        } catch (_: Exception) {
+            null
+        }
+    }
 
-                val values = ContentValues().apply {
-                    put(MediaStore.Downloads.DISPLAY_NAME, fileName)
-                    put(MediaStore.Downloads.RELATIVE_PATH, relativePath)
-                    put(MediaStore.Downloads.IS_PENDING, 1)
-                }
-                val itemUri = resolver.insert(collection(), values) ?: return null
-                resolver.openOutputStream(itemUri, "wt")?.use { it.write(bytes) } ?: run {
-                    resolver.delete(itemUri, null, null)
-                    return null
-                }
-                values.clear()
-                values.put(MediaStore.Downloads.IS_PENDING, 0)
-                resolver.update(itemUri, values, null, null)
+    /** Fresh insert; the orphan guard keeps MediaStore from renaming the row
+     *  to "(N)", which would orphan the write away from the hook's path. */
+    private fun insertFresh(
+        context: Context, fileName: String, relativePath: String,
+        bytes: ByteArray, subDir: String?
+    ): String? {
+        return try {
+            val resolver = context.contentResolver
+            deleteByName(context, fileName)
+            try { File(File(publicDir(), subDir ?: ""), fileName).delete() } catch (_: Exception) { }
 
-                // Resolve the physical absolute path for logging/verification
-                resolver.query(itemUri, arrayOf(MediaStore.Downloads.DATA), null, null, null)?.use { c ->
-                    if (c.moveToFirst()) c.getString(0) else null
-                }
-            } catch (e: Exception) {
-                null
+            val values = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, fileName)
+                put(MediaStore.Downloads.RELATIVE_PATH, relativePath)
+                put(MediaStore.Downloads.IS_PENDING, 1)
             }
+            val itemUri = resolver.insert(collection(), values) ?: return null
+            resolver.openOutputStream(itemUri, "wt")?.use { it.write(bytes) } ?: run {
+                resolver.delete(itemUri, null, null)
+                return null
+            }
+            values.clear()
+            values.put(MediaStore.Downloads.IS_PENDING, 0)
+            resolver.update(itemUri, values, null, null)
+            resolver.query(itemUri, arrayOf(MediaStore.Downloads.DATA), null, null, null)
+                ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
         } catch (e: Exception) {
             null
         }

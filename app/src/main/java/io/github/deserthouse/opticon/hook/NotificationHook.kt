@@ -454,6 +454,9 @@ object NotificationHook {
     private fun resolveReplacementIcon(pkg: String, original: Drawable?): Icon? {
         loadIconForPackage(pkg)?.let { return Icon.createWithBitmap(it) }
         if (!colorPolicyWantsMono(pkg)) return null
+        // readColorOverride's mtime stamp re-reads whenever the override file
+        // changes (including deletion, which changes the dir scan), so cache
+        // entries can't outlive their policy — no explicit invalidation needed.
         monoIconCache[pkg]?.let { return it }
         val gray = original?.let { ComplianceDetector.toGrayscaleBitmap(it) } ?: return null
         val icon = Icon.createWithBitmap(gray)

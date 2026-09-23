@@ -30,7 +30,10 @@
 
     <string name="module_control">模块控制</string>
     <string name="master_switch">模块总开关</string>
-    <string name="master_switch_desc">关闭后所有 Hook 将物理熔断（需重启 SystemUI）</string>
+    <string name="master_switch_desc">关闭后停止替换所有通知图标</string>
+    <string name="master_off_dialog_title">关闭总开关？</string>
+    <string name="master_off_dialog_text">下次重启 SystemUI 后 Hook 完全断开。</string>
+    <string name="action_turn_off">关闭</string>
     <string name="debug">调试</string>
     <string name="verbose_logging">详细日志记录</string>
     <string name="verbose_logging_desc">将 Hook 层详细日志写入文件，用于问题诊断</string>
@@ -43,7 +46,7 @@
     <string name="shade_mode_pref">跟随应用偏好</string>
     <string name="shade_mode_pref_desc">尊重每个应用自行声明的图标偏好</string>
     <string name="force_mono_title">强制单色（实验性）</string>
-    <string name="force_mono_desc">将 OptIcon 未替换应用的彩色通知图标统一置灰。关闭 = Android 16 原生行为（通知栏图标按原色渲染）。可在每个应用详情页单独覆盖</string>
+    <string name="force_mono_desc">将 OptIcon 未替换应用的彩色通知图标置灰</string>
     <string name="color_policy_title">色彩策略</string>
     <string name="color_policy_desc">此应用的通知图标如何处理色彩（立即生效）</string>
     <string name="color_override_inherit">跟随全局</string>
@@ -57,7 +60,7 @@
     <string name="algo_source_self">应用自身图标</string>
     <string name="algo_source_upload">上传图片</string>
     <string name="algo_source_captured">抓取的原始图标</string>
-    <string name="shade_icon_desc">通知列表左侧显示的图标类型（Android 17+）。切换后对新通知生效；已显示的行随其更新刷新，或重启 SystemUI 立即应用</string>
+    <string name="shade_icon_desc">通知列表左侧显示的图标类型（Android 17+）</string>
     <string name="app_section">应用</string>
 <string name="language_title">语言</string>
     <string name="language_desc">应用内的显示语言（Android 13+）</string>
@@ -70,6 +73,7 @@
     <string name="credits_section">致谢</string>
     <string name="info_title">提示</string>
     <string name="ok_label">确定</string>
+    <string name="cancel">取消</string>
 
     <string name="credit_fankes">Fankes / AndroidNotifyIconAdapt</string>
     <string name="credit_fankes_desc">特别感谢：fankes 慷慨地授权本项目使用其团队《Android 通知图标规范适配计划》的规范化单色图标资源（现已更名 ANIP，Apache-2.0）。</string>
@@ -244,6 +248,8 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="sync_picp_done">已同步 %1$d 个包，缓存 %2$d 个图标</string>
     <string name="sync_picp_failed">PICP 同步失败</string>
     <string name="sync_failed">同步失败</string>
+    <string name="sync_write_failed">设置写入失败，存储不可用</string>
+    <string name="refresh">刷新</string>
     <string name="toggle_preview_mode">切换预览模式</string>
     <string name="badge_source_lib">规则库</string>
     <string name="badge_source_algo">重绘</string>

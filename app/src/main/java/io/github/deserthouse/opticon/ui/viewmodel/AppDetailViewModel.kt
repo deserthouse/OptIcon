@@ -8,6 +8,7 @@ import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.deserthouse.opticon.engine.HitSource
 import io.github.deserthouse.opticon.engine.IconEngine
 import io.github.deserthouse.opticon.engine.IconLibEngine
 import io.github.deserthouse.opticon.engine.IconNormalizer
@@ -111,7 +112,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                 withContext(Dispatchers.IO) {
                     val bmp = PicpEngine.downloadIcon(getApplication(), packageName)
                     if (bmp != null) {
-                        _state.update { it.copy(perfectIconsBitmap = bmp, previewBitmap = bmp, hitLevel = "PICP hit") }
+                        _state.update { it.copy(perfectIconsBitmap = bmp, previewBitmap = bmp, hitSource = HitSource.PICP) }
                     }
                 }
             }
@@ -123,7 +124,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun setStrategy(strategy: IconStrategy) {
         _isDirty.value = true
-        _state.update { it.copy(strategy = strategy, previewBitmap = null, hitLevel = "") }
+        _state.update { it.copy(strategy = strategy, previewBitmap = null, hitSource = HitSource.OTHER) }
         debouncePreview()
     }
 
@@ -132,7 +133,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         val cached = state.value.perfectIconsBitmap
         _state.update {
             if (sub == AssetSubStrategy.PERFECT_ICONS && cached != null) {
-                it.copy(assetSubStrategy = sub, previewBitmap = cached, hitLevel = "PICP hit")
+                it.copy(assetSubStrategy = sub, previewBitmap = cached, hitSource = HitSource.PICP)
             } else {
                 it.copy(assetSubStrategy = sub)
             }
@@ -182,7 +183,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                 val bitmap = withContext(Dispatchers.IO) { fetchPerfectIcon(pkg) }
                 if (bitmap != null) {
                     val white = withContext(Dispatchers.IO) { IconTint.toWhite(bitmap) }
-                    _state.update { it.copy(previewBitmap = white, hitLevel = "Perfect Icons hit", perfectIconsLoading = false) }
+                    _state.update { it.copy(previewBitmap = white, hitSource = HitSource.PICP, perfectIconsLoading = false) }
                 } else {
                     fallbackToLocalBuiltin()
                 }
@@ -198,8 +199,8 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch(Dispatchers.IO) {
             val bitmap = PicpEngine.downloadIcon(getApplication(), pkg)
             _state.update {
-                if (bitmap != null) it.copy(perfectIconsBitmap = bitmap, previewBitmap = bitmap, hitLevel = "PICP hit", perfectIconsLoading = false)
-                else it.copy(perfectIconsLoading = false, hitLevel = "PICP download failed")
+                if (bitmap != null) it.copy(perfectIconsBitmap = bitmap, previewBitmap = bitmap, hitSource = HitSource.PICP, perfectIconsLoading = false)
+                else it.copy(perfectIconsLoading = false, hitSource = HitSource.PICP_FAILED)
             }
             if (bitmap != null) computePreviewNow()
         }
@@ -223,9 +224,9 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         withContext(Dispatchers.IO) {
             val libIcon = IconLibEngine.lookup(pkg)
             if (libIcon != null) {
-                _state.update { it.copy(previewBitmap = libIcon, hitLevel = "Local built-in (IconLib)", perfectIconsLoading = false) }
+                _state.update { it.copy(previewBitmap = libIcon, hitSource = HitSource.ICONLIB, perfectIconsLoading = false) }
             } else {
-                _state.update { it.copy(previewBitmap = null, hitLevel = "Network unavailable, all sources missed", perfectIconsLoading = false) }
+                _state.update { it.copy(previewBitmap = null, hitSource = HitSource.NETWORK_FAIL, perfectIconsLoading = false) }
             }
         }
     }
@@ -328,12 +329,12 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
             PreferenceManager.setRadius(pkg, s.redrawParams.radius)
 
             withContext(Dispatchers.IO) {
-                if (enabled && bakeResult?.bitmap != null) writeBaked(pkg, bakeResult.bitmap, bakeResult.hitLevel) else deleteBaked(pkg)
+                if (enabled && bakeResult?.bitmap != null) writeBaked(pkg, bakeResult.bitmap, bakeResult.source.name) else deleteBaked(pkg)
             }
             if (enabled) {
                 _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.config_saved)
             }
-            _state.update { it.copy(methodEnabled = enabled, hitLevel = bakeResult?.hitLevel ?: "Disabled") }
+            _state.update { it.copy(methodEnabled = enabled, hitSource = bakeResult?.source ?: HitSource.DISABLED) }
         }
     }
 
@@ -342,15 +343,15 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
 
     private suspend fun runPreview() {
         val s = _state.value
-        if (!s.methodEnabled) { _state.update { it.copy(previewBitmap = appBitmap, isRedrawing = false, hitLevel = "Disabled") }; return }
+        if (!s.methodEnabled) { _state.update { it.copy(previewBitmap = appBitmap, isRedrawing = false, hitSource = HitSource.DISABLED) }; return }
         _state.update { it.copy(isRedrawing = true) }
         try {
             val ctx = getApplication<Application>().applicationContext
             val result = withContext(Dispatchers.IO) { bakeCurrentState(ctx, s) }
-            _state.update { it.copy(previewBitmap = result.bitmap, hitLevel = result.hitLevel) }
+            _state.update { it.copy(previewBitmap = result.bitmap, hitSource = result.source) }
         } catch (e: Exception) {
             TraceLogger.w("OptIcon/AppDetailVM", "runPreview failed: ${e.message}")
-            _state.update { it.copy(hitLevel = "Preview error: ${e.message}") }
+            _state.update { it.copy(hitSource = HitSource.OTHER) }
         } finally {
             _state.update { it.copy(isRedrawing = false) }
         }
@@ -360,8 +361,8 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         return when (s.strategy) {
             IconStrategy.FANKES -> {
                 val icon = IconLibEngine.lookup(s.packageName)
-                if (icon != null) IconEngine.BakeResult(icon, "Fankes rules hit")
-                else IconEngine.BakeResult(null, "Fankes rules miss")
+                if (icon != null) IconEngine.BakeResult(icon, HitSource.ICONLIB)
+                else IconEngine.BakeResult(null, HitSource.AUTO_MISS, "fankes rules miss")
             }
             IconStrategy.ASSET_IMPORT -> when (s.assetSubStrategy) {
                 AssetSubStrategy.ICON_PACK -> {
@@ -373,9 +374,9 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                         var result: IconEngine.BakeResult? = null
                         for (pack in target) {
                             val r = IconPackEngine.extractForPackage(context, pack.packageName, s.packageName)
-                            if (r != null) { result = IconEngine.BakeResult(r, "Icon pack hit: ${pack.label}"); break }
+                            if (r != null) { result = IconEngine.BakeResult(r, HitSource.ICONPACK, "${pack.label}"); break }
                         }
-                        result ?: IconEngine.BakeResult(null, "Icon pack miss")
+                        result ?: IconEngine.BakeResult(null, HitSource.AUTO_MISS, "icon pack miss")
                     }
                 }
                 AssetSubStrategy.ADAPTIVE_DECOMPOSE -> {
@@ -383,16 +384,16 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                     if (fg != null) {
                         val normalized = IconNormalizer.normalize(fg)
                         val white = IconTint.toWhite(normalized)
-                        if (white != null) IconEngine.BakeResult(white, "Adaptive decompose: foreground")
-                        else IconEngine.BakeResult(null, "Adaptive decompose: tint failed")
+                        if (white != null) IconEngine.BakeResult(white, HitSource.ADAPTIVE, "decompose foreground")
+                        else IconEngine.BakeResult(null, HitSource.AUTO_MISS, "decompose tint failed")
                     } else {
-                        IconEngine.BakeResult(null, "Not an adaptive icon")
+                        IconEngine.BakeResult(null, HitSource.AUTO_MISS, "not an adaptive icon")
                     }
                 }
                 AssetSubStrategy.PERFECT_ICONS -> {
                     val cached = s.previewBitmap ?: s.perfectIconsBitmap
-                    if (cached != null) IconEngine.BakeResult(cached, s.hitLevel.takeIf { it.isNotBlank() } ?: "PICP hit")
-                    else IconEngine.BakeResult(null, "Perfect Icons: not fetched yet")
+                    if (cached != null) IconEngine.BakeResult(cached, if (s.hitSource != HitSource.OTHER) s.hitSource else HitSource.PICP)
+                    else IconEngine.BakeResult(null, HitSource.AUTO_MISS, "picp not fetched")
                 }
             }
             IconStrategy.ALGORITHM -> when (s.algoSource) {
@@ -411,39 +412,39 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                     )
                 }
                 AlgoSource.LOCAL_FILE -> {
-                    if (s.customIconPath.isNullOrBlank()) IconEngine.BakeResult(null, "Algo: no file selected")
+                    if (s.customIconPath.isNullOrBlank()) IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: no file")
                     else {
                         val src = decodeFileOrUri(context, s.customIconPath)
                         if (src != null) {
                             val white = IconTint.toWhite(src)
                             if (src !== white) src.recycle()
-                            if (white == null) return IconEngine.BakeResult(null, "Algo: tint failed")
+                            if (white == null) return IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: tint failed")
                             val refined = IconRedrawEngine.redraw(white, s.redrawParams)
                             if (refined !== white) white.recycle()
-                            IconEngine.BakeResult(refined ?: white, "Algo: local file + redraw")
-                        } else IconEngine.BakeResult(null, "Algo: file decode failed")
+                            IconEngine.BakeResult(refined ?: white, HitSource.MANUAL, "local file + redraw")
+                        } else IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: file decode failed")
                     }
                 }
                 AlgoSource.MATERIAL_LIB -> {
-                    if (s.materialIconName.isNullOrBlank()) IconEngine.BakeResult(null, "Algo: no material icon selected")
+                    if (s.materialIconName.isNullOrBlank()) IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: no material icon")
                     else {
                         val icon = MaterialIconRenderer.findByName(s.materialIconName)
                         if (icon != null) {
                             val bmp = MaterialIconRenderer.renderToWhiteBitmap(icon)
-                                ?: return IconEngine.BakeResult(null, "Algo: material icon render failed")
+                                ?: return IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: material render failed")
                             val refined = IconRedrawEngine.redraw(bmp, s.redrawParams) ?: bmp
-                            IconEngine.BakeResult(refined, "Algo: Material icon + redraw")
-                        } else IconEngine.BakeResult(null, "Algo: material icon not found")
+                            IconEngine.BakeResult(refined, HitSource.MANUAL, "material icon + redraw")
+                        } else IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: material icon not found")
                     }
                 }
                 AlgoSource.EMOJI_TEXT -> {
-                    if (s.emojiText.isNullOrBlank()) IconEngine.BakeResult(null, "Algo: no emoji/text")
+                    if (s.emojiText.isNullOrBlank()) IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: no emoji/text")
                     else {
                         val bmp = io.github.deserthouse.opticon.engine.EmojiRenderer.renderToWhiteBitmap(s.emojiText)
                         if (bmp != null) {
                             val refined = IconRedrawEngine.redraw(bmp, s.redrawParams) ?: bmp
-                            IconEngine.BakeResult(refined, "Algo: Emoji + redraw")
-                        } else IconEngine.BakeResult(null, "Algo: Emoji render failed")
+                            IconEngine.BakeResult(refined, HitSource.MANUAL, "emoji + redraw")
+                        } else IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: emoji render failed")
                     }
                 }
             }
@@ -456,14 +457,14 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         setExecutable(true, false)
         setReadable(true, false)
     }
-    private fun writeBaked(pkg: String, bitmap: Bitmap, hitLevel: String) {
+    private fun writeBaked(pkg: String, bitmap: Bitmap, sourceName: String) {
         try {
             val dir = bakeDir()
             val pngFile = File(dir, "$pkg.png")
             FileOutputStream(pngFile).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
             pngFile.setReadable(true, false) // World-readable for SystemUI
             val metaFile = File(dir, "$pkg.meta")
-            metaFile.writeText(hitLevel, Charsets.UTF_8)
+            metaFile.writeText(sourceName, Charsets.UTF_8)
             metaFile.setReadable(true, false)
             // Production delivery: publish to shared Downloads dir (SystemUI hook reads there)
             io.github.deserthouse.opticon.engine.SharedIconStore.mirrorIconToShared(getApplication(), pngFile, pkg)

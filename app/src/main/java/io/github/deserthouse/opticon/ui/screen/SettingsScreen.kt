@@ -2,7 +2,6 @@ package io.github.deserthouse.opticon.ui.screen
 
 import android.content.Intent
 import android.net.Uri
-import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.expandVertically
@@ -58,6 +57,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -105,6 +106,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
     val toastEvent by viewModel.toastEvent.collectAsState()
     val easterEggExpanded by viewModel.easterEggExpanded.collectAsState()
     var showAvatarDialog by remember { mutableStateOf(false) }
+    var showMasterOffDialog by remember { mutableStateOf(false) }
     val lsposedActive by viewModel.lsposedActive.collectAsState()
     val rootAvailable by viewModel.rootAvailable.collectAsState()
     val rechecking by viewModel.rechecking.collectAsState()
@@ -125,7 +127,13 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
     val showAddSource by viewModel.showAddSource.collectAsState()
     val showEditSource by viewModel.showEditSource.collectAsState()
 
-    LaunchedEffect(toastEvent) { toastEvent?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show(); viewModel.consumeToast() } }
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(toastEvent) {
+        toastEvent?.let {
+            snackbarHostState.showSnackbar(it, withDismissAction = true)
+            viewModel.consumeToast()
+        }
+    }
 
     infoMessage?.let { msg ->
         AlertDialog(onDismissRequest = viewModel::dismissInfo,
@@ -133,8 +141,24 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
             confirmButton = { TextButton(onClick = viewModel::dismissInfo) { Text(stringResource(R.string.ok_label)) } })
     }
 
+    if (showMasterOffDialog) {
+        AlertDialog(onDismissRequest = { showMasterOffDialog = false },
+            title = { Text(stringResource(R.string.master_off_dialog_title)) },
+            text = { Text(stringResource(R.string.master_off_dialog_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showMasterOffDialog = false
+                    viewModel.setMasterEnabled(false)
+                }) { Text(stringResource(R.string.action_turn_off)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMasterOffDialog = false }) { Text(stringResource(R.string.cancel)) }
+            })
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium) },
@@ -145,13 +169,15 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
             Spacer(Modifier.height(12.dp))
 
             // ── 状态区 ──
-            RuntimeStatusCard(lsposedActive, rootAvailable, rechecking) { viewModel.recheckStatuses() }
+            RuntimeStatusCard(lsposedActive, rootAvailable, rechecking) { viewModel.recheckStatuses(force = true) }
 
             // ── 模块控制 ──
             SectionTitle(stringResource(R.string.module_control))
             SettingsCard {
                 SettingItem(Icons.Rounded.BugReport, stringResource(R.string.master_switch), stringResource(R.string.master_switch_desc)) {
-                    Switch(checked = masterEnabled, onCheckedChange = viewModel::setMasterEnabled)
+                    Switch(checked = masterEnabled, onCheckedChange = { on ->
+                        if (on) viewModel.setMasterEnabled(true) else showMasterOffDialog = true
+                    })
                 }
                 HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                 SettingItem(Icons.Rounded.BugReport, stringResource(R.string.verbose_logging), stringResource(R.string.verbose_logging_desc)) {
@@ -310,7 +336,8 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                     Icon(Icons.Rounded.Info, null, Modifier.padding(end = 12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Column(Modifier.weight(1f)) {
                         Text("OptIcon", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-                        Text("v${BuildConfig.VERSION_NAME} \u00b7 " + stringResource(R.string.about_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("v${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.about_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     if (emojiUnlocked) {
                         Icon(

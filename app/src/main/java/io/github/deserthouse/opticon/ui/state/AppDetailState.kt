@@ -1,5 +1,6 @@
 package io.github.deserthouse.opticon.ui.state
 
+import io.github.deserthouse.opticon.engine.HitSource
 import io.github.deserthouse.opticon.R
 
 import android.graphics.Bitmap
@@ -46,7 +47,7 @@ data class AppDetailState(
     val redrawParams: RedrawParams = RedrawParams.DEFAULT,
 
     // Current hit level
-    val hitLevel: String = "",
+    val hitSource: HitSource = HitSource.OTHER,
 
     // Bottom sheet (strategy-2 only)
     val sheetVisible: Boolean = false,
@@ -82,25 +83,21 @@ enum class StatusBarMode(@androidx.annotation.StringRes val labelRes: Int) {
     LIGHT(R.string.preview_mode_light)
 }
 
-/** Map engine hitLevel (technical, English, for logs — never displayed raw)
- *  to a display resource. Miss/error keys resolve before category keys so a
- *  failed path never renders as if its category had hit. */
-fun hitLevelRes(hitLevel: String): Int = when {
-    hitLevel.isEmpty() -> R.string.hit_other
-    hitLevel == "Disabled" -> R.string.hit_disabled
-    hitLevel.startsWith("PICP download failed") -> R.string.hit_picp_failed
-    hitLevel.startsWith("Network unavailable") -> R.string.hit_network_fail
-    hitLevel.startsWith("PICP hit") || hitLevel.startsWith("Perfect Icons hit") -> R.string.hit_picp
-    hitLevel.startsWith("Local built-in") || hitLevel.startsWith("Fankes rules hit") -> R.string.hit_iconlib
-    hitLevel.startsWith("Self-filter") -> R.string.hit_selffilter
-    hitLevel.startsWith("Adaptive") && !hitLevel.contains("miss", ignoreCase = true) -> R.string.hit_adaptive
-    hitLevel.startsWith("Icon pack") && hitLevel.contains("hit") -> R.string.hit_iconpack
-    hitLevel.startsWith("Icon pack manual:") -> R.string.hit_iconpack
-    hitLevel.startsWith("Remote") && hitLevel.contains("hit") -> R.string.hit_remote
-    hitLevel.startsWith("Manual:") || hitLevel.startsWith("Algo:") -> R.string.hit_manual
-    hitLevel.startsWith("Preview error") -> R.string.hit_other
-    // every explicit miss/error key ("Icon pack miss", "Adaptive icon miss",
-    // "Not an adaptive icon", "AUTO: all levels missed", "…: tint failed",
-    // "…not found", "Preview error: …", "Fankes rules miss") lands here
-    else -> R.string.hit_auto_miss
+/** Display resource per bake source — exhaustive over HitSource, so a new
+ *  source without a mapping is a compile error (the old startsWith table
+ *  silently degraded unknown keys to "other"). */
+fun hitLevelRes(source: HitSource): Int = when (source) {
+    HitSource.PICP -> R.string.hit_picp
+    HitSource.PICP_FAILED -> R.string.hit_picp_failed
+    HitSource.ICONLIB -> R.string.hit_iconlib
+    HitSource.NETWORK_FAIL -> R.string.hit_network_fail
+    HitSource.DISABLED -> R.string.hit_disabled
+    HitSource.SELFFILTER -> R.string.hit_selffilter
+    HitSource.ADAPTIVE -> R.string.hit_adaptive
+    HitSource.ICONPACK -> R.string.hit_iconpack
+    HitSource.ICONPACK_MANUAL -> R.string.hit_iconpack
+    HitSource.REMOTE -> R.string.hit_remote
+    HitSource.MANUAL -> R.string.hit_manual
+    HitSource.AUTO_MISS -> R.string.hit_auto_miss
+    HitSource.OTHER -> R.string.hit_other
 }

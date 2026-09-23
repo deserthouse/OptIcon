@@ -58,7 +58,7 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
                 io.github.deserthouse.opticon.ui.viewmodel.SettingsViewModel
                     .Companion.checkLsposed(getApplication())
             }
-            _uiState.value = _uiState.value.copy(lsposedActive = active)
+            _uiState.update { it.copy(lsposedActive = active) }
         }
     }
 

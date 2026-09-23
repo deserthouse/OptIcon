@@ -74,7 +74,7 @@ class E2ETestReceiver : BroadcastReceiver() {
                         )
                         val bitmap = result.bitmap
                         if (bitmap == null) {
-                            TraceLogger.i(TAG, "E2E RESULT bake=null reason=${result.hitLevel}")
+                            TraceLogger.i(TAG, "E2E RESULT bake=null reason=${result.source} (${result.detail})")
                             return@launch
                         }
                         // Real writeBaked path: filesDir/baked + SharedIconStore mirror
@@ -85,7 +85,7 @@ class E2ETestReceiver : BroadcastReceiver() {
                         }
                         val shared = SharedIconStore.mirrorIconToShared(ctx, pngFile, pkg)
                         val sharedFile = SharedIconStore.iconFile(pkg)
-                        TraceLogger.i(TAG, "E2E RESULT bake=ok hit=${result.hitLevel} " +
+                        TraceLogger.i(TAG, "E2E RESULT bake=ok hit=${result.source} (${result.detail}) " +
                             "legacy=${pngFile.exists()}(${pngFile.length()}B) " +
                             "shared=$shared sharedExists=${sharedFile.exists()}(${sharedFile.length()}B)")
                     } catch (e: Exception) {

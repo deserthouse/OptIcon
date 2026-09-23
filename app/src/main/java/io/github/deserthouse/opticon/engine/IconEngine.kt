@@ -25,7 +25,7 @@ object IconEngine {
     fun bakedMetaFile(filesDir: File, pkg: String): File =
         File(File(filesDir, "baked").apply { mkdirs() }, "$pkg.meta")
 
-    data class BakeResult(val bitmap: Bitmap?, val hitLevel: String)
+    data class BakeResult(val bitmap: Bitmap?, val source: HitSource, val detail: String? = null)
 
     /**
      * Main bake entry. selectedIconPack only used when method==ICON_PACK.
@@ -54,13 +54,13 @@ object IconEngine {
         if (pack.bitmap != null) return pack
         val adaptive = bakeAdaptive(context, pkg, params)
         if (adaptive.bitmap != null) return adaptive
-        return BakeResult(null, "AUTO: all levels missed (remote/iconpack/adaptive)")
+        return BakeResult(null, HitSource.AUTO_MISS)
     }
 
     private fun bakeRemote(pkg: String): BakeResult {
         val icon = IconLibEngine.lookup(pkg)
-        return if (icon != null) BakeResult(icon, "Remote subscription hit")
-        else BakeResult(null, "Remote subscription miss")
+        return if (icon != null) BakeResult(icon, HitSource.REMOTE)
+        else BakeResult(null, HitSource.AUTO_MISS, "remote subscription miss")
     }
 
     private fun bakeIconPack(context: Context, pkg: String, params: RedrawParams, selectedPack: String?, selectedDrawable: String?): BakeResult {
@@ -73,17 +73,17 @@ object IconEngine {
         val target = if (selectedPack != null) packs.filter { it.packageName == selectedPack } else packs
         for (pack in target) {
             val result = IconPackEngine.extractForPackage(context, pack.packageName, pkg)
-            if (result != null) return BakeResult(result, "Icon pack hit: ${pack.label}")
+            if (result != null) return BakeResult(result, HitSource.ICONPACK, "${pack.label}")
         }
-        return BakeResult(null, "Icon pack miss")
+        return BakeResult(null, HitSource.AUTO_MISS, "icon pack miss")
     }
 
     private fun bakeIconPackDrawable(context: Context, targetPkg: String, iconPackPkg: String, drawableName: String, params: RedrawParams): BakeResult {
         try {
             val packRes = context.packageManager.getResourcesForApplication(iconPackPkg)
             val drawableId = packRes.getIdentifier(drawableName, "drawable", iconPackPkg)
-            if (drawableId == 0) return BakeResult(null, "Icon pack drawable not found: $drawableName")
-            val drawable = packRes.getDrawable(drawableId, null) ?: return BakeResult(null, "Icon pack drawable null")
+            if (drawableId == 0) return BakeResult(null, HitSource.AUTO_MISS, "drawable not found: $drawableName")
+            val drawable = packRes.getDrawable(drawableId, null) ?: return BakeResult(null, HitSource.AUTO_MISS, "drawable null")
             // #18: mirror IconPackEngine.extractForPackage — flat composed
             // icons need glyph keying, a plain alpha silhouette is a disc.
             val isAdaptive = drawable is android.graphics.drawable.AdaptiveIconDrawable
@@ -97,29 +97,29 @@ object IconEngine {
             foreground.setBounds(0, 0, OUTPUT_SIZE, OUTPUT_SIZE)
             foreground.draw(canvas)
             val white = (if (isAdaptive) IconTint.toWhite(bitmap)
-                         else IconTint.glyphKeyWhite(bitmap)) ?: return BakeResult(null, "Icon pack glyph keying failed")
+                         else IconTint.glyphKeyWhite(bitmap)) ?: return BakeResult(null, HitSource.AUTO_MISS, "glyph keying failed")
             if (bitmap !== white) bitmap.recycle()
             val scaled = IconTint.scaleAndTintWhite(white, params.scale.coerceIn(0.5f, 1.0f), OUTPUT_SIZE)
                 ?: white
-            return BakeResult(scaled, "Icon pack manual: $drawableName")
+            return BakeResult(scaled, HitSource.ICONPACK_MANUAL, "$drawableName")
         } catch (e: Exception) {
-            return BakeResult(null, "Icon pack manual error: ${e.message}")
+            return BakeResult(null, HitSource.AUTO_MISS, "${e.message}")
         }
     }
 
     private fun bakeAdaptive(context: Context, pkg: String, params: RedrawParams): BakeResult {
         val result = AdaptiveIconExtractor.extractForegroundWhite(context, pkg)
-        return if (result != null) BakeResult(result, "Adaptive icon extracted")
-        else BakeResult(null, "Adaptive icon miss")
+        return if (result != null) BakeResult(result, HitSource.ADAPTIVE)
+        else BakeResult(null, HitSource.AUTO_MISS, "adaptive miss")
     }
 
     private fun bakeSelfFilter(context: Context, pkg: String, params: RedrawParams): BakeResult {
-        val base = resolveAppBitmap(context, pkg) ?: return BakeResult(null, "Self-filter: cannot get app icon")
+        val base = resolveAppBitmap(context, pkg) ?: return BakeResult(null, HitSource.AUTO_MISS, "cannot get app icon")
         val effParams = if (params.scale == RedrawParams.DEFAULT_SCALE) params.copy(scale = 0.8f) else params
         val result = IconRedrawEngine.redraw(base, effParams)
         if (base !== result) base.recycle()
-        return if (result != null) BakeResult(result, "Self-filter: four-corner sampling")
-        else BakeResult(null, "Self-filter: processing failed")
+        return if (result != null) BakeResult(result, HitSource.SELFFILTER)
+        else BakeResult(null, HitSource.AUTO_MISS, "self-filter processing failed")
     }
 
     private fun bakeManual(
@@ -128,26 +128,26 @@ object IconEngine {
     ): BakeResult {
         return when (branch) {
             ManualBranch.LOCAL_FILE -> {
-                if (localPath.isNullOrBlank()) return BakeResult(null, "Manual: no file selected")
-                val src = decodeFileOrUri(context, localPath) ?: return BakeResult(null, "Manual: file decode failed")
-                val white = IconTint.toWhite(src) ?: return BakeResult(null, "Manual: tint failed")
+                if (localPath.isNullOrBlank()) return BakeResult(null, HitSource.AUTO_MISS, "no file selected")
+                val src = decodeFileOrUri(context, localPath) ?: return BakeResult(null, HitSource.AUTO_MISS, "file decode failed")
+                val white = IconTint.toWhite(src) ?: return BakeResult(null, HitSource.AUTO_MISS, "tint failed")
                 if (src !== white) src.recycle()
-                BakeResult(white, "Manual: local upload")
+                BakeResult(white, HitSource.MANUAL, "local upload")
             }
             ManualBranch.MATERIAL_LIB -> {
-                if (materialIconName.isNullOrBlank()) return BakeResult(null, "Manual: no icon selected")
+                if (materialIconName.isNullOrBlank()) return BakeResult(null, HitSource.AUTO_MISS, "no icon selected")
                 val icon = MaterialIconRenderer.findByName(materialIconName)
-                    ?: return BakeResult(null, "Manual: icon not found")
+                    ?: return BakeResult(null, HitSource.AUTO_MISS, "material icon not found")
                 val bmp = MaterialIconRenderer.renderToWhiteBitmap(icon)
-                BakeResult(bmp, "Manual: Material icon library")
+                BakeResult(bmp, HitSource.MANUAL, "material icon library")
             }
             ManualBranch.EMOJI_TEXT -> {
-                if (emojiText.isNullOrBlank()) return BakeResult(null, "Manual: no text entered")
+                if (emojiText.isNullOrBlank()) return BakeResult(null, HitSource.AUTO_MISS, "no text entered")
                 val bmp = EmojiRenderer.renderToWhiteBitmap(emojiText)
-                if (bmp != null) BakeResult(bmp, "Manual: Emoji text")
-                else BakeResult(null, "Manual: Emoji render failed")
+                if (bmp != null) BakeResult(bmp, HitSource.MANUAL, "emoji text")
+                else BakeResult(null, HitSource.AUTO_MISS, "emoji render failed")
             }
-            null -> BakeResult(null, "Manual: no branch selected")
+            null -> BakeResult(null, HitSource.AUTO_MISS, "no branch selected")
         }
     }
 
@@ -183,18 +183,18 @@ object IconEngine {
         return try {
             val packRes = context.packageManager.getResourcesForApplication(iconPackPkg)
             val drawableId = packRes.getIdentifier(drawableName, "drawable", iconPackPkg)
-            if (drawableId == 0) return BakeResult(null, "Icon pack: drawable not found")
-            val drawable = packRes.getDrawable(drawableId, null) ?: return BakeResult(null, "Icon pack: drawable null")
+            if (drawableId == 0) return BakeResult(null, HitSource.AUTO_MISS, "drawable not found")
+            val drawable = packRes.getDrawable(drawableId, null) ?: return BakeResult(null, HitSource.AUTO_MISS, "drawable null")
             val foreground = if (drawable is android.graphics.drawable.AdaptiveIconDrawable) drawable.foreground else drawable
             val bitmap = Bitmap.createBitmap(OUTPUT_SIZE, OUTPUT_SIZE, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
             foreground.setBounds(0, 0, OUTPUT_SIZE, OUTPUT_SIZE)
             foreground.draw(canvas)
-            val white = IconTint.toWhite(bitmap) ?: return BakeResult(null, "Icon pack: tint failed")
+            val white = IconTint.toWhite(bitmap) ?: return BakeResult(null, HitSource.AUTO_MISS, "tint failed")
             if (bitmap !== white) bitmap.recycle()
             val scaled = IconTint.scaleAndTintWhite(white, params.scale.coerceIn(0.5f, 1.0f), OUTPUT_SIZE) ?: white
-            BakeResult(scaled, "Icon pack manual: $drawableName")
-        } catch (e: Exception) { BakeResult(null, "Icon pack manual error: ${e.message}") }
+            BakeResult(null, HitSource.ICONPACK_MANUAL, "$drawableName")
+        } catch (e: Exception) { BakeResult(null, HitSource.AUTO_MISS, "${e.message}") }
     }
 
     /**

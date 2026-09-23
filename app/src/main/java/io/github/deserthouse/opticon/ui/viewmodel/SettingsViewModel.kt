@@ -47,6 +47,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         }
 
         private val HEARTBEAT_TIMEOUT_MS = 10 * 60 * 1000L
+        private val ROOT_CACHE_MS = 5 * 60 * 1000L
+
+        @Volatile var rootCache: Pair<Long, Boolean>? = null
 
         /** Root 检测 — InstallerX Revived 风格: 实际执行 su -c 命令验证 (3s 超时) */
         fun checkRoot(): Boolean {
@@ -77,15 +80,23 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { recheckStatuses() }
     }
 
-    /** 手动重检: LSPosed 活性 + Root 可用性 (状态卡刷新按钮) */
-    fun recheckStatuses() {
+    /** 手动重检: LSPosed 活性 + Root 可用性 (状态卡刷新按钮)。
+     *  Root 探测每次进设置都会弹系统的 su 授权/拒绝 toast（Magisk 行为），
+     *  自动路径走 5 分钟缓存，只有手动刷新才强制执行 su。 */
+    fun recheckStatuses(force: Boolean = false) {
         if (_rechecking.value) return
         viewModelScope.launch {
             val app = getApplication<Application>()
             _rechecking.value = true
             val lsposed = withContext(Dispatchers.IO) { checkLsposed(app) }
             _lsposedActive.value = lsposed
-            val root = withContext(Dispatchers.IO) { checkRoot() }
+            val cached = rootCache
+            val root = if (!force && cached != null &&
+                System.currentTimeMillis() - cached.first < ROOT_CACHE_MS
+            ) cached.second
+            else withContext(Dispatchers.IO) {
+                checkRoot().also { rootCache = System.currentTimeMillis() to it }
+            }
             _rootAvailable.value = root
             _rechecking.value = false
         }
@@ -162,9 +173,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val forceMono: StateFlow<Boolean> = _forceMono.asStateFlow()
 
     fun setForceMono(enabled: Boolean) {
-        io.github.deserthouse.opticon.engine.SharedIconStore.writeColorMode(
+        val written = io.github.deserthouse.opticon.engine.SharedIconStore.writeColorMode(
             getApplication(), if (enabled) "force_mono" else "off"
         )
+        if (written == null) {
+            // Optimistic flip would desync UI from storage — revert and tell.
+            _toastEvent.value = getApplication<Application>().getString(
+                io.github.deserthouse.opticon.R.string.sync_write_failed
+            )
+            return
+        }
         _forceMono.value = enabled
     }
 

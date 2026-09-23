@@ -61,6 +61,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.LargeTopAppBar
@@ -147,8 +149,10 @@ fun AppListScreen(
         derivedStateOf { listState.firstVisibleItemIndex == 0 || scrollUp }
     }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -166,12 +170,19 @@ fun AppListScreen(
                             fontFamily = FontFamily.Serif
                         )
                         Spacer(Modifier.width(10.dp))
-                        Surface(shape = OptShapes.small, color = MaterialTheme.colorScheme.primaryContainer) {
+                        val stage = io.github.deserthouse.opticon.BuildConfig.VERSION_NAME
+                            .substringAfter('-', "")
+                        val (badgeBg, badgeFg) = when (stage) {
+                            "alpha" -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+                            "beta" -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
+                            else -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
+                        }
+                        Surface(shape = OptShapes.small, color = badgeBg) {
                             Text(
                                 "v${io.github.deserthouse.opticon.BuildConfig.VERSION_NAME}",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                color = badgeFg,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
@@ -274,7 +285,9 @@ fun AppListScreen(
                                     onClick = { onNavigateToDetail(entry.packageName) },
                                     onLongClick = {
                                         clipboard.setText(AnnotatedString(entry.packageName))
-                                        Toast.makeText(context, packageNameCopiedText, Toast.LENGTH_SHORT).show()
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(packageNameCopiedText)
+                                        }
                                     }
                                 )
                             }
@@ -456,7 +469,7 @@ private fun FilterChipRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(start = 16.dp, end = 28.dp)
         ) {
-        items(filters) { (mode, label) ->
+        items(filters, key = { it.first }) { (mode, label) ->
             FilterChip(
                 selected = current == mode,
                 onClick = { onSelect(mode) },
