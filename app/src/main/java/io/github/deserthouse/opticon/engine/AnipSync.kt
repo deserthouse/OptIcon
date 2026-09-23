@@ -3,6 +3,7 @@ package io.github.deserthouse.opticon.engine
 import io.github.deserthouse.opticon.network.NetworkExecutor
 import io.github.deserthouse.opticon.util.TraceLogger
 import org.json.JSONObject
+import android.content.Context
 import java.io.File
 import java.util.Locale
 import java.util.zip.ZipFile
@@ -55,6 +56,17 @@ object AnipSync {
         }
     }
 
+    // Context-free callers (hook self-sync) fall back to locale tables so the
+    // progress strings stay single-language on either locale.
+    private val zhProgress = mapOf(
+        io.github.deserthouse.opticon.R.string.sync_anip_bundle to "正在下载 ANIP 资源包…",
+        io.github.deserthouse.opticon.R.string.sync_unpacking to "正在解包 ANIP 资源…"
+    )
+    private val enProgress = mapOf(
+        io.github.deserthouse.opticon.R.string.sync_anip_bundle to "Downloading ANIP bundle…",
+        io.github.deserthouse.opticon.R.string.sync_unpacking to "Unpacking ANIP resources…"
+    )
+
     private fun pkgKeyOk(pkg: String) =
         pkg.matches(Regex("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)*$"))
 
@@ -63,19 +75,24 @@ object AnipSync {
      * ({pkg}.png + meta.json). Single zipball download, then local unpack.
      * Returns the number of icons written.
      */
-    fun syncTo(dir: File, onProgress: ((String) -> Unit)? = null): Int {
+    fun syncTo(dir: File, onProgress: ((String) -> Unit)? = null, context: Context? = null): Int {
+        fun progress(resId: Int) = onProgress?.invoke(
+            if (context != null) context.getString(resId)
+            else if (Locale.getDefault().language == "zh") zhProgress[resId].orEmpty()
+            else enProgress[resId].orEmpty()
+        )
         dir.mkdirs()
         dir.setExecutable(true, false)
         dir.setReadable(true, false)
         val zipFile = File(dir, ".anip_main.zip")
         try {
-            onProgress?.invoke("Downloading ANIP bundle...")
+            progress(io.github.deserthouse.opticon.R.string.sync_anip_bundle)
             if (!NetworkExecutor.fetchToFile(ZIP_URL, zipFile, null)) {
                 TraceLogger.w(TAG, "ANIP zipball download failed")
                 zipFile.delete()
                 return 0
             }
-            onProgress?.invoke("Unpacking ANIP resources...")
+            progress(io.github.deserthouse.opticon.R.string.sync_unpacking)
             ZipFile(zipFile).use { zip ->
                 val manifestEntries = CATEGORIES.associateWith { cat ->
                     zip.getEntry(ZIP_ROOT + "icons/" + cat + "/manifest.json")

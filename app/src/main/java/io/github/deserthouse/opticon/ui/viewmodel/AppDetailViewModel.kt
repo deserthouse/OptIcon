@@ -360,8 +360,8 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         return when (s.strategy) {
             IconStrategy.FANKES -> {
                 val icon = IconLibEngine.lookup(s.packageName)
-                if (icon != null) IconEngine.BakeResult(icon, "Fankes 规则库命中")
-                else IconEngine.BakeResult(null, "Fankes 规则库未适配")
+                if (icon != null) IconEngine.BakeResult(icon, "Fankes rules hit")
+                else IconEngine.BakeResult(null, "Fankes rules miss")
             }
             IconStrategy.ASSET_IMPORT -> when (s.assetSubStrategy) {
                 AssetSubStrategy.ICON_PACK -> {

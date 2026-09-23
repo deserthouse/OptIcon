@@ -37,26 +37,27 @@ object SubscriptionManager {
                 io.github.deserthouse.opticon.util.PreferenceManager.getActiveAniaSourceId()
             )
         if (url == null) {
-            onResult(SyncResult(false, errorMessage = "No source selected"))
+            onResult(SyncResult(false, errorMessage = context.getString(io.github.deserthouse.opticon.R.string.sync_no_source)))
             return
         }
 
-        onProgress?.invoke("Checking network...")
+        onProgress?.invoke(context.getString(io.github.deserthouse.opticon.R.string.sync_preparing))
         NetworkExecutor.checkConnectivity { networkOk ->
             if (!networkOk) {
-                onResult(SyncResult(false, errorMessage = "网络不可用，请检查网络连接后重试 / Network unavailable"))
+                onResult(SyncResult(false, errorMessage = context.getString(io.github.deserthouse.opticon.R.string.sync_network_unavailable)))
                 return@checkConnectivity
             }
 
             // ANIP source (manifest + per-app PNG) — resource-sync, no base64 JSON
             if (url.startsWith(AnipSync.BASE)) {
-                onProgress?.invoke("Fetching ANIP manifests...")
+                onProgress?.invoke(context.getString(io.github.deserthouse.opticon.R.string.sync_fetching_manifests))
                 val count = AnipSync.syncTo(
                     File(context.filesDir, IconLibEngine.CACHE_DIR_ACCESSIBLE),
-                    onProgress
+                    onProgress,
+                    context
                 )
                 if (count <= 0) {
-                    onResult(SyncResult(false, errorMessage = "Invalid data from source"))
+                    onResult(SyncResult(false, errorMessage = context.getString(io.github.deserthouse.opticon.R.string.sync_invalid_data)))
                     return@checkConnectivity
                 }
                 File(context.filesDir, HASH_FILE).writeText("$count", Charsets.UTF_8)
@@ -64,21 +65,21 @@ object SubscriptionManager {
                 return@checkConnectivity
             }
 
-            onProgress?.invoke("Downloading...")
+            onProgress?.invoke(context.getString(io.github.deserthouse.opticon.R.string.sync_downloading))
             val json = NetworkExecutor.fetchStringSync(url) { downloaded, total ->
                 val kb = downloaded / 1024
                 val text = if (total > 0) "$kb / ${total / 1024} KB (${downloaded * 100 / total} %)" else "$kb KB"
-                onProgress?.invoke("Downloading... $text")
+                onProgress?.invoke(context.getString(io.github.deserthouse.opticon.R.string.sync_downloading_progress, text))
             }
 
             if (json == null) {
-                onResult(SyncResult(false, errorMessage = "下载失败，请检查网络或更换订阅源 / Download failed"))
+                onResult(SyncResult(false, errorMessage = context.getString(io.github.deserthouse.opticon.R.string.sync_download_failed)))
                 return@checkConnectivity
             }
 
             val iconCount = validateAndCountIcons(json)
             if (iconCount <= 0) {
-                onResult(SyncResult(false, errorMessage = "Invalid data from source"))
+                onResult(SyncResult(false, errorMessage = context.getString(io.github.deserthouse.opticon.R.string.sync_invalid_data)))
                 return@checkConnectivity
             }
 
@@ -87,7 +88,7 @@ object SubscriptionManager {
                 return@checkConnectivity
             }
 
-            onProgress?.invoke("Saving $iconCount icon rules...")
+            onProgress?.invoke(context.getString(io.github.deserthouse.opticon.R.string.sync_saving, iconCount))
             saveRules(context, json, iconCount)
             onResult(SyncResult(true, iconCount = iconCount, wasChanged = true))
         }

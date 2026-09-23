@@ -82,18 +82,25 @@ enum class StatusBarMode(@androidx.annotation.StringRes val labelRes: Int) {
     LIGHT(R.string.preview_mode_light)
 }
 
-/** Map engine hitLevel (technical, English, for logs) to a display resource. */
+/** Map engine hitLevel (technical, English, for logs — never displayed raw)
+ *  to a display resource. Miss/error keys resolve before category keys so a
+ *  failed path never renders as if its category had hit. */
 fun hitLevelRes(hitLevel: String): Int = when {
     hitLevel.isEmpty() -> R.string.hit_other
-    hitLevel.startsWith("PICP hit") || hitLevel.startsWith("Perfect Icons hit") -> R.string.hit_picp
-    hitLevel.startsWith("PICP download failed") -> R.string.hit_picp_failed
-    hitLevel.startsWith("Local built-in") -> R.string.hit_iconlib
-    hitLevel.startsWith("Network unavailable") -> R.string.hit_network_fail
     hitLevel == "Disabled" -> R.string.hit_disabled
+    hitLevel.startsWith("PICP download failed") -> R.string.hit_picp_failed
+    hitLevel.startsWith("Network unavailable") -> R.string.hit_network_fail
+    hitLevel.startsWith("PICP hit") || hitLevel.startsWith("Perfect Icons hit") -> R.string.hit_picp
+    hitLevel.startsWith("Local built-in") || hitLevel.startsWith("Fankes rules hit") -> R.string.hit_iconlib
     hitLevel.startsWith("Self-filter") -> R.string.hit_selffilter
-    hitLevel.startsWith("Adaptive") -> R.string.hit_adaptive
-    hitLevel.startsWith("Icon pack") -> R.string.hit_iconpack
-    hitLevel.startsWith("Remote") -> R.string.hit_remote
-    hitLevel.startsWith("AUTO: all levels missed") -> R.string.hit_auto_miss
-    else -> R.string.hit_other
+    hitLevel.startsWith("Adaptive") && !hitLevel.contains("miss", ignoreCase = true) -> R.string.hit_adaptive
+    hitLevel.startsWith("Icon pack") && hitLevel.contains("hit") -> R.string.hit_iconpack
+    hitLevel.startsWith("Icon pack manual:") -> R.string.hit_iconpack
+    hitLevel.startsWith("Remote") && hitLevel.contains("hit") -> R.string.hit_remote
+    hitLevel.startsWith("Manual:") || hitLevel.startsWith("Algo:") -> R.string.hit_manual
+    hitLevel.startsWith("Preview error") -> R.string.hit_other
+    // every explicit miss/error key ("Icon pack miss", "Adaptive icon miss",
+    // "Not an adaptive icon", "AUTO: all levels missed", "…: tint failed",
+    // "…not found", "Preview error: …", "Fankes rules miss") lands here
+    else -> R.string.hit_auto_miss
 }

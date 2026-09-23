@@ -44,14 +44,15 @@ object PicpEngine {
             val zipFile = File(cacheDir, "picp_repo.zip")
 
             fun downloadZip(): Boolean {
-                onProgress?.invoke("Downloading PICP (streaming)...")
+                onProgress?.invoke(context.getString(io.github.deserthouse.opticon.R.string.sync_picp_streaming))
                 // Write to a tmp file first so a failed/interrupted download can
                 // never leave a missing or half-written zip behind.
                 val tmp = File(cacheDir, "picp_repo.zip.tmp")
                 tmp.delete()
                 val ok = NetworkExecutor.fetchToFile(url, tmp) { downloaded, total ->
                     val pct = if (total > 0) (downloaded * 100 / total).toInt() else 0
-                    onProgress?.invoke("Downloading ${downloaded / 1024 / 1024}MB${if (total > 0) " / ${total / 1024 / 1024}MB ($pct %)" else ""}")
+                    val sizeText = "${downloaded / 1024 / 1024}MB${if (total > 0) " / ${total / 1024 / 1024}MB ($pct %)" else ""}"
+                    onProgress?.invoke(context.getString(io.github.deserthouse.opticon.R.string.sync_picp_bytes, sizeText))
                 }
                 if (!ok || !tmp.exists() || tmp.length() == 0L) {
                     TraceLogger.w(TAG, "PICP download failed (ok=$ok fileExists=${tmp.exists()} size=${if (tmp.exists()) tmp.length() else -1})")

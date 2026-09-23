@@ -21,7 +21,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     companion object {
         private const val TAG = "OptIcon/SettingsVM"
         private const val EMOJI_UNLOCK_TAPS = 7
-        const val AI_UNLOCK_TOAST = "已解锁文本/Emoji 转图标与云端 AI 图标重绘！"
 
         /** 检测 LSPosed 是否已激活作用域
          *
@@ -185,19 +184,19 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun syncAnia() {
         if (_aniaSyncing.value) return
+        val ctx = getApplication<Application>().applicationContext
         _aniaSyncing.value = true
-        _aniaSyncStatus.value = "Preparing..."
+        _aniaSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_preparing)
         val sourceUrl = PreferenceManager.getSourceUrl(_activeAniaSource.value)
         viewModelScope.launch {
-            val ctx = getApplication<Application>().applicationContext
             withContext(Dispatchers.IO) {
                 SubscriptionManager.sync(ctx, sourceUrl,
                     onProgress = { _aniaSyncStatus.value = it },
                     onResult = { r ->
                         _aniaSyncStatus.value = when {
-                            !r.success -> r.errorMessage ?: "Sync failed"
-                            r.wasChanged -> "ANIP synced ${r.iconCount} icons - restart SystemUI"
-                            else -> "ANIP up to date (${r.iconCount} icons)"
+                            !r.success -> r.errorMessage ?: ctx.getString(io.github.deserthouse.opticon.R.string.sync_failed)
+                            r.wasChanged -> ctx.getString(io.github.deserthouse.opticon.R.string.sync_anip_done, r.iconCount)
+                            else -> ctx.getString(io.github.deserthouse.opticon.R.string.sync_anip_uptodate, r.iconCount)
                         }
                         if (r.success && r.wasChanged) {
                             _aniaIconCount.value = r.iconCount
@@ -224,15 +223,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun syncPicp() {
         if (_picpSyncing.value) return
+        val ctx = getApplication<Application>().applicationContext
         _picpSyncing.value = true
-        _picpSyncStatus.value = "Downloading PICP index..."
+        _picpSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_picp_index)
         val sourceUrl = PreferenceManager.getSourceUrl(_activePicpSource.value)
         if (sourceUrl == null) {
-            _picpSyncStatus.value = "No PICP source selected"
+            _picpSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_no_source)
             _picpSyncing.value = false
             return
         }
-        val ctx = getApplication<Application>().applicationContext
         PicpEngine.syncIndex(ctx, sourceUrl,
             onProgress = { _picpSyncStatus.value = it },
             onResult = { ok, count, err ->
@@ -244,15 +243,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                         .filter { it != ctx.packageName }
                     PicpEngine.prefetchForInstalled(ctx, installed,
                         onProgress = { done, total ->
-                            _picpSyncStatus.value = "Downloading PICP icons: $done/$total"
+                            _picpSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_picp_icons, done, total)
                         },
                         onDone = { downloaded ->
-                            _picpSyncStatus.value = "PICP synced $count packages, $downloaded icons cached"
+                            _picpSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_picp_done, count, downloaded)
                             _picpSyncing.value = false
                         }
                     )
                 } else {
-                    _picpSyncStatus.value = err ?: "PICP sync failed"
+                    _picpSyncStatus.value = err ?: ctx.getString(io.github.deserthouse.opticon.R.string.sync_picp_failed)
                     _picpSyncing.value = false
                 }
             }

@@ -385,8 +385,8 @@ object NotificationHook {
                         val pkg = currentPackage.get() ?: return@Hooker chain.proceed()
                         if (pkg == MODULE_PKG) return@Hooker chain.proceed()
 
-                        val bitmap = loadIconForPackage(pkg) ?: return@Hooker chain.proceed()
-                        Icon.createWithBitmap(bitmap)
+                        val n = chain.getThisObject() as? Notification
+                        resolveReplacementIcon(pkg, iconDrawableOf(n)) ?: return@Hooker chain.proceed()
                     } catch (e: Throwable) {
                         TraceLogger.w(TAG, "getSmallIcon hook: ${e.message}")
                         try { chain.proceed() } catch (_: Exception) { null }
@@ -420,6 +420,7 @@ object NotificationHook {
         colorModeStamp?.let { (stamp, value) -> if (stamp == m) return value }
         val value = try { f.takeIf { it.isFile }?.readText()?.trim() } catch (_: Exception) { null } ?: "off"
         colorModeStamp = m to value
+        monoIconCache.clear()  // policy file changed: stale grayscale results
         return value
     }
 
@@ -428,7 +429,10 @@ object NotificationHook {
         val m = try { f.lastModified() } catch (_: Exception) { 0L }
         colorOverrideStamps[pkg]?.let { (stamp, value) -> if (stamp == m) return value }
         val value = try { f.takeIf { it.isFile }?.readText()?.trim() } catch (_: Exception) { null }
-        if (value != null) colorOverrideStamps[pkg] = m to value
+        if (value != null) {
+            colorOverrideStamps[pkg] = m to value
+            monoIconCache.remove(pkg)
+        }
         return value
     }
 
@@ -440,13 +444,41 @@ object NotificationHook {
         else -> readColorMode() == "force_mono"
     }
 
-    private fun iconDrawableOf(n: android.app.Notification): Drawable? = try {
+    /** #19 single replacement entry for every hook site: baked icon first,
+     *  else (#13) grayscale of the original when the color policy demands
+     *  mono, else null = leave the original untouched. All 7 replacement
+     *  paths (createIcons/updateIcons/getSmallIcon/CachingIconView/
+     *  recoverBuilder/StatusBarIconView.set/getIconDescriptor) route through
+     *  here so a policy change can never be applied by some paths and
+     *  missed by others (the exact bug class this consolidation removes). */
+    private fun resolveReplacementIcon(pkg: String, original: Drawable?): Icon? {
+        loadIconForPackage(pkg)?.let { return Icon.createWithBitmap(it) }
+        if (!colorPolicyWantsMono(pkg)) return null
+        monoIconCache[pkg]?.let { return it }
+        val gray = original?.let { ComplianceDetector.toGrayscaleBitmap(it) } ?: return null
+        val icon = Icon.createWithBitmap(gray)
+        monoIconCache[pkg] = icon
+        return icon
+    }
+
+    // Mono-path result cache: getSmallIcon fires on every row bind, so the
+    // grayscale must not re-render per call. Invalidated by the policy-file
+    // stamp checks above; a fresh bake wins anyway (checked before cache).
+    private val monoIconCache = java.util.concurrent.ConcurrentHashMap<String, Icon>()
+
+    private val setSmallIconMethod: java.lang.reflect.Method by lazy {
+        Notification::class.java.getDeclaredMethod("setSmallIcon", Icon::class.java)
+    }
+
+    private fun iconDrawableOf(icon: Icon?): Drawable? = try {
         // Must use the REAL SystemUI Application context: the SystemContext
         // ("android" package) cannot resolve other apps' resource icons.
         val atClass = Class.forName("android.app.ActivityThread")
         val app = atClass.getDeclaredMethod("currentApplication").invoke(null) as? Context
-        n.smallIcon?.loadDrawable(app)
+        icon?.loadDrawable(app)
     } catch (_: Exception) { null }
+
+    private fun iconDrawableOf(n: android.app.Notification?): Drawable? = iconDrawableOf(n?.smallIcon)
 
     private fun hookCreateIcons(xposed: XposedInterface, classLoader: ClassLoader) {
         try {
@@ -456,9 +488,6 @@ object NotificationHook {
             val sbnField = entryClass.getDeclaredField("mSbn").apply { isAccessible = true }
             val managerClass = classLoader.loadClass(
                 "com.android.systemui.statusbar.notification.icon.IconManager"
-            )
-            val setSmallIcon = Notification::class.java.getDeclaredMethod(
-                "setSmallIcon", Icon::class.java
             )
 
             // Semantic match: name=createIcons, single NotificationEntry param.
@@ -484,22 +513,11 @@ object NotificationHook {
                                 if (!pkg.isNullOrEmpty() && pkg != MODULE_PKG) {
                                     lastPendingPackage.set(pkg)
                                     ComplianceDetector.evaluateAndReport(SHARED_ICON_DIR, sbn.notification, pkg)
-                                    val bitmap = loadIconForPackage(pkg)
-                                    if (bitmap != null) {
-                                        setSmallIcon.invoke(sbn.notification, Icon.createWithBitmap(bitmap))
+                                    val replacement = resolveReplacementIcon(pkg, iconDrawableOf(sbn.notification))
+                                    if (replacement != null) {
+                                        setSmallIconMethod.invoke(sbn.notification, replacement)
                                         val t = sbn.notification.smallIcon?.type
                                         TraceLogger.i(TAG, "createIcons: $pkg -> setSmallIcon replaced (icon.type=$t)")
-                                    } else {
-                                        // #13 色彩策略矩阵: no bake — optionally force mono
-                                        TraceLogger.i(TAG, "createIcons: $pkg no bake, colorPolicyWantsMono=${colorPolicyWantsMono(pkg)}")
-                                        if (colorPolicyWantsMono(pkg)) {
-                                            val d = iconDrawableOf(sbn.notification)
-                                            val gray = if (d != null) ComplianceDetector.toGrayscaleBitmap(d) else null
-                                            if (gray != null) {
-                                                setSmallIcon.invoke(sbn.notification, Icon.createWithBitmap(gray))
-                                                TraceLogger.i(TAG, "createIcons: $pkg -> forced monochrome (color policy)")
-                                            }
-                                        }
                                     }
                                 }
                             }
@@ -528,9 +546,6 @@ object NotificationHook {
                 "com.android.systemui.statusbar.notification.collection.NotificationEntry"
             )
             val sbnField = entryClass.getDeclaredField("mSbn").apply { isAccessible = true }
-            val setSmallIcon = Notification::class.java.getDeclaredMethod(
-                "setSmallIcon", Icon::class.java
-            )
 
             // Name-based matching across ALL overloads (NIF g() approach)
             val candidates = managerClass.declaredMethods.filter { it.name == "updateIcons" }
@@ -551,9 +566,9 @@ object NotificationHook {
                                 }
                                 val pkg = sbn?.packageName
                                 if (!pkg.isNullOrEmpty() && pkg != MODULE_PKG) {
-                                    val bitmap = loadIconForPackage(pkg)
-                                    if (bitmap != null) {
-                                        setSmallIcon.invoke(sbn.notification, Icon.createWithBitmap(bitmap))
+                                    val replacement = resolveReplacementIcon(pkg, iconDrawableOf(sbn.notification))
+                                    if (replacement != null) {
+                                        setSmallIconMethod.invoke(sbn.notification, replacement)
                                         TraceLogger.i(TAG, "updateIcons: $pkg -> setSmallIcon replaced")
                                     }
                                 }
@@ -609,9 +624,9 @@ object NotificationHook {
                                 if (icon != null) {
                                     val pkg = icon.resPackage?.takeIf { it.isNotEmpty() && it != "android" }
                                     if (pkg != null && pkg != MODULE_PKG) {
-                                        val bitmap = loadIconForPackage(pkg)
-                                        if (bitmap != null) {
-                                            chain.args[0] = Icon.createWithBitmap(bitmap)
+                                        val replacement = resolveReplacementIcon(pkg, iconDrawableOf(icon))
+                                        if (replacement != null) {
+                                            chain.args[0] = replacement
                                             TraceLogger.i(TAG, "CachingIconView: $pkg -> icon swapped")
                                         }
                                     }
@@ -649,9 +664,6 @@ object NotificationHook {
                 "recoverBuilder", Context::class.java, Notification::class.java
             )
             val mNField = builderClass.getDeclaredField("mN").apply { isAccessible = true }
-            val setSmallIcon = Notification::class.java.getDeclaredMethod(
-                "setSmallIcon", Icon::class.java
-            )
 
             xposed.hook(method).setId("opticon:recoverBuilder").intercept(
                 XposedInterface.Hooker { chain ->
@@ -674,9 +686,9 @@ object NotificationHook {
                                     n.smallIcon?.takeIf { it.type == 2 }?.resPackage
                                 }.getOrNull()?.takeIf { it.isNotEmpty() && it != "android" }
                             if (!pkg.isNullOrEmpty() && pkg != MODULE_PKG) {
-                                val bitmap = loadIconForPackage(pkg)
-                                if (bitmap != null) {
-                                    setSmallIcon.invoke(n, Icon.createWithBitmap(bitmap))
+                                val replacement = resolveReplacementIcon(pkg, iconDrawableOf(n))
+                                if (replacement != null) {
+                                    setSmallIconMethod.invoke(n, replacement)
                                     TraceLogger.i(TAG, "recoverBuilder: $pkg -> mSmallIcon replaced")
                                 }
                             }
@@ -724,14 +736,20 @@ object NotificationHook {
                         val sbi = chain.getArg(0)
                         val pkg = pkgField.get(sbi) as? String
                         if (pkg.isNullOrEmpty() || pkg == MODULE_PKG) return@Hooker result
-                        val bitmap = loadIconForPackage(pkg) ?: return@Hooker result
+                        // Mono source: the Icon this StatusBarIcon carries (the
+                        // pre-set original), read reflectively like pkg above.
+                        val sbiIcon = try {
+                            sbi.javaClass.getDeclaredField("icon").apply { isAccessible = true }
+                                .get(sbi) as? Icon
+                        } catch (_: Exception) { null }
+                        val replacement = resolveReplacementIcon(pkg, iconDrawableOf(sbiIcon))
+                            ?: return@Hooker result
                         val view = chain.getThisObject() as? android.widget.ImageView
-                        if (view != null) {
-                            view.setImageDrawable(
-                                android.graphics.drawable.BitmapDrawable(
-                                    view.resources, bitmap
-                                )
-                            )
+                        // Icon.getBitmap() is non-public on this API level — load
+                        // the drawable through the helper instead of unwrapping.
+                        val drawable = iconDrawableOf(replacement)
+                        if (view != null && drawable != null) {
+                            view.setImageDrawable(drawable)
                             TraceLogger.d(TAG, "StatusBarIconView.set: $pkg -> drawable forced")
                         }
                     } catch (e: Throwable) {
@@ -777,14 +795,12 @@ object NotificationHook {
                         val sbn = sbnField.get(entry) as? StatusBarNotification
                         val pkg = sbn?.packageName
                         if (initialized && masterEnabled && pkg != null && pkg != MODULE_PKG) {
-                            val bitmap = loadIconForPackage(pkg)
-                            if (bitmap != null && result != null) {
+                            val replacement = resolveReplacementIcon(pkg, iconDrawableOf(sbn.notification))
+                            if (replacement != null && result != null) {
                                 val iconField = result.javaClass
                                     .getDeclaredField("icon").apply { isAccessible = true }
-                                iconField.set(result, Icon.createWithBitmap(bitmap))
+                                iconField.set(result, replacement)
                                 TraceLogger.d(TAG, "getIconDescriptor: $pkg -> icon replaced")
-                            } else if (bitmap == null) {
-                                TraceLogger.d(TAG, "getIconDescriptor: $pkg -> no bitmap cached")
                             }
                         }
                     } catch (e: Throwable) {

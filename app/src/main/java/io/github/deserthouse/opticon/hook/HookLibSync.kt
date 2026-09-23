@@ -88,7 +88,7 @@ object HookLibSync {
     fun syncNow(context: Context): Boolean {
         if (!syncing.compareAndSet(false, true)) return false
         try {
-            val count = io.github.deserthouse.opticon.engine.AnipSync.syncTo(dir(context))
+            val count = io.github.deserthouse.opticon.engine.AnipSync.syncTo(dir(context), context = context)
             TraceLogger.i(TAG, "ingested $count rule icons into hook-local cache")
             return count > 0
         } catch (e: Throwable) {

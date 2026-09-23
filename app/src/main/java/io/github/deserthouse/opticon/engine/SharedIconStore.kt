@@ -58,10 +58,14 @@ object SharedIconStore {
                 val target = File(dir, old.name.removeSuffix(".png"))
                 if (!target.exists()) old.renameTo(target) else old.delete()
             }
+            // Rows of the LEGACY names only. A blanket delete of every row in
+            // this directory decouples MediaStore from the filesystem (rows
+            // gone, files remain) — every later insert then collides into
+            // "(N)" renames and the hook reads stale orphan files forever.
             val cr = context.contentResolver
             cr.delete(android.provider.MediaStore.Files.getContentUri("external"),
                 android.provider.MediaStore.MediaColumns.DATA + " LIKE ?",
-                arrayOf("%/Download/OptIcon/%"))
+                arrayOf("%/Download/OptIcon/%.opticon.png"))
             prefs.edit().putBoolean("legacy_migrated", true).apply()
         } catch (_: Exception) { }
     }
@@ -173,31 +177,70 @@ object SharedIconStore {
             // in RELATIVE_PATH only (a slash in DISPLAY_NAME fails silently).
             val relativePath = "Download/$DIR_NAME" + (subDir?.let { "/$it" } ?: "")
 
-            // Remove any existing row with the same name in our sub-directory
-            deleteByName(context, fileName)
-
-            val values = ContentValues().apply {
-                put(MediaStore.Downloads.DISPLAY_NAME, fileName)
-                put(MediaStore.Downloads.RELATIVE_PATH, relativePath)
-                put(MediaStore.Downloads.IS_PENDING, 1)
+            // Update-in-place when a row already exists: delete+insert lets
+            // MediaStore auto-rename on any name collision ("file (1).ext"),
+            // which orphans the write at a path the SystemUI hook never reads
+            // (it opens the canonical base name). Updating the row keeps the
+            // stored name stable forever.
+            existingRowUri(context, fileName)?.let { rowUri ->
+                try {
+                    resolver.openOutputStream(rowUri, "wt")?.use { it.write(bytes) } ?: return null
+                    return resolver.query(
+                        rowUri, arrayOf(MediaStore.Downloads.DATA), null, null, null
+                    )?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+                } catch (_: Exception) {
+                    // fall through to fresh insert below
+                }
             }
-            val itemUri = resolver.insert(collection(), values) ?: return null
-            resolver.openOutputStream(itemUri, "wt")?.use { it.write(bytes) } ?: run {
-                resolver.delete(itemUri, null, null)
-                return null
-            }
-            values.clear()
-            values.put(MediaStore.Downloads.IS_PENDING, 0)
-            resolver.update(itemUri, values, null, null)
+            return try {
+                deleteByName(context, fileName)
 
-            // Resolve the physical absolute path for logging/verification
-            resolver.query(itemUri, arrayOf(MediaStore.Downloads.DATA), null, null, null)?.use { c ->
-                if (c.moveToFirst()) c.getString(0) else null
+                // Physical orphan guard: a file on disk with no MediaStore row
+                // (fixture pushed by shell, DB wiped underneath us) makes every
+                // insert collide into "(N)" renames that the hook never reads.
+                // The app owns its contributed files — direct-path delete works.
+                try {
+                    File(File(publicDir(), subDir ?: ""), fileName).delete()
+                } catch (_: Exception) { }
+
+                val values = ContentValues().apply {
+                    put(MediaStore.Downloads.DISPLAY_NAME, fileName)
+                    put(MediaStore.Downloads.RELATIVE_PATH, relativePath)
+                    put(MediaStore.Downloads.IS_PENDING, 1)
+                }
+                val itemUri = resolver.insert(collection(), values) ?: return null
+                resolver.openOutputStream(itemUri, "wt")?.use { it.write(bytes) } ?: run {
+                    resolver.delete(itemUri, null, null)
+                    return null
+                }
+                values.clear()
+                values.put(MediaStore.Downloads.IS_PENDING, 0)
+                resolver.update(itemUri, values, null, null)
+
+                // Resolve the physical absolute path for logging/verification
+                resolver.query(itemUri, arrayOf(MediaStore.Downloads.DATA), null, null, null)?.use { c ->
+                    if (c.moveToFirst()) c.getString(0) else null
+                }
+            } catch (e: Exception) {
+                null
             }
         } catch (e: Exception) {
             null
         }
     }
+
+    /** Canonical row for [fileName] in our dir, or null. */
+    private fun existingRowUri(context: Context, fileName: String): Uri? = try {
+        val resolver = context.contentResolver
+        val selection =
+            "${MediaStore.Downloads.DISPLAY_NAME} = ? AND ${MediaStore.Downloads.RELATIVE_PATH} LIKE ?"
+        val selectionArgs = arrayOf(fileName, "Download/$DIR_NAME%")
+        resolver.query(collection(), arrayOf(MediaStore.Downloads._ID), selection, selectionArgs, null)?.use { c ->
+            if (c.moveToFirst()) {
+                Uri.withAppendedPath(collection(), c.getLong(0).toString())
+            } else null
+        }
+    } catch (_: Exception) { null }
 
     private fun deleteByName(context: Context, fileName: String): Boolean {
         return try {
