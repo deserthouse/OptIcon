@@ -44,11 +44,6 @@ import io.github.deserthouse.opticon.ui.state.StatusBarMode
 import kotlin.math.roundToInt
 import io.github.deserthouse.opticon.ui.theme.OptShapes
 
-/** Dark status bar background */
-private val DarkStatusBarBg = Color(0xFF263238)
-/** Light status bar background */
-private val LightStatusBarBg = Color(0xFFECEFF1)
-
 @Composable
 fun PreviewCard(
     bitmap: Bitmap?,
@@ -57,16 +52,20 @@ fun PreviewCard(
     onToggleMode: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Simulated status-bar backgrounds derived from the theme's own surface
+    // tones — they follow light/dark automatically instead of hardcoded blues.
+    val darkBar = MaterialTheme.colorScheme.surfaceContainerHighest
+    val lightBar = MaterialTheme.colorScheme.surfaceContainerLow
     val bgColor by animateColorAsState(
-        targetValue = if (mode == StatusBarMode.DARK) DarkStatusBarBg else LightStatusBarBg,
+        targetValue = if (mode == StatusBarMode.DARK) darkBar else lightBar,
         animationSpec = spring(
             stiffness = Spring.StiffnessMedium,
             dampingRatio = Spring.DampingRatioMediumBouncy
         ),
         label = "previewBg"
     )
-
-    val labelColor = if (mode == StatusBarMode.DARK) Color.White else Color(0xFF37474F)
+    // Foreground = theme onSurface for the simulated bar.
+    val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     Surface(
         modifier = modifier

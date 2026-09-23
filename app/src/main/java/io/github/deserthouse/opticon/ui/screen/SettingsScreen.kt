@@ -153,6 +153,10 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                 SettingItem(Icons.Rounded.BugReport, stringResource(R.string.master_switch), stringResource(R.string.master_switch_desc)) {
                     Switch(checked = masterEnabled, onCheckedChange = viewModel::setMasterEnabled)
                 }
+                HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                SettingItem(Icons.Rounded.BugReport, stringResource(R.string.verbose_logging), stringResource(R.string.verbose_logging_desc)) {
+                    Switch(checked = verboseLogging, onCheckedChange = viewModel::setVerboseLogging)
+                }
             }
 
             // ── 工具 / 订阅源 ──
@@ -177,13 +181,6 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
             }
             RestartSystemUiButton()
 
-            // ── 调试 ──
-            SectionTitle(stringResource(R.string.debug))
-            SettingsCard {
-                SettingItem(Icons.Rounded.BugReport, stringResource(R.string.verbose_logging), stringResource(R.string.verbose_logging_desc)) {
-                    Switch(checked = verboseLogging, onCheckedChange = viewModel::setVerboseLogging)
-                }
-            }
 
             // ── 通知图标样式（模块对 shade 的行为） ──
             SectionTitle(stringResource(R.string.notif_style_section))

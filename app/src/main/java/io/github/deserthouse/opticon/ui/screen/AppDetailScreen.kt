@@ -125,12 +125,13 @@ fun AppDetailScreen(
     val state by viewModel.state.collectAsState()
     LaunchedEffect(packageName) { viewModel.loadApp(packageName) }
 
-    // Save toasts (saved / blocked-kept-off) come from the VM after the
-    // async bake validation finishes.
+    // Save feedback (saved / blocked-kept-off) from the VM after the async
+    // bake validation — surfaced as an M3 Snackbar on the page scaffold.
+    val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
     val saveFeedback by viewModel.saveFeedback.collectAsState()
     LaunchedEffect(saveFeedback) {
         saveFeedback?.let {
-            android.widget.Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            snackbarHostState.showSnackbar(it, withDismissAction = true)
             viewModel.consumeSaveFeedback()
         }
     }
@@ -165,6 +166,7 @@ fun AppDetailScreen(
     val pickLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> uri?.let { viewModel.setCustomIconPath(it.toString()) } }
 
     Scaffold(
+        snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         topBar = {
             TopAppBar(
@@ -527,7 +529,7 @@ private fun IconPackIconCard(entry: IconPackEngine.PackIconEntry, iconPackPkg: S
         Column(Modifier.padding(4.dp), Arrangement.Center, Alignment.CenterHorizontally) {
             if (preview != null) Image(preview!!.asImageBitmap(), entry.drawableName, Modifier.size(32.dp))
             else Icon(Icons.Filled.Favorite, entry.drawableName, Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(entry.drawableName.take(10), style = MaterialTheme.typography.labelSmall, fontSize = 8.sp, maxLines = 1, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(entry.drawableName.take(10), style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
