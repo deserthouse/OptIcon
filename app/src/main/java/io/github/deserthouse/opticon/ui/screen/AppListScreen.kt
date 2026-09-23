@@ -162,7 +162,7 @@ fun AppListScreen(
                         Text(
                             "OptIcon",
                             style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.ExtraBold,
+                            fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Serif
                         )
                         Spacer(Modifier.width(10.dp))
@@ -170,7 +170,7 @@ fun AppListScreen(
                             Text(
                                 "v${io.github.deserthouse.opticon.BuildConfig.VERSION_NAME}",
                                 style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.SemiBold,
+                                fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
@@ -464,7 +464,7 @@ private fun FilterChipRow(
                     Text(
                         label,
                         style = MaterialTheme.typography.labelMedium,
-                        fontWeight = if (current == mode) FontWeight.SemiBold else FontWeight.Normal
+                        fontWeight = if (current == mode) FontWeight.Bold else FontWeight.Normal
                     )
                 },
                 shape = OptShapes.large,
@@ -536,7 +536,7 @@ private fun GroupHeader(group: AppGroup, count: Int) {
         Text(
             text = label,
             style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.Bold,
             color = if (group == AppGroup.MODIFIED)
                 MaterialTheme.colorScheme.onSurface
             else MaterialTheme.colorScheme.onSurfaceVariant
@@ -581,7 +581,7 @@ private fun EmptyState(searchQuery: String, visibilityBlocked: Boolean = false, 
         Text(
             text = stringResource(if (visibilityBlocked) R.string.empty_visibility_title else R.string.empty_no_apps_title),
             style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold
+            fontWeight = FontWeight.Bold
         )
         Spacer(Modifier.height(6.dp))
         Text(

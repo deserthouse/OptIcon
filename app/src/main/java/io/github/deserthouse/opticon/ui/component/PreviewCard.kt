@@ -88,7 +88,7 @@ fun PreviewCard(
                 Text(
                     text = stringResource(io.github.deserthouse.opticon.R.string.preview_title),
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.Bold
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(

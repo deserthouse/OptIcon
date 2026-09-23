@@ -110,7 +110,7 @@ fun ModernAppCard(
                     Text(
                         text = entry.appName,
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -247,7 +247,7 @@ private fun StatusPill(
         Text(
             text = text,
             style = MaterialTheme.typography.labelSmall,
-            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+            fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
         )
     }
