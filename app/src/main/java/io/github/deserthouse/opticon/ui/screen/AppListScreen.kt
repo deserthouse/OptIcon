@@ -100,6 +100,7 @@ import io.github.deserthouse.opticon.ui.component.ModernAppCard
 import io.github.deserthouse.opticon.ui.state.AppGroup
 import io.github.deserthouse.opticon.ui.state.FilterMode
 import io.github.deserthouse.opticon.ui.viewmodel.AppListViewModel
+import io.github.deserthouse.opticon.ui.theme.OptShapes
 
 /**
  * AppListScreen v0.4.0 — UI redesign
@@ -154,7 +155,7 @@ fun AppListScreen(
                     // Tap the title bar to jump back to the top.
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable {
+                        modifier = Modifier.clip(OptShapes.medium).clickable {
                             scope.launch { listState.animateScrollToItem(0) }
                         }
                     ) {
@@ -165,7 +166,7 @@ fun AppListScreen(
                             fontFamily = FontFamily.Serif
                         )
                         Spacer(Modifier.width(10.dp))
-                        Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                        Surface(shape = OptShapes.small, color = MaterialTheme.colorScheme.primaryContainer) {
                             Text(
                                 "v${io.github.deserthouse.opticon.BuildConfig.VERSION_NAME}",
                                 style = MaterialTheme.typography.labelSmall,
@@ -466,7 +467,7 @@ private fun FilterChipRow(
                         fontWeight = if (current == mode) FontWeight.SemiBold else FontWeight.Normal
                     )
                 },
-                shape = RoundedCornerShape(20.dp),
+                shape = OptShapes.large,
                 colors = FilterChipDefaults.filterChipColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                     selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer
@@ -542,7 +543,7 @@ private fun GroupHeader(group: AppGroup, count: Int) {
         )
         Spacer(Modifier.width(8.dp))
         Surface(
-            shape = RoundedCornerShape(10.dp),
+            shape = OptShapes.medium,
             color = MaterialTheme.colorScheme.surfaceContainerHigh
         ) {
             Text(

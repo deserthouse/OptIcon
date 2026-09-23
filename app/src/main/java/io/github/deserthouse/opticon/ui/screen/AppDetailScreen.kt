@@ -101,6 +101,7 @@ import io.github.deserthouse.opticon.ui.state.IconStrategy
 import io.github.deserthouse.opticon.ui.viewmodel.AppDetailViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import io.github.deserthouse.opticon.ui.theme.OptShapes
 
 private val MATERIAL_ICONS = listOf(
     "Home" to Icons.Filled.Home, "Settings" to Icons.Filled.Settings, "Search" to Icons.Filled.Search,
@@ -244,13 +245,13 @@ fun AppDetailScreen(
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 40.dp, vertical = 4.dp))
                 } else {
-                    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), shape = RoundedCornerShape(16.dp),
+                    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), shape = OptShapes.medium,
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
                         Column(Modifier.padding(12.dp)) {
                             Text(stringResource(R.string.strategy_fankes_submit_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
                             Spacer(Modifier.height(4.dp))
                             OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://betterandroid.github.io/android-notification-icon-project/en/contribute/request"))) },
-                                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                                modifier = Modifier.fillMaxWidth(), shape = OptShapes.medium) {
                                 Text(stringResource(R.string.strategy_fankes_submit_btn), fontSize = 13.sp)
                             }
                         }
@@ -381,18 +382,18 @@ private fun StrategyCard(
             onClick = onClick,
             enabled = enabled,
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
+            shape = OptShapes.large,
             colors = CardDefaults.cardColors(containerColor = container)
         ) {
-            Column(Modifier.clip(RoundedCornerShape(24.dp)), content = content)
+            Column(Modifier.clip(OptShapes.large), content = content)
         }
     } else {
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
+            shape = OptShapes.large,
             colors = CardDefaults.cardColors(containerColor = container)
         ) {
-            Column(Modifier.clip(RoundedCornerShape(24.dp)), content = content)
+            Column(Modifier.clip(OptShapes.large), content = content)
         }
     }
 }
@@ -427,19 +428,19 @@ private fun AssetImportPanel(state: io.github.deserthouse.opticon.ui.state.AppDe
         AnimatedVisibility(state.assetSubStrategy == AssetSubStrategy.PERFECT_ICONS) {
             Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 if (picpHasIcon) {
-                    OutlinedButton(onClick = { viewModel.downloadPicpIcon() }, enabled = !state.perfectIconsLoading && enabled, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                    OutlinedButton(onClick = { viewModel.downloadPicpIcon() }, enabled = !state.perfectIconsLoading && enabled, modifier = Modifier.fillMaxWidth(), shape = OptShapes.medium) {
                         if (state.perfectIconsLoading) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                         else Text(if (state.perfectIconsBitmap != null) "PICP icon loaded" else "Pull PICP icon")
                     }
                 } else {
                     val ctx = LocalContext.current
-                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                    Card(Modifier.fillMaxWidth(), shape = OptShapes.medium, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                         Column(Modifier.padding(12.dp)) {
                             Text(stringResource(R.string.strategy_picp_not_downloaded), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.height(4.dp))
                             Text(stringResource(R.string.strategy_picp_submit_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.height(4.dp))
-                            OutlinedButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PicpEngine.FEEDBACK_URL))) }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp)) {
+                            OutlinedButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PicpEngine.FEEDBACK_URL))) }, modifier = Modifier.fillMaxWidth(), shape = OptShapes.small) {
                                 Text(stringResource(R.string.strategy_picp_submit_btn), fontSize = 13.sp)
                             }
                         }
@@ -530,7 +531,7 @@ private fun IconPackIconCard(entry: IconPackEngine.PackIconEntry, iconPackPkg: S
         delay(60)
         preview = IconPackEngine.loadIconPreviewCached(context, iconPackPkg, entry.drawableName, 48)
     }
-    Card(onClick = onSelect, shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer)) {
+    Card(onClick = onSelect, shape = OptShapes.small, colors = CardDefaults.cardColors(containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer)) {
         Column(Modifier.padding(4.dp), Arrangement.Center, Alignment.CenterHorizontally) {
             if (preview != null) Image(preview!!.asImageBitmap(), entry.drawableName, Modifier.size(32.dp))
             else Icon(Icons.Filled.Favorite, entry.drawableName, Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -561,7 +562,7 @@ private fun AdaptiveDecomposeSection(state: io.github.deserthouse.opticon.ui.sta
 
 @Composable
 private fun AlgoWipSection(onOpen: () -> Unit) {
-    OutlinedButton(onClick = onOpen, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), shape = RoundedCornerShape(12.dp)) {
+    OutlinedButton(onClick = onOpen, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), shape = OptShapes.medium) {
         Icon(Icons.Rounded.Tune, null, Modifier.size(18.dp)); Spacer(Modifier.size(8.dp))
         Text(stringResource(R.string.strategy_algo_open_panel_wip))
     }

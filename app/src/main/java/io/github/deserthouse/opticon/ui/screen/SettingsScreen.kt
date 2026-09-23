@@ -92,6 +92,7 @@ import io.github.deserthouse.opticon.util.PreferenceManager
 import io.github.deserthouse.opticon.util.TraceLogger
 import io.github.deserthouse.opticon.ui.viewmodel.SettingsViewModel
 import kotlinx.coroutines.launch
+import io.github.deserthouse.opticon.ui.theme.OptShapes
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -303,7 +304,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                     if (emojiUnlocked) viewModel.toggleEasterEgg()
                     else viewModel.onVersionTapped()
                 },
-                shape = RoundedCornerShape(24.dp),
+                shape = OptShapes.large,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
                 modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)
             ) {
@@ -330,7 +331,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(OptShapes.medium)
                         .clickable { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/deserthouse/OptIcon"))) }
                         .padding(vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -400,7 +401,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                         )
                         Spacer(Modifier.height(8.dp))
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(OptShapes.small)
                         .clickable { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/deserthouse"))) }
                         .padding(vertical = 6.dp)) {
                             Text("github.com/deserthouse", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
@@ -413,7 +414,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                         // level-3 "not a single drop left" target.
                         Column(
                             Modifier.fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
+                                .clip(OptShapes.medium)
                                 .clickable { viewModel.onRambleTapped() }
                                 .padding(horizontal = 4.dp, vertical = 10.dp)
                         ) {
@@ -477,7 +478,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                     Image(
                         painterResource(R.drawable.avatar_full),
                         contentDescription = "avatar",
-                        modifier = Modifier.padding(10.dp).clip(RoundedCornerShape(20.dp))
+                        modifier = Modifier.padding(10.dp).clip(OptShapes.large)
                     )
                 }
             }
@@ -671,7 +672,7 @@ private fun SourceSection(
                         if (descText.isNotBlank()) Text(descText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (linkUrl != null) {
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
+                                .clip(OptShapes.small)
                                 .clickable { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(linkUrl))) }
                                 .padding(vertical = 6.dp)) {
                                 Text(linkUrl, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
@@ -724,7 +725,7 @@ private fun RestartSystemUiButton() {
             onClick = { showConfirm = true },
             enabled = !running,
             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-            shape = RoundedCornerShape(12.dp)
+            shape = OptShapes.medium
         ) {
             if (running) {
                 CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
@@ -899,13 +900,13 @@ private fun RuntimeStatusCard(
 @Composable private fun SettingsCard(content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        shape = RoundedCornerShape(24.dp),
+        shape = OptShapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
     ) {
         // clip at card-content level so descendant clickable ripples stay
         // inside the 24dp rounded outline (otherwise they draw square)
         Column(
-            Modifier.padding(horizontal = 16.dp, vertical = 6.dp).clip(RoundedCornerShape(24.dp)),
+            Modifier.padding(horizontal = 16.dp, vertical = 6.dp).clip(OptShapes.large),
             content = content
         )
     }
@@ -965,7 +966,7 @@ fun <T> RadioSheet(
                 val selectedHere = opt.value == selected
                 Row(
                     Modifier.fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
+                        .clip(OptShapes.medium)
                         .clickable { onSelect(opt.value) }
                         .padding(horizontal = 4.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically

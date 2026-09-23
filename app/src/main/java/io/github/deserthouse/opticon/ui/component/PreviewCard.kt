@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.deserthouse.opticon.ui.state.StatusBarMode
 import kotlin.math.roundToInt
+import io.github.deserthouse.opticon.ui.theme.OptShapes
 
 /** Dark status bar background */
 private val DarkStatusBarBg = Color(0xFF263238)
@@ -71,7 +72,7 @@ fun PreviewCard(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(16.dp),
+        shape = OptShapes.medium,
         shadowElevation = 4.dp,
         color = MaterialTheme.colorScheme.surface
     ) {
@@ -116,7 +117,7 @@ fun PreviewCard(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
                     .height(88.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(OptShapes.medium)
                     .background(bgColor)
             ) {
                 // Status bar decorations (time / signal / battery)

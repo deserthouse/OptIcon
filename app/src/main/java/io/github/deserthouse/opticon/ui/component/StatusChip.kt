@@ -14,6 +14,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.deserthouse.opticon.ui.state.ModificationSource
+import io.github.deserthouse.opticon.ui.theme.OptShapes
 
 private val ColorAnia = Color(0xFF536DFE)
 private val ColorPicp = Color(0xFF1D9E75)
@@ -25,7 +26,7 @@ private val ColorUnmodified = Color(0xFF757575)
 @Composable
 private fun Chip(label: String, color: Color, modifier: Modifier = Modifier) {
     val animatedColor by animateColorAsState(targetValue = color, label = "chipColor")
-    Surface(modifier = modifier, shape = RoundedCornerShape(6.dp), color = animatedColor.copy(alpha = 0.15f)) {
+    Surface(modifier = modifier, shape = OptShapes.small, color = animatedColor.copy(alpha = 0.15f)) {
         Text(text = label, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp), color = animatedColor, fontSize = 11.sp, fontWeight = FontWeight.Medium)
     }
 }

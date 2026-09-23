@@ -42,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.deserthouse.opticon.ui.state.AppUiEntry
 import io.github.deserthouse.opticon.ui.state.ModificationSource
+import io.github.deserthouse.opticon.ui.theme.OptShapes
 
 /**
  * ModernAppCard — v0.3.0-alpha redesigned app card
@@ -87,14 +88,14 @@ fun ModernAppCard(
             .graphicsLayer {
                 scaleX = scale; scaleY = scale
             }
-            .clip(RoundedCornerShape(24.dp))
+            .clip(OptShapes.large)
             .combinedClickable(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick,
                 onLongClick = onLongClick
             ),
-        shape = RoundedCornerShape(24.dp),
+        shape = OptShapes.large,
         colors = CardDefaults.cardColors(containerColor = containerColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp, pressedElevation = 2.dp)
     ) {
@@ -186,7 +187,7 @@ private fun ModificationBadge(source: ModificationSource) {
         ModificationSource.NONE -> return
     }
     Surface(
-        shape = RoundedCornerShape(6.dp),
+        shape = OptShapes.small,
         color = color,
         contentColor = MaterialTheme.colorScheme.onPrimary
     ) {
@@ -239,7 +240,7 @@ private fun StatusPill(
         label = "pillFg"
     )
     Surface(
-        shape = RoundedCornerShape(8.dp),
+        shape = OptShapes.small,
         color = bg,
         contentColor = fg
     ) {

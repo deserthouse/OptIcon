@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.deserthouse.opticon.R
 import io.github.deserthouse.opticon.engine.RedrawParams
+import io.github.deserthouse.opticon.ui.theme.OptShapes
 
 /**
  * ParameterPanel — 算法微调实时参数面板
@@ -124,7 +125,7 @@ fun ParameterPanel(
                 Button(
                     onClick = onReset,
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = OptShapes.medium,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                         contentColor = MaterialTheme.colorScheme.onSurface
