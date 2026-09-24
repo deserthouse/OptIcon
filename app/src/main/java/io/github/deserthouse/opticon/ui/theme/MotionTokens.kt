@@ -1,7 +1,5 @@
 package io.github.deserthouse.opticon.ui.theme
 
-import androidx.compose.animation.core.CubicBezierEasing
-
 /**
  * MotionTokens (E2) — the named motion vocabulary. One source of truth for
  * durations/easing instead of scattered tween(120/180/220/280) magic numbers.
@@ -19,7 +17,4 @@ object MotionTokens {
 
     /** Large set-piece transitions (reserved — hero/pager level). */
     const val SLOW = 600
-
-    /** Standard easing for the token durations. */
-    val EASING = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 }

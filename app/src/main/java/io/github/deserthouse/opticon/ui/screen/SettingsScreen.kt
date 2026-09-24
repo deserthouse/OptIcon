@@ -12,13 +12,13 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -645,7 +645,9 @@ private fun CreditEntry(project: String, description: String, url: String) {
         // clickable region, ripple spans the full card width.
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().clip(OptShapes.medium).clickable {
+            // D5 gate: ripple width is full-card; heightIn keeps the touch
+            // target at the 48dp floor without inflating the visual text.
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(OptShapes.medium).clickable {
                 ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
             }.padding(horizontal = 16.dp, vertical = 6.dp)
         ) {
@@ -727,10 +729,11 @@ private fun SourceSection(
                     val lines = fullDesc.split("\n")
                     val descText = lines.dropLast(1).joinToString("\n").ifBlank { lines.first() }
                     val linkUrl = lines.lastOrNull()?.takeIf { it.startsWith("http") }
-                    Column(Modifier.padding(start = 64.dp, end = 16.dp)) {
+                    Column(Modifier.padding(start = 68.dp, end = 16.dp)) {
                         if (descText.isNotBlank()) Text(descText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (linkUrl != null) {
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier
+                                .heightIn(min = 48.dp)
                                 .clip(OptShapes.small)
                                 .clickable { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(linkUrl))) }
                                 .padding(vertical = 6.dp)) {
@@ -759,7 +762,7 @@ private fun SourceSection(
 /** Result of `su -c kill $(pidof com.android.systemui)` — surfaced inline, no toast */
 private sealed interface RestartResult {
     data object Running : RestartResult
-    data class Ok(val exitCode: Int) : RestartResult
+    data object Ok : RestartResult
     data class Failed(val exitCode: Int, val stderr: String) : RestartResult
     data class Error(val message: String) : RestartResult
 }
@@ -799,7 +802,7 @@ private fun RestartSystemUiButton() {
                 Icon(Icons.Rounded.CheckCircle, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    stringResource(R.string.restart_result_ok, (result as? RestartResult.Ok)?.exitCode ?: 0),
+                    stringResource(R.string.restart_result_ok),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -864,7 +867,7 @@ private suspend fun restartSystemUi(): RestartResult = kotlinx.coroutines.withCo
             proc.destroy()
             RestartResult.Failed(-1, "timeout")
         } else if (proc.exitValue() == 0) {
-            RestartResult.Ok(0)
+            RestartResult.Ok
         } else {
             RestartResult.Failed(proc.exitValue(), output)
         }

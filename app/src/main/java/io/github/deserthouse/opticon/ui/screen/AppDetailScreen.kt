@@ -103,6 +103,7 @@ import io.github.deserthouse.opticon.ui.state.IconStrategy
 import io.github.deserthouse.opticon.ui.viewmodel.AppDetailViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import io.github.deserthouse.opticon.ui.theme.MotionTokens
 import io.github.deserthouse.opticon.ui.theme.OptShapes
 
 private val MATERIAL_ICONS = listOf(
@@ -393,7 +394,7 @@ private fun StrategyCard(
     val container by animateColorAsState(
         targetValue = if (selected) MaterialTheme.colorScheme.primaryContainer
         else MaterialTheme.colorScheme.surfaceContainer,
-        animationSpec = tween(io.github.deserthouse.opticon.ui.theme.MotionTokens.FAST), label = "strategyCardBg"
+        animationSpec = tween(MotionTokens.FAST), label = "strategyCardBg"
     )
     // Card-level click = the WHOLE card selects this strategy (visual and
     // interactive areas match). Child clickables (radios, buttons, links)

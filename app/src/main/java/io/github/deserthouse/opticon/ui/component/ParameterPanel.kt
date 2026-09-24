@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.deserthouse.opticon.R
 import io.github.deserthouse.opticon.engine.RedrawParams
+import io.github.deserthouse.opticon.ui.theme.MotionTokens
 import io.github.deserthouse.opticon.ui.theme.OptShapes
 
 /**
@@ -56,10 +57,10 @@ fun ParameterPanel(
 ) {
     AnimatedVisibility(
         visible = visible,
-        enter = expandVertically(animationSpec = tween(io.github.deserthouse.opticon.ui.theme.MotionTokens.NORMAL, easing = FastOutSlowInEasing)) +
+        enter = expandVertically(animationSpec = tween(MotionTokens.NORMAL, easing = FastOutSlowInEasing)) +
                 fadeIn(animationSpec = tween(io.github.deserthouse.opticon.ui.theme.MotionTokens.NORMAL, easing = FastOutSlowInEasing)),
         exit = shrinkVertically(animationSpec = tween(io.github.deserthouse.opticon.ui.theme.MotionTokens.NORMAL, easing = FastOutSlowInEasing)) +
-                fadeOut(animationSpec = tween(io.github.deserthouse.opticon.ui.theme.MotionTokens.FAST)),
+                fadeOut(animationSpec = tween(MotionTokens.FAST)),
         modifier = modifier.fillMaxWidth()
     ) {
         Column(

@@ -32,6 +32,7 @@ import androidx.navigation.navArgument
 import io.github.deserthouse.opticon.ui.screen.AppDetailScreen
 import io.github.deserthouse.opticon.ui.screen.AppListScreen
 import io.github.deserthouse.opticon.ui.screen.SettingsScreen
+import io.github.deserthouse.opticon.ui.theme.MotionTokens
 import io.github.deserthouse.opticon.ui.theme.OptIconTheme
 import io.github.deserthouse.opticon.util.PreferenceManager
 import io.github.deserthouse.opticon.util.TraceLogger
@@ -53,7 +54,7 @@ private object Routes {
 
 // Material shared-axis X transitions (M3 motion): short slide (¼ width) +
 // slight scale-up on enter + fade, symmetric easing — replaces plain slide.
-private val NAV_DURATION = io.github.deserthouse.opticon.ui.theme.MotionTokens.NORMAL
+private val NAV_DURATION = MotionTokens.NORMAL
 private val NAV_EASING = EaseOutCubic
 
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.enterPush(): EnterTransition =

@@ -42,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.deserthouse.opticon.ui.state.AppUiEntry
 import io.github.deserthouse.opticon.ui.state.ModificationSource
+import io.github.deserthouse.opticon.ui.theme.MotionTokens
 import io.github.deserthouse.opticon.ui.theme.OptShapes
 
 /**
@@ -68,7 +69,7 @@ fun ModernAppCard(
             MaterialTheme.colorScheme.surfaceContainerHighest
         else
             MaterialTheme.colorScheme.surfaceContainerHigh,
-        animationSpec = tween(durationMillis = io.github.deserthouse.opticon.ui.theme.MotionTokens.FAST),
+        animationSpec = tween(durationMillis = MotionTokens.FAST),
         label = "cardBg"
     )
     // M3E press: springy scale-down (expressive motion)

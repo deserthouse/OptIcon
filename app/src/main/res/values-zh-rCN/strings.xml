@@ -279,7 +279,7 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
 
     <!-- UI redesign v0.5.0 — 重启 SystemUI 静默反馈 -->
     <string name="restart_running">正在执行…</string>
-    <string name="restart_result_ok">命令已发送 (exit %1$d)，SystemUI 重启中</string>
+    <string name="restart_result_ok">命令已发送，SystemUI 重启中</string>
     <string name="restart_result_failed">重启失败，请检查 Root 授权%1$s</string>
     <string name="restart_result_error">无法启动 su：%1$s</string>
 </resources>

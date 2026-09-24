@@ -281,7 +281,7 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
 
     <!-- UI redesign v0.5.0 — restart SystemUI silent feedback -->
     <string name="restart_running">Executing…</string>
-    <string name="restart_result_ok">Command sent (exit %1$d) — SystemUI is restarting</string>
+    <string name="restart_result_ok">Command sent — SystemUI is restarting</string>
     <string name="restart_result_failed">Restart failed — check root permission%1$s</string>
     <string name="restart_result_error">Could not launch su: %1$s</string>
 </resources>
