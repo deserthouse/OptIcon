@@ -29,6 +29,11 @@ object ComplianceDetector {
 
     private const val DIR = "compliance"
 
+    /** Verdict per pkg: frequent notifiers re-enter createIcons on every
+     *  post; this cache spares the 64×64 render + pixel scan (the flag-file
+     *  read stays as the cross-boot truth). */
+    private val verdictCache = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+
     fun dir(base: File): File = File(base, DIR)
 
     /** Evaluate + persist compliance for a notification's original smallIcon.
@@ -36,22 +41,32 @@ object ComplianceDetector {
     fun evaluateAndReport(sharedBase: File, sbn: Notification, pkg: String) {
         try {
             val icon = sbn.smallIcon ?: return
+            verdictCache[pkg]?.let { cached ->
+                archiveOriginal(sharedBase, icon, pkg)
+                writeFlag(sharedBase, pkg, cached)
+                return
+            }
             // TYPE_RESOURCE/URI = vector template → compliant by definition.
             // TYPE_BITMAP → rasterize and check monochrome.
             val compliant = when (icon.type) {
                 1 -> loadDrawable(icon)?.let { isMonochrome(it) } ?: return
                 else -> true
             }
+            verdictCache[pkg] = compliant
             archiveOriginal(sharedBase, icon, pkg)
-            val file = File(dir(sharedBase), pkg)
-            val flag = if (compliant) "1" else "0"
-            // skip disk IO when the verdict is unchanged (frequent notifiers)
-            if (file.exists() && file.readText() == flag) return
-            file.parentFile?.mkdirs()
-            file.writeText(flag)
+            writeFlag(sharedBase, pkg, compliant)
         } catch (_: Exception) {
             // never crash SystemUI for a badge
         }
+    }
+
+    private fun writeFlag(sharedBase: File, pkg: String, compliant: Boolean) {
+        val file = File(dir(sharedBase), pkg)
+        val flag = if (compliant) "1" else "0"
+        // skip disk IO when the verdict is unchanged (frequent notifiers)
+        if (file.exists() && file.readText() == flag) return
+        file.parentFile?.mkdirs()
+        file.writeText(flag)
     }
 
     /** Load the drawable behind an Icon without loading resources twice. */

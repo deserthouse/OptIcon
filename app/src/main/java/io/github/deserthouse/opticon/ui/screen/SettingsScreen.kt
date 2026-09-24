@@ -255,13 +255,26 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
             }
             Spacer(Modifier.height(8.dp))
             SettingsCard {
+                val forceMonoUnknown by viewModel.forceMonoUnknown.collectAsState()
                 SettingItem(
                     Icons.Rounded.Palette,
                     stringResource(R.string.force_mono_title),
                     stringResource(R.string.force_mono_desc),
                     onClick = { viewModel.setForceMono(!forceMono) }
                 ) {
-                    Switch(checked = forceMono, onCheckedChange = { viewModel.setForceMono(it) })
+                    Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+                        Switch(checked = forceMono, onCheckedChange = { viewModel.setForceMono(it) })
+                        if (forceMonoUnknown) {
+                            // Policy file unreadable (owner/EACCES): the switch
+                            // shows a guess — say so instead of a fake OFF.
+                            Text(
+                                stringResource(R.string.force_mono_unknown),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
+                    }
                 }
             }
 
@@ -313,16 +326,24 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                 // only exists on Android 13+; on 12 the option degrades to a
                 // plain back press (harmless). Be honest per OS version.
                 val predictiveSupported = android.os.Build.VERSION.SDK_INT >= 33
+                var showPredictiveDialog by remember { mutableStateOf(false) }
                 SettingItem(
                     Icons.Rounded.Gesture,
                     stringResource(R.string.predictive_back),
-                    stringResource(if (predictiveSupported) R.string.predictive_back_desc else R.string.predictive_back_desc_legacy)
+                    stringResource(if (predictiveSupported) R.string.predictive_back_desc else R.string.predictive_back_desc_legacy),
+                    onClick = if (predictiveSupported) ({ showPredictiveDialog = true }) else null
                 ) {
                     if (predictiveSupported) {
                         Text(stringResource(R.string.enabled_label), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                     } else {
                         Text("N/A", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
+                }
+                if (showPredictiveDialog) {
+                    AlertDialog(onDismissRequest = { showPredictiveDialog = false },
+                        title = { Text(stringResource(R.string.predictive_back_dialog_title)) },
+                        text = { Text(stringResource(R.string.predictive_back_dialog_text)) },
+                        confirmButton = { TextButton(onClick = { showPredictiveDialog = false }) { Text(stringResource(R.string.ok_label)) } })
                 }
             }
 
@@ -626,11 +647,17 @@ private fun CreditEntry(project: String, description: String, url: String) {
     Column(Modifier.padding(vertical = 6.dp)) {
         Text(project, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
         Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(url, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
-            IconButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }, modifier = Modifier.size(24.dp)) {
-                Icon(Icons.Rounded.Launch, "Open", Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+        // Whole row is the hit target — the blue URL is the strongest link
+        // affordance on screen, so the click must live there too, not only on
+        // the 16dp launcher glyph.
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().clip(OptShapes.medium).clickable {
+                ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
             }
+        ) {
+            Text(url, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+            Icon(Icons.Rounded.Launch, stringResource(R.string.hero_status_cd), Modifier.padding(start = 8.dp).size(16.dp), tint = MaterialTheme.colorScheme.primary)
         }
     }
 }

@@ -172,6 +172,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     )
     val forceMono: StateFlow<Boolean> = _forceMono.asStateFlow()
 
+    /** True when the policy file exists but could not be read (owner/EACCES):
+     *  the switch then shows OFF without knowing the truth — surface that. */
+    private val _forceMonoUnknown = MutableStateFlow(
+        io.github.deserthouse.opticon.engine.SharedIconStore.readColorMode() == null
+    )
+    val forceMonoUnknown: StateFlow<Boolean> = _forceMonoUnknown.asStateFlow()
+
     fun setForceMono(enabled: Boolean) {
         val written = io.github.deserthouse.opticon.engine.SharedIconStore.writeColorMode(
             getApplication(), if (enabled) "force_mono" else "off"
@@ -184,6 +191,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             return
         }
         _forceMono.value = enabled
+        _forceMonoUnknown.value = false  // a successful write is self-verifying
     }
 
     fun setVerboseLogging(enabled: Boolean) {
@@ -193,7 +201,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setMasterEnabled(enabled: Boolean) {
-        PreferenceManager.setModuleEnabled(enabled)
+        val written = PreferenceManager.setModuleEnabled(enabled)
+        if (!written) {
+            // Optimistic flip would show OFF while the hook keeps replacing —
+            // roll back and say so (same contract as setForceMono).
+            _toastEvent.value = getApplication<Application>().getString(
+                io.github.deserthouse.opticon.R.string.sync_write_failed
+            )
+            return
+        }
         _masterEnabled.value = enabled
     }
 

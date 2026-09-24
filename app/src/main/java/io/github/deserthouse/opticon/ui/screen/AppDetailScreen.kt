@@ -242,7 +242,7 @@ fun AppDetailScreen(
             val fankesMeta = remember(state.packageName) { IconLibEngine.getMeta(state.packageName) }
             SelectionRow(
                 label = stringResource(R.string.strategy_fankes_label),
-                desc = if (fankesHasIcon) stringResource(R.string.strategy_fankes_covered, fankesMeta?.contributorName ?: "")
+                description = if (fankesHasIcon) stringResource(R.string.strategy_fankes_covered, fankesMeta?.contributorName ?: "")
                        else stringResource(R.string.strategy_fankes_not_covered),
                 selected = state.strategy == IconStrategy.FANKES,
                 enabled = enabled,
@@ -275,7 +275,7 @@ fun AppDetailScreen(
             StrategyCard(selected = state.strategy == IconStrategy.ASSET_IMPORT, enabled = enabled, onClick = { viewModel.setStrategy(IconStrategy.ASSET_IMPORT) }) {
             SelectionRow(
                 label = stringResource(R.string.strategy_asset_label),
-                desc = stringResource(R.string.strategy_asset_desc),
+                description = stringResource(R.string.strategy_asset_desc),
                 selected = state.strategy == IconStrategy.ASSET_IMPORT,
                 enabled = enabled,
                 onClick = { viewModel.setStrategy(IconStrategy.ASSET_IMPORT) }
@@ -291,7 +291,7 @@ fun AppDetailScreen(
             StrategyCard(selected = state.strategy == IconStrategy.ALGORITHM, enabled = enabled, onClick = { viewModel.setStrategy(IconStrategy.ALGORITHM) }) {
             SelectionRow(
                 label = stringResource(R.string.strategy_algo_label),
-                desc = stringResource(R.string.strategy_algo_wip),
+                description = stringResource(R.string.strategy_algo_wip),
                 selected = state.strategy == IconStrategy.ALGORITHM,
                 enabled = enabled,
                 onClick = { viewModel.setStrategy(IconStrategy.ALGORITHM) }
@@ -407,19 +407,6 @@ private fun StrategyCard(
     }
 }
 
-// Strategy radio with optional disable
-@Composable
-private fun SelectionRow(label: String, desc: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    val alpha = if (enabled) 1f else 0.4f
-    Row(modifier = Modifier.fillMaxWidth().then(if (enabled) Modifier.selectable(selected = selected, onClick = onClick) else Modifier).padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        RadioButton(selected = selected, onClick = onClick, enabled = enabled)
-        Spacer(Modifier.size(8.dp))
-        Column(Modifier.alpha(alpha)) {
-            Text(label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-            Text(desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
 
 @Composable
 private fun AssetImportPanel(state: io.github.deserthouse.opticon.ui.state.AppDetailState, viewModel: AppDetailViewModel, enabled: Boolean) {

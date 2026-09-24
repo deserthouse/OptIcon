@@ -24,8 +24,9 @@ import java.util.concurrent.atomic.AtomicLong
  *   - once at hook init (background thread, ~30s delay to let the network
  *     settle after boot)
  *   - every SYNC_INTERVAL_MS thereafter while SystemUI lives
- *   - immediately when the shared-dir manifest bumps its version
- *     (App → hook wakeup channel, no Binder involved)
+ *   - immediately when the App-side sync lands a fresh meta.json — the
+ *     hook's FileObserver on that directory calls requestSync() (no Binder;
+ *     the observer already watches the dir for cache busts)
  *
  * Icons land in cacheDir/opticon_hook_icons/{pkg}.png — cacheDir of the
  * SystemUI process, readable without any cross-domain access.
@@ -44,6 +45,9 @@ object HookLibSync {
 
     @Volatile
     private var iconDir: File? = null
+
+    @Volatile
+    private var appContext: Context? = null
 
     /** Directory holding hook-process-local rule icons.
      *  The SystemContext ("android" package) has no accessible cacheDir —
@@ -73,6 +77,7 @@ object HookLibSync {
 
     /** Launch the background self-sync loop. Call once from hook init. */
     fun start(context: Context) {
+        appContext = context.applicationContext
         Thread({
             Thread.sleep(BOOT_DELAY_MS)
             while (true) {
@@ -82,6 +87,14 @@ object HookLibSync {
                 Thread.sleep(SYNC_INTERVAL_MS)
             }
         }, "OptIconHookLibSync").apply { isDaemon = true }.start()
+    }
+
+    /** App→hook wakeup: the App just published fresh rules (meta.json event).
+     *  Debounced by the syncing flag — a call during an in-flight sync is a
+     *  no-op because that run already sees the new data. */
+    fun requestSync() {
+        val ctx = appContext ?: return
+        Thread({ syncNow(ctx) }, "OptIconHookSyncWake").apply { isDaemon = true }.start()
     }
 
     /** One-shot sync: download ANIP manifests + PNGs into cacheDir. */

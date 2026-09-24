@@ -68,6 +68,10 @@ object NotificationHook {
 
     private val iconCache = LruCache<String, Bitmap>(CACHE_SIZE)
 
+    /** Single worker for compliance/archive side jobs (B5): serializes file
+     *  writes and keeps the bitmap render + PNG compress off the main thread. */
+    private val complianceExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
+
     @Volatile
     private var initialized = false
 
@@ -106,11 +110,6 @@ object NotificationHook {
     /** rate-limit guard for shade_icon_mode stat checks */
     private val lastShadeModeCheck = AtomicLong(0L)
 
-    private val currentPackage = ThreadLocal<String>()
-
-    /** Package attribution channel for recoverBuilder hook: createIcons/updateIcons
-     *  stash the package before SystemUI's inflation thread rebuilds content. */
-    private val lastPendingPackage = object : InheritableThreadLocal<String>() {}
 
     /** FileObservers watching icon dirs; strong refs keep them alive */
     @Volatile
@@ -127,7 +126,6 @@ object NotificationHook {
 
         Thread({ initHook() }, "OptIconNotifHook-Init").start()
 
-        hookGetSmallIcon(xposed)
         hookCreateIcons(xposed, classLoader)
         hookUpdateIcons(xposed, classLoader)
         hookCachingIconView(xposed)
@@ -352,6 +350,13 @@ object NotificationHook {
                         // Production channel files use .opticon; dev channels
                         // use .png — both must invalidate the cache.
                         if (path == null) return
+                        // App→hook sync wakeup: fresh meta.json means the App
+                        // just published new ANIP rules — re-sync the local
+                        // cache instead of waiting out the 12h cycle.
+                        if (sub.name == FANKES_DIR && path == "meta.json") {
+                            HookLibSync.requestSync()
+                            return
+                        }
                         val isIconFile = path.endsWith(SHARED_ICON_EXT) || path.endsWith(".png")
                         if (!isIconFile) return
                         val pkg = path.removeSuffix(SHARED_ICON_EXT).removeSuffix(".png")
@@ -370,32 +375,6 @@ object NotificationHook {
             } catch (e: Throwable) {
                 TraceLogger.w(TAG, "FileObserver(${sub.name}) failed: ${e.message}")
             }
-        }
-    }
-
-    private fun hookGetSmallIcon(xposed: XposedInterface) {
-        try {
-            val method = Notification::class.java.getDeclaredMethod("getSmallIcon")
-            xposed.hook(method).setId("opticon:getSmallIcon").intercept(
-                XposedInterface.Hooker { chain ->
-                    try {
-                        if (!initialized) return@Hooker chain.proceed()
-                        maybeRefreshMasterSwitch()
-                        if (!masterEnabled) return@Hooker chain.proceed()
-                        val pkg = currentPackage.get() ?: return@Hooker chain.proceed()
-                        if (pkg == MODULE_PKG) return@Hooker chain.proceed()
-
-                        val n = chain.getThisObject() as? Notification
-                        resolveReplacementIcon(pkg, iconDrawableOf(n)) ?: return@Hooker chain.proceed()
-                    } catch (e: Throwable) {
-                        TraceLogger.w(TAG, "getSmallIcon hook: ${e.message}")
-                        try { chain.proceed() } catch (_: Exception) { null }
-                    }
-                }
-            )
-            TraceLogger.i(TAG, "Notification.getSmallIcon hooked")
-        } catch (e: Throwable) {
-            TraceLogger.e(TAG, "hookGetSmallIcon failed: ${e.message}")
         }
     }
 
@@ -514,8 +493,16 @@ object NotificationHook {
                                 val sbn = sbnField.get(entry) as? StatusBarNotification
                                 val pkg = sbn?.packageName
                                 if (!pkg.isNullOrEmpty() && pkg != MODULE_PKG) {
-                                    lastPendingPackage.set(pkg)
-                                    ComplianceDetector.evaluateAndReport(SHARED_ICON_DIR, sbn.notification, pkg)
+                                    // Disk IO + bitmap render — never on the
+                                    // SystemUI main thread (B5). The Icon object
+                                    // stays valid; its bitmap is read on the worker.
+                                    complianceExecutor.execute {
+                                        try {
+                                            ComplianceDetector.evaluateAndReport(SHARED_ICON_DIR, sbn.notification, pkg)
+                                        } catch (e: Throwable) {
+                                            TraceLogger.w(TAG, "compliance: ${e.message}")
+                                        }
+                                    }
                                     val replacement = resolveReplacementIcon(pkg, iconDrawableOf(sbn.notification))
                                     if (replacement != null) {
                                         setSmallIconMethod.invoke(sbn.notification, replacement)

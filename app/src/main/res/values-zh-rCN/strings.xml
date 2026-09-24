@@ -249,6 +249,7 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="sync_picp_failed">PICP 同步失败</string>
     <string name="sync_failed">同步失败</string>
     <string name="sync_write_failed">设置写入失败，存储不可用</string>
+    <string name="force_mono_unknown">状态未知——点按开关可重写</string>
     <string name="refresh">刷新</string>
     <string name="toggle_preview_mode">切换预览模式</string>
     <string name="badge_source_lib">规则库</string>
@@ -262,6 +263,8 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="compliance_hint">应用发送通知后才会显示合规状态</string>
     <string name="enabled_label">已启用</string>
     <string name="predictive_back_desc">原生返回手势预览，始终启用（Android 13+ 系统生效）——为什么要关？</string>
+    <string name="predictive_back_dialog_title">预测性返回手势</string>
+    <string name="predictive_back_dialog_text">Android 13+ 上预览由系统自身渲染，不存在可暴露的开关；强行关闭需要侵入系统行为，这不是本模块会做的事。</string>
     <string name="unsaved_title">有未保存的修改</string>
     <string name="unsaved_body">你修改了该应用的图标设置但尚未保存，离开前要保存吗？</string>
     <string name="unsaved_save">保存</string>

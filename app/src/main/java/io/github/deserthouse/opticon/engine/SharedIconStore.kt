@@ -107,10 +107,13 @@ object SharedIconStore {
         writeBytes(context, "color_mode.opticon", mode.toByteArray())
 
     /** App-side reads of the public dir can EACCES when the file's owner is
-     *  not this app (shell-pushed fixtures, hook-written rows) — degrade to
-     *  null (= default policy) instead of crashing the UI. */
+     *  not this app (shell-pushed fixtures, hook-written rows).
+     *  @return "off"/"force_mono", or **null only when unreadable** — an
+     *  absent file is the legitimate "off" default. Callers can therefore
+     *  show an honest "state unknown" instead of a fake OFF. */
     fun readColorMode(): String? = try {
-        colorModeFile().takeIf { it.isFile }?.readText()?.trim()
+        val f = colorModeFile()
+        if (!f.exists()) "off" else f.readText().trim().ifEmpty { "off" }
     } catch (_: Exception) { null }
 
     fun writeColorOverride(context: Context, pkg: String, value: String): String? =
@@ -134,8 +137,18 @@ object SharedIconStore {
      * Delete an icon from the shared dir (user reverted an app).
      * Returns true if a row was actually removed.
      */
-    fun deleteIcon(context: Context, pkg: String): Boolean =
-        deleteByName(context, "$pkg$EXTENSION")
+    fun deleteIcon(context: Context, pkg: String): Boolean {
+        val rowGone = deleteByName(context, "$pkg$EXTENSION")
+        // Orphan guard (mirror of writeBytes'): a physical file with no
+        // MediaStore row survives deleteByName — and the hook's Path 0 would
+        // keep serving it after the user asked to revert.
+        return try {
+            val fileGone = File(publicDir(), "$pkg$EXTENSION").delete()
+            rowGone || fileGone
+        } catch (_: Exception) {
+            rowGone
+        }
+    }
 
     /**
      * Mirror-write: keep the legacy filesDir copy (for App-side previews and

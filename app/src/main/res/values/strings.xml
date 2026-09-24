@@ -208,6 +208,8 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="root_status_checking">Checking su access…</string>
     <string name="about_slogan">— Make every notification icon native.</string>
     <string name="predictive_back_desc">Native back-swipe preview, always on (system effect on Android 13+) — why would you turn it off?</string>
+    <string name="predictive_back_dialog_title">Predictive back gestures</string>
+    <string name="predictive_back_dialog_text">The preview is rendered by the system itself on Android 13+ — there is no switch to expose, and forcing it off would mean modifying system behavior this module stays away from.</string>
     <string name="predictive_back_desc_legacy">Regrettably, gesture preview is not supported on this Android version (requires Android 13+).</string>
     <string name="empty_no_apps_title">No apps found</string>
     <string name="empty_visibility_title">App list is blocked</string>
@@ -253,6 +255,7 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="sync_picp_failed">PICP sync failed</string>
     <string name="sync_failed">Sync failed</string>
     <string name="sync_write_failed">Couldn\'t write the setting — storage unavailable</string>
+    <string name="force_mono_unknown">State unknown — tap the switch to rewrite</string>
     <string name="toggle_preview_mode">Toggle preview mode</string>
     <string name="badge_source_lib">Rules</string>
     <string name="badge_source_algo">Redraw</string>

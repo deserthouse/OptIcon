@@ -213,17 +213,22 @@ object PreferenceManager {
     fun isModuleEnabled(): Boolean =
         modulePrefs?.getBoolean(KEY_MODULE_ENABLED, true) ?: true
 
-    fun setModuleEnabled(enabled: Boolean) {
+    /** @return the shared-dir path on success, null when the cross-process
+     *  write failed — the caller MUST surface that (a silently lost "off"
+     *  leaves the hook replacing icons the user asked to stop). */
+    fun setModuleEnabled(enabled: Boolean): Boolean {
         modulePrefs?.edit { putBoolean(KEY_MODULE_ENABLED, enabled) }
         // Also write a world-readable file for cross-process read by SystemUI hook
-        try {
-            val ctx = ctxRef?.get() ?: return
+        return try {
+            val ctx = ctxRef?.get() ?: return false
             val file = java.io.File(ctx.filesDir, "master_switch")
             file.writeText(if (enabled) "true" else "false")
             file.setReadable(true, false)
             // Production channel: mirror to shared Downloads dir (readable by SystemUI)
-            io.github.deserthouse.opticon.engine.SharedIconStore.writeMasterSwitch(ctx, enabled)
-        } catch (_: Exception) {}
+            io.github.deserthouse.opticon.engine.SharedIconStore.writeMasterSwitch(ctx, enabled) != null
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private var ctxRef: java.lang.ref.WeakReference<Context>? = null
