@@ -174,13 +174,23 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
             // ── 模块控制 ──
             SectionTitle(stringResource(R.string.module_control))
             SettingsCard {
-                SettingItem(Icons.Rounded.BugReport, stringResource(R.string.master_switch), stringResource(R.string.master_switch_desc)) {
+                SettingItem(
+                    Icons.Rounded.BugReport,
+                    stringResource(R.string.master_switch),
+                    stringResource(R.string.master_switch_desc),
+                    onClick = { if (masterEnabled) showMasterOffDialog = true else viewModel.setMasterEnabled(true) }
+                ) {
                     Switch(checked = masterEnabled, onCheckedChange = { on ->
                         if (on) viewModel.setMasterEnabled(true) else showMasterOffDialog = true
                     })
                 }
                 HorizontalDivider(Modifier.padding(horizontal = 16.dp))
-                SettingItem(Icons.Rounded.BugReport, stringResource(R.string.verbose_logging), stringResource(R.string.verbose_logging_desc)) {
+                SettingItem(
+                    Icons.Rounded.BugReport,
+                    stringResource(R.string.verbose_logging),
+                    stringResource(R.string.verbose_logging_desc),
+                    onClick = { viewModel.setVerboseLogging(!verboseLogging) }
+                ) {
                     Switch(checked = verboseLogging, onCheckedChange = viewModel::setVerboseLogging)
                 }
             }
@@ -248,7 +258,8 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                 SettingItem(
                     Icons.Rounded.Palette,
                     stringResource(R.string.force_mono_title),
-                    stringResource(R.string.force_mono_desc)
+                    stringResource(R.string.force_mono_desc),
+                    onClick = { viewModel.setForceMono(!forceMono) }
                 ) {
                     Switch(checked = forceMono, onCheckedChange = { viewModel.setForceMono(it) })
                 }
@@ -949,7 +960,12 @@ private fun RuntimeStatusCard(
             Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        if (action != null) action()
+        if (action != null) {
+            Spacer(Modifier.width(8.dp))
+            // Align with the title line, not the row center: a centered label
+            // lands mid-way down a multi-line subtitle and reads as part of it.
+            Box(Modifier.align(Alignment.Top).padding(top = 2.dp)) { action() }
+        }
     }
 }
 

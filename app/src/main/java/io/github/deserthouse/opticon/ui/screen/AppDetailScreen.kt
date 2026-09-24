@@ -9,6 +9,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -188,7 +189,12 @@ fun AppDetailScreen(
 
             // ── 启用开关（卡片化，与整体语言统一） ──
             StrategyCard {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                Row(
+                    Modifier.fillMaxWidth()
+                        .clickable { viewModel.setMethodEnabled(!state.methodEnabled) }
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    Arrangement.SpaceBetween, Alignment.CenterVertically
+                ) {
                     Column(Modifier.weight(1f)) {
                         Text(stringResource(R.string.enable_custom_icon), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
                         Text(stringResource(R.string.source_prefix, stringResource(io.github.deserthouse.opticon.ui.state.hitLevelRes(state.hitSource))), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
