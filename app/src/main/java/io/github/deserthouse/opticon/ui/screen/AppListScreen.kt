@@ -19,6 +19,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,6 +42,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.HourglassEmpty
@@ -150,6 +152,7 @@ fun AppListScreen(
     }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    var searchActive by remember { mutableStateOf(false) }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -221,7 +224,8 @@ fun AppListScreen(
                     Column {
                         SearchField(
                             query = state.searchQuery,
-                            onQueryChange = viewModel::setSearchQuery
+                            onQueryChange = viewModel::setSearchQuery,
+                            onActiveChange = { searchActive = it }
                         )
                         FilterChipRow(
                             current = state.filterMode,
@@ -239,7 +243,10 @@ fun AppListScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     item(key = "hero") {
-                        Column {
+                        if (searchActive || state.searchQuery.isNotEmpty()) {
+                            // C2: while searching, results belong on the first
+                            // screen — the dashboard (hero/slogan/stats) hides.
+                        } else Column {
                             HeroStatusCard(
                                 active = state.lsposedActive,
                                 modifiedCount = state.apps.count { it.isUserModified },
@@ -429,13 +436,21 @@ private fun HeroStatusCard(active: Boolean?, modifiedCount: Int, onClick: () -> 
 @Composable
 private fun SearchField(
     query: String,
-    onQueryChange: (String) -> Unit
+    onQueryChange: (String) -> Unit,
+    onActiveChange: (Boolean) -> Unit
 ) {
     OutlinedTextField(
         value = query,
         onValueChange = onQueryChange,
         placeholder = { Text(stringResource(R.string.search_apps)) },
         leadingIcon = { Icon(Icons.Rounded.Search, null) },
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(Icons.Rounded.Close, stringResource(R.string.cancel))
+                }
+            }
+        },
         singleLine = true,
         shape = RoundedCornerShape(28.dp),
         colors = OutlinedTextFieldDefaults.colors(
@@ -445,6 +460,7 @@ private fun SearchField(
             focusedBorderColor = MaterialTheme.colorScheme.primary
         ),
         modifier = Modifier
+            .onFocusChanged { onActiveChange(it.isFocused) }
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
     )

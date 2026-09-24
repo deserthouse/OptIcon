@@ -103,7 +103,7 @@
     <string name="enable_custom_icon">Enable custom notification icon</string>
     <string name="source_prefix">Source: %s</string>
         <string name="save_blocked_no_icon">This strategy produced no compliant icon — the switch was kept off.</string>
-    <string name="config_saved">Configuration saved</string>
+    <string name="config_saved">Saved — new notifications from this app use it immediately</string>
 
     <string name="strategy_fankes_label">Android Notification Icon Standard Adaptation</string>
     <string name="strategy_fankes_covered">This app is already covered in the adaptation library.</string>
