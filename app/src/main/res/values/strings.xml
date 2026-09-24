@@ -19,7 +19,7 @@
 
     <string name="root_status_title">Root Access</string>
     <string name="root_status_active">Available</string>
-    <string name="root_status_inactive">Unavailable — Some features require root</string>
+    <string name="root_status_inactive">Unavailable — Restarting SystemUI needs root</string>
 
     <string name="settings_title">Settings</string>
     <string name="tools_section">Tools</string>
@@ -101,6 +101,7 @@
     <string name="package_name_copied">Package name copied</string>
 
     <string name="enable_custom_icon">Enable custom notification icon</string>
+    <string name="detail_enable_hint">Turn the switch on above to configure how this app replaces its notification icon. The options below stay inactive while it is off.</string>
     <string name="source_prefix">Source: %s</string>
         <string name="save_blocked_no_icon">This strategy produced no compliant icon — the switch was kept off.</string>
     <string name="config_saved">Saved — new notifications from this app use it immediately</string>
@@ -281,6 +282,6 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <!-- UI redesign v0.5.0 — restart SystemUI silent feedback -->
     <string name="restart_running">Executing…</string>
     <string name="restart_result_ok">Command sent (exit %1$d) — SystemUI is restarting</string>
-    <string name="restart_result_failed">Command failed (exit %1$d)%2$s</string>
+    <string name="restart_result_failed">Restart failed — check root permission%1$s</string>
     <string name="restart_result_error">Could not launch su: %1$s</string>
 </resources>

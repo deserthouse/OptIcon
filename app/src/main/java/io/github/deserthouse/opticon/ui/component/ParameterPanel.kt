@@ -56,10 +56,10 @@ fun ParameterPanel(
 ) {
     AnimatedVisibility(
         visible = visible,
-        enter = expandVertically(animationSpec = tween(280, easing = FastOutSlowInEasing)) +
-                fadeIn(animationSpec = tween(280, easing = FastOutSlowInEasing)),
-        exit = shrinkVertically(animationSpec = tween(220, easing = FastOutSlowInEasing)) +
-                fadeOut(animationSpec = tween(180)),
+        enter = expandVertically(animationSpec = tween(io.github.deserthouse.opticon.ui.theme.MotionTokens.NORMAL, easing = FastOutSlowInEasing)) +
+                fadeIn(animationSpec = tween(io.github.deserthouse.opticon.ui.theme.MotionTokens.NORMAL, easing = FastOutSlowInEasing)),
+        exit = shrinkVertically(animationSpec = tween(io.github.deserthouse.opticon.ui.theme.MotionTokens.NORMAL, easing = FastOutSlowInEasing)) +
+                fadeOut(animationSpec = tween(io.github.deserthouse.opticon.ui.theme.MotionTokens.FAST)),
         modifier = modifier.fillMaxWidth()
     ) {
         Column(

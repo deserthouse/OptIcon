@@ -58,6 +58,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -288,6 +289,9 @@ fun AppListScreen(
                             }
                             items(apps, key = { it.packageName }) { entry ->
                                 ModernAppCard(
+                                    // E3: M3E reordering — filter/search switches
+                                    // glide instead of teleporting.
+                                    modifier = Modifier.animateItem(),
                                     entry = entry,
                                     onClick = { onNavigateToDetail(entry.packageName) },
                                     onLongClick = {
@@ -524,13 +528,16 @@ private fun FilterChipRow(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ScanProgressBar(
     progress: Pair<Int, Int>,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
-        LinearProgressIndicator(
+        // E1: the M3E wavy indicator — a loading state is also an expression
+        // surface; the linear bar was the one plain-M3 leftover.
+        LinearWavyProgressIndicator(
             progress = { if (progress.second > 0) progress.first.toFloat() / progress.second else 0f },
             modifier = Modifier.fillMaxWidth()
         )

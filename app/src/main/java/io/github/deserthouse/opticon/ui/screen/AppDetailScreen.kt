@@ -201,6 +201,16 @@ fun AppDetailScreen(
                     }
                     Switch(state.methodEnabled, viewModel::setMethodEnabled)
                 }
+                // E6: disabled strategies below render as a gray wall with no
+                // explanation — one line tells the user why everything is inert.
+                if (!state.methodEnabled) {
+                    Text(
+                        stringResource(R.string.detail_enable_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                }
             }
             Spacer(Modifier.height(8.dp))
             StrategyCard {
@@ -368,7 +378,9 @@ fun AppDetailScreen(
     }
 }
 
-/** M3E strategy group card — 24dp radius, floats on layered background */
+/** M3E strategy group card — OptShapes.large (24dp) rounding, selection
+ *  wash animates via MotionTokens. The card itself answers "which one am I
+ *  on", not just the radio dot; single-action cards route through Card(onClick). */
 @Composable
 private fun StrategyCard(
     selected: Boolean = false,
@@ -381,7 +393,7 @@ private fun StrategyCard(
     val container by animateColorAsState(
         targetValue = if (selected) MaterialTheme.colorScheme.primaryContainer
         else MaterialTheme.colorScheme.surfaceContainer,
-        animationSpec = tween(220), label = "strategyCardBg"
+        animationSpec = tween(io.github.deserthouse.opticon.ui.theme.MotionTokens.FAST), label = "strategyCardBg"
     )
     // Card-level click = the WHOLE card selects this strategy (visual and
     // interactive areas match). Child clickables (radios, buttons, links)
@@ -411,8 +423,6 @@ private fun StrategyCard(
 @Composable
 private fun AssetImportPanel(state: io.github.deserthouse.opticon.ui.state.AppDetailState, viewModel: AppDetailViewModel, enabled: Boolean) {
     Column(Modifier.padding(horizontal = 32.dp)) {
-        val alpha = if (enabled) 1f else 0.4f
-
         // 1st: Adaptive Decompose
         SelectionRow(stringResource(R.string.strategy_asset_b_label), state.assetSubStrategy == AssetSubStrategy.ADAPTIVE_DECOMPOSE, enabled, onClick = { viewModel.setAssetSubStrategy(AssetSubStrategy.ADAPTIVE_DECOMPOSE) })
         AnimatedVisibility(state.assetSubStrategy == AssetSubStrategy.ADAPTIVE_DECOMPOSE) { AdaptiveDecomposeSection(state) }

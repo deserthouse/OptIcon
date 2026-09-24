@@ -68,7 +68,7 @@ fun ModernAppCard(
             MaterialTheme.colorScheme.surfaceContainerHighest
         else
             MaterialTheme.colorScheme.surfaceContainerHigh,
-        animationSpec = tween(durationMillis = 120),
+        animationSpec = tween(durationMillis = io.github.deserthouse.opticon.ui.theme.MotionTokens.FAST),
         label = "cardBg"
     )
     // M3E press: springy scale-down (expressive motion)

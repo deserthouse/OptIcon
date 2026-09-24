@@ -256,25 +256,17 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
             Spacer(Modifier.height(8.dp))
             SettingsCard {
                 val forceMonoUnknown by viewModel.forceMonoUnknown.collectAsState()
+                // D2: the "policy unreadable" hint lives in the supporting
+                // slot, not under the Switch — the trailing slot gave the
+                // long hint no width constraint and the row collapsed.
                 SettingItem(
                     Icons.Rounded.Palette,
                     stringResource(R.string.force_mono_title),
                     stringResource(R.string.force_mono_desc),
-                    onClick = { viewModel.setForceMono(!forceMono) }
+                    onClick = { viewModel.setForceMono(!forceMono) },
+                    supportingHint = if (forceMonoUnknown) stringResource(R.string.force_mono_unknown) else null
                 ) {
-                    Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
-                        Switch(checked = forceMono, onCheckedChange = { viewModel.setForceMono(it) })
-                        if (forceMonoUnknown) {
-                            // Policy file unreadable (owner/EACCES): the switch
-                            // shows a guess — say so instead of a fake OFF.
-                            Text(
-                                stringResource(R.string.force_mono_unknown),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.padding(top = 2.dp)
-                            )
-                        }
-                    }
+                    Switch(checked = forceMono, onCheckedChange = { viewModel.setForceMono(it) })
                 }
             }
 
@@ -645,16 +637,17 @@ private fun EditSourceDialog(
 private fun CreditEntry(project: String, description: String, url: String) {
     val ctx = LocalContext.current
     Column(Modifier.padding(vertical = 6.dp)) {
-        Text(project, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-        Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(project, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 16.dp))
+        Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp))
         // Whole row is the hit target — the blue URL is the strongest link
         // affordance on screen, so the click must live there too, not only on
-        // the 16dp launcher glyph.
+        // the 16dp launcher glyph. D4: the 16dp indent sits INSIDE the
+        // clickable region, ripple spans the full card width.
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().clip(OptShapes.medium).clickable {
                 ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-            }
+            }.padding(horizontal = 16.dp, vertical = 6.dp)
         ) {
             Text(url, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
             Icon(Icons.Rounded.Launch, stringResource(R.string.hero_status_cd), Modifier.padding(start = 8.dp).size(16.dp), tint = MaterialTheme.colorScheme.primary)
@@ -698,39 +691,43 @@ private fun SourceSection(
 ) {
     val ctx = LocalContext.current
     Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
             if (syncing) {
-                // Reserve the same 40dp footprint as the sync button — a bare
-                // 20dp spinner would shrink the header row mid-sync.
-                Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+                // Reserve the same 48dp footprint as the sync IconButton — a
+                // bare 20dp spinner would shrink the header row mid-sync.
+                Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                 }
-            } else IconButton(onClick = onSync, Modifier.size(40.dp)) { Icon(Icons.Rounded.Sync, "Sync", Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary) }
+            } else IconButton(onClick = onSync) { Icon(Icons.Rounded.Sync, "Sync", Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary) }
         }
         status?.let {
             val isFailure = it.contains("failed", ignoreCase = true) || it.contains("unavailable", ignoreCase = true) || it.contains("Invalid", ignoreCase = true)
             Text(
                 it, style = MaterialTheme.typography.labelSmall,
-                color = if (isFailure) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                color = if (isFailure) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
         sources.forEach { source ->
             Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                // D4: clickable row carries its own 16dp indent — ripple spans
+                // the full card width.
                 Row(Modifier.fillMaxWidth()
                     .clickable { onSelect(source.id) }
-                    .padding(vertical = 6.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    .padding(vertical = 6.dp, horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = activeId == source.id, onClick = { onSelect(source.id) }, modifier = Modifier.padding(end = 4.dp))
                     Text(getSourceDisplayName(source), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { onEditSource(source) }, Modifier.size(40.dp)) { Icon(Icons.Rounded.Edit, null, Modifier.size(18.dp)) }
-                    IconButton(onClick = { onDeleteSource(source.id) }, Modifier.size(40.dp)) { Icon(Icons.Rounded.Delete, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error) }
+                    IconButton(onClick = { onEditSource(source) }) { Icon(Icons.Rounded.Edit, null, Modifier.size(18.dp)) }
+                    IconButton(onClick = { onDeleteSource(source.id) }) { Icon(Icons.Rounded.Delete, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error) }
                 }
-                // Description + link
+                // Description + link (aligned under the row text: 16dp indent
+                // + radio 48dp touch target)
                 getSourceDescription(source)?.let { fullDesc ->
                     val lines = fullDesc.split("\n")
                     val descText = lines.dropLast(1).joinToString("\n").ifBlank { lines.first() }
                     val linkUrl = lines.lastOrNull()?.takeIf { it.startsWith("http") }
-                    Column(Modifier.padding(start = 44.dp, end = 4.dp)) {
+                    Column(Modifier.padding(start = 64.dp, end = 16.dp)) {
                         if (descText.isNotBlank()) Text(descText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (linkUrl != null) {
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier
@@ -746,7 +743,7 @@ private fun SourceSection(
                 }
             }
         }
-        Row {
+        Row(Modifier.padding(horizontal = 16.dp)) {
             TextButton(onClick = onAddSource) {
                 Icon(Icons.Rounded.Add, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.add_custom_btn))
             }
@@ -810,7 +807,9 @@ private fun RestartSystemUiButton() {
         }
         when (val r = result) {
             is RestartResult.Failed -> RestartFeedbackRow(
-                text = stringResource(R.string.restart_result_failed, r.exitCode,
+                // E7: no "exit N" jargon — the user cares about root permission,
+                // stderr detail stays as the suffix.
+                text = stringResource(R.string.restart_result_failed,
                     if (r.stderr.isNotBlank()) " — ${r.stderr.take(120)}" else ""),
                 isError = true)
             is RestartResult.Error -> RestartFeedbackRow(
@@ -881,10 +880,13 @@ private fun StatusRow(
     active: Boolean?,
     checking: Boolean,
     onRecheck: () -> Unit,
-    hint: String? = null
+    hint: String? = null,
+    // E7: root-unavailable is expected on non-rooted devices — a neutral
+    // note, not an error-red alarm (LSPosed-inactive keeps the error color).
+    inactiveIsNeutral: Boolean = false
 ) {
     Column {
-        Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 if (title.contains("LSPosed")) Icons.Rounded.Extension else Icons.Rounded.Key,
                 null, Modifier.padding(end = 12.dp),
@@ -898,6 +900,7 @@ private fun StatusRow(
                     targetValue = when {
                         checking || active == null -> MaterialTheme.colorScheme.onSurfaceVariant
                         active -> MaterialTheme.colorScheme.primary
+                        inactiveIsNeutral -> MaterialTheme.colorScheme.onSurfaceVariant
                         else -> MaterialTheme.colorScheme.error
                     },
                     label = "statusColor"
@@ -907,14 +910,15 @@ private fun StatusRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), lineHeight = 14.sp)
             }
             if (checking) {
-                // Same 36dp footprint as the recheck button — prevents the
-                // row from shrinking while a check is in flight.
-                Box(Modifier.size(width = 44.dp, height = 36.dp), contentAlignment = Alignment.Center) {
+                // Same 48dp footprint as the recheck IconButton — prevents
+                // the row from shrinking while a check is in flight.
+                Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                 }
             } else {
-                TextButton(onClick = onRecheck, modifier = Modifier.size(width = 44.dp, height = 36.dp),
-                    contentPadding = PaddingValues(4.dp)) {
+                // D4b: no explicit size() — IconButton's default is 48dp,
+                // the 18dp glyph sets the visual size.
+                IconButton(onClick = onRecheck) {
                     Icon(Icons.Rounded.Refresh, stringResource(R.string.refresh), Modifier.size(18.dp))
                 }
             }
@@ -954,7 +958,8 @@ private fun RuntimeStatusCard(
             },
             active = rootAvailable,
             checking = rechecking || rootAvailable == null,
-            onRecheck = onRecheck
+            onRecheck = onRecheck,
+            inactiveIsNeutral = true
         )
     }
 }
@@ -965,12 +970,12 @@ private fun RuntimeStatusCard(
         shape = OptShapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
     ) {
-        // clip at card-content level so descendant clickable ripples stay
-        // inside the 24dp rounded outline (otherwise they draw square)
-        Column(
-            Modifier.padding(horizontal = 16.dp, vertical = 6.dp).clip(OptShapes.large),
-            content = content
-        )
+        // D4 (触摸几何): clip FIRST, no padding at the content layer —
+        // descendant rows sit edge-to-edge in the clipped column and carry
+        // their own 16dp indent INSIDE their clickable region, so the ripple
+        // and hit area span the full card width (the old padding-then-clip
+        // order made every ripple stop 16dp short of the card outline).
+        Column(Modifier.clip(OptShapes.large), content = content)
     }
 }
 
@@ -978,14 +983,31 @@ private fun RuntimeStatusCard(
     Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
 }
 
-@Composable internal fun SettingItem(icon: ImageVector, title: String, subtitle: String, onClick: (() -> Unit)? = null, action: @Composable (() -> Unit)? = null) {
+@Composable internal fun SettingItem(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: (() -> Unit)? = null,
+    // D2: supplementary hint belongs in the supporting-text slot below the
+    // subtitle — a trailing-slot hint fights the Switch/label for width and
+    // breaks the row (mid-word wrap at large font scales). Placed BEFORE the
+    // trailing action lambda: a new function-type-adjacent param after the
+    // lambda slot steals the call site's trailing lambda (全局规范七.5).
+    supportingHint: String? = null,
+    action: @Composable (() -> Unit)? = null
+) {
+    // D4: clickable BEFORE padding — ripple and hit area cover the full row
+    // width; the 16dp indent is inside the clickable region.
     Row(Modifier.fillMaxWidth()
         .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
-        .padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        .padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, null, Modifier.padding(end = 12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (supportingHint != null) {
+                Text(supportingHint, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, lineHeight = 14.sp)
+            }
         }
         if (action != null) {
             Spacer(Modifier.width(8.dp))

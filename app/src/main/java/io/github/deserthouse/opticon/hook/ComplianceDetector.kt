@@ -6,7 +6,6 @@ import android.graphics.Color
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
-import android.app.Notification
 import android.content.Context
 import java.io.File
 
@@ -37,10 +36,12 @@ object ComplianceDetector {
     fun dir(base: File): File = File(base, DIR)
 
     /** Evaluate + persist compliance for a notification's original smallIcon.
-     *  Called BEFORE replacement so we judge the app's own icon. */
-    fun evaluateAndReport(sharedBase: File, sbn: Notification, pkg: String) {
+     *  Takes the Icon REFERENCE captured on the hook thread before any
+     *  replacement — reading sbn.notification.smallIcon from the worker would
+     *  race with setSmallIcon and judge the replaced icon (D3). */
+    fun evaluateAndReport(sharedBase: File, icon: android.graphics.drawable.Icon?, pkg: String) {
         try {
-            val icon = sbn.smallIcon ?: return
+            icon ?: return
             verdictCache[pkg]?.let { cached ->
                 archiveOriginal(sharedBase, icon, pkg)
                 writeFlag(sharedBase, pkg, cached)

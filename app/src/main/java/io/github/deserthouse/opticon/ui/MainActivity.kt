@@ -53,7 +53,7 @@ private object Routes {
 
 // Material shared-axis X transitions (M3 motion): short slide (¼ width) +
 // slight scale-up on enter + fade, symmetric easing — replaces plain slide.
-private const val NAV_DURATION = 320
+private val NAV_DURATION = io.github.deserthouse.opticon.ui.theme.MotionTokens.NORMAL
 private val NAV_EASING = EaseOutCubic
 
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.enterPush(): EnterTransition =

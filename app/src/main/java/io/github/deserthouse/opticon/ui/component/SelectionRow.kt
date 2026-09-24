@@ -13,7 +13,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -32,7 +31,13 @@ fun SelectionRow(
     modifier: Modifier = Modifier,
     description: String? = null
 ) {
-    val alpha = if (enabled) 1f else 0.4f
+    // E6: disabled rows read as a "gray wall" when the whole column is just
+    // alpha-squashed — keep the text colors explicit instead: onSurface at
+    // 38% alpha stays legible and clearly inert, variant×0.4 was not.
+    val labelColor = if (enabled) MaterialTheme.colorScheme.onSurface
+        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+    val descColor = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant
+        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -42,10 +47,10 @@ fun SelectionRow(
     ) {
         RadioButton(selected = selected, onClick = onClick, enabled = enabled)
         Spacer(Modifier.size(8.dp))
-        Column(Modifier.alpha(alpha)) {
-            Text(label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+        Column {
+            Text(label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = labelColor)
             if (description != null) {
-                Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(description, style = MaterialTheme.typography.bodySmall, color = descColor)
             }
         }
     }

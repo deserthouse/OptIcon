@@ -21,7 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Brightness6
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -52,10 +52,14 @@ fun PreviewCard(
     onToggleMode: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Simulated status-bar backgrounds derived from the theme's own surface
-    // tones — they follow light/dark automatically instead of hardcoded blues.
-    val darkBar = MaterialTheme.colorScheme.surfaceContainerHighest
-    val lightBar = MaterialTheme.colorScheme.surfaceContainerLow
+    // D1: the preview simulates the REAL status bar, whose light/dark
+    // appearance is a semantic constant, not a decoration. Deriving the bar
+    // tones from the theme's surface ramp inverts in dark mode (the "dark
+    // bar" rendered lighter than the "light" one) — fixed constant pairs,
+    // foreground always paired to its background; the card frame itself
+    // still follows the theme surface.
+    val darkBar = PreviewSemanticBar.darkBg
+    val lightBar = PreviewSemanticBar.lightBg
     val bgColor by animateColorAsState(
         targetValue = if (mode == StatusBarMode.DARK) darkBar else lightBar,
         animationSpec = spring(
@@ -64,8 +68,8 @@ fun PreviewCard(
         ),
         label = "previewBg"
     )
-    // Foreground = theme onSurface for the simulated bar.
-    val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+    // Foreground paired to the simulated bar's background, not to the theme.
+    val labelColor = if (mode == StatusBarMode.DARK) PreviewSemanticBar.darkFg else PreviewSemanticBar.lightFg
 
     Surface(
         modifier = modifier
@@ -97,11 +101,10 @@ fun PreviewCard(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     IconButton(
-                        onClick = onToggleMode,
-                        modifier = Modifier.size(28.dp)
+                        onClick = onToggleMode
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Refresh,
+                            imageVector = Icons.Rounded.Brightness6,
                             contentDescription = stringResource(io.github.deserthouse.opticon.R.string.toggle_preview_mode),
                             modifier = Modifier.size(18.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -233,10 +236,17 @@ private fun DrawScope.drawIcon(bitmap: Bitmap, tintColor: Color) {
 @Composable
 private fun LegendDot(color: Color, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
+        // E4: the white dot sits on a white card — a 1dp variant outline
+        // keeps both legend swatches visible in light theme.
         Surface(
             modifier = Modifier
                 .size(8.dp)
-                .clip(CircleShape),
+                .clip(CircleShape)
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    shape = CircleShape
+                ),
             color = color
         ) {}
         Spacer(modifier = Modifier.width(4.dp))
@@ -247,4 +257,14 @@ private fun LegendDot(color: Color, label: String) {
             fontSize = 10.sp
         )
     }
+}
+
+/** D1: semantic constants for the simulated status bar. Foreground is
+ *  always paired to its background — these describe how a real status bar
+ *  looks in each mode and must not ride the theme's surface ramp. */
+private object PreviewSemanticBar {
+    val darkBg = Color(0xFF141318)
+    val darkFg = Color(0xFFF2EFF4)
+    val lightBg = Color(0xFFF4F2F7)
+    val lightFg = Color(0xFF1C1B20)
 }

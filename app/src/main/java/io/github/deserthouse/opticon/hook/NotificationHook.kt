@@ -493,12 +493,19 @@ object NotificationHook {
                                 val sbn = sbnField.get(entry) as? StatusBarNotification
                                 val pkg = sbn?.packageName
                                 if (!pkg.isNullOrEmpty() && pkg != MODULE_PKG) {
+                                    // D3: capture the ORIGINAL smallIcon reference
+                                    // on the hook thread. The Icon object is immutable,
+                                    // but sbn.notification.smallIcon is NOT — the worker
+                                    // runs concurrently with the setSmallIcon below and
+                                    // reading through the notification would race into
+                                    // the replacement (verdict always compliant +
+                                    // #14 originals polluted by the swapped icon).
+                                    val originalIcon = sbn.notification.smallIcon
                                     // Disk IO + bitmap render — never on the
-                                    // SystemUI main thread (B5). The Icon object
-                                    // stays valid; its bitmap is read on the worker.
+                                    // SystemUI main thread (B5).
                                     complianceExecutor.execute {
                                         try {
-                                            ComplianceDetector.evaluateAndReport(SHARED_ICON_DIR, sbn.notification, pkg)
+                                            ComplianceDetector.evaluateAndReport(SHARED_ICON_DIR, originalIcon, pkg)
                                         } catch (e: Throwable) {
                                             TraceLogger.w(TAG, "compliance: ${e.message}")
                                         }
