@@ -76,17 +76,25 @@ Whenever an app posts a notification, OptIcon automatically evaluates whether it
 
 ## ❓ FAQ
 
-**Enabled but nothing changes?**
-Check in order: ① is the module enabled in LSPosed Manager; ② is **System UI** checked as its scope — the scope checkbox can silently drop after reinstalling or updating the module, and this is the number-one suspect; ③ after changing the scope, restart SystemUI (or reboot).
+**Q: Enabled but nothing changes?**
 
-**Do icon changes require a restart?**
-No. Rules and baked icons are watched by FileObserver in real time and apply on save; if it doesn't take effect on a particular ROM, restarting SystemUI is enough.
+A: Check in order: ① is the module enabled in LSPosed Manager; ② is **System UI** checked as its scope — the scope checkbox can silently drop after reinstalling or updating the module, and this is the number-one suspect; ③ after changing the scope, restart SystemUI (or reboot).
 
-**Something looks off on MIUI / OnePlus / other custom ROMs?**
-The project is developed against AOSP as the mainline, with OOS (OnePlus 15) as the primary real-device environment; vendor-specific behavior (MIUI / HyperOS / ColorOS, etc.) may cause differences, and per-vendor adaptation is not guaranteed.
+**Q: Do icon changes require a restart?**
 
-**Does it phone home?**
-It only accesses the corresponding repositories when you explicitly sync the rule set or download icon assets; no subscriptions, no telemetry, no crash reporting, nothing uploaded.
+A: No. Rules and baked icons are watched by FileObserver in real time and apply on save; if it doesn't take effect on a particular ROM, restarting SystemUI is enough.
+
+**Q: Something looks off on MIUI / OnePlus / other custom ROMs?**
+
+A: The project is developed against AOSP as the mainline, with OOS (OnePlus 15) as the primary real-device environment; vendor-specific behavior (MIUI / HyperOS / ColorOS, etc.) may cause differences, and per-vendor adaptation is not guaranteed.
+
+**Q: Does it phone home?**
+
+A: It only accesses the corresponding repositories when you explicitly sync the rule set or download icon assets; no subscriptions, no telemetry, no crash reporting, nothing uploaded.
+
+**Q: Why a night heron as the icon?**
+
+A: Because I want to.
 
 ## 📊 Compatibility
 
