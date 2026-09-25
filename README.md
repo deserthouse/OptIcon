@@ -3,7 +3,9 @@
 # OptIcon
 
 <p align="center">
-  <img src="assets/icon.png" width="128" alt="OptIcon">
+  <img src="assets/icon_light.png" width="120" alt="OptIcon">
+  &nbsp;&nbsp;
+  <img src="assets/icon_dark.png" width="120" alt="OptIcon Dark">
 </p>
 
 

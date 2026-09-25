@@ -2,6 +2,13 @@
 
 # OptIcon
 
+<p align="center">
+  <img src="assets/icon_light.png" width="120" alt="OptIcon">
+  &nbsp;&nbsp;
+  <img src="assets/icon_dark.png" width="120" alt="OptIcon Dark">
+</p>
+
+
 **Notification icon normalizer for Android — covering the full Material You generation**
 
 Make every notification icon comply with native Android design guidelines
