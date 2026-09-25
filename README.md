@@ -2,6 +2,11 @@
 
 # OptIcon
 
+<p align="center">
+  <img src="assets/icon.png" width="128" alt="OptIcon">
+</p>
+
+
 **Android 通知图标规范化工具 —— 覆盖完整 Material You 世代**
 
 让每一个通知图标都符合原生 Android 设计规范
