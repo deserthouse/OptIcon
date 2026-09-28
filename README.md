@@ -149,7 +149,7 @@ OptIcon 申请 `QUERY_ALL_PACKAGES`（查询全部应用）权限。**该权限�
 
 ## 🤖 AI 使用声明 / AI Disclosure
 
-> 本项目由 AI（大语言模型）深度参与开发——包括架构设计、代码实现、测试与文档；人类（[@deserthouse](https://github.com/deserthouse)）提出需求、进行验收并拥有最终决策权。
+> 本项目不含任何人类成分，绝大多数工作都由 **AI** 完成。
 
 ## ⚖️ 开源协议
 

@@ -148,7 +148,7 @@ OptIcon requests the `QUERY_ALL_PACKAGES` permission **solely to enumerate insta
 
 ## 🤖 AI Disclosure
 
-> This project was developed with substantial AI (LLM) assistance — architecture, implementation, testing, and documentation; the human ([@deserthouse](https://github.com/deserthouse)) provides requirements, acceptance testing, and final decisions.
+> This project contains no human contribution; the vast majority of the work was done by **AI**.
 
 ## ⚖️ License
 
