@@ -35,15 +35,23 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // ━━━ Release signing: credentials ONLY from ~/.gradle/gradle.properties ━━━
+    // (OPTICON_STORE_FILE / OPTICON_STORE_PASS / OPTICON_KEY_ALIAS / OPTICON_KEY_PASS).
+    // No literal fallbacks here — a default password in a public repo is a leak
+    // (2026-10-03 audit O-1, rotated same day). Missing/blank credentials fall
+    // back to the debug key so CI and fresh clones stay buildable.
+    val releaseCredentialProps = listOf("OPTICON_STORE_FILE", "OPTICON_STORE_PASS", "OPTICON_KEY_ALIAS", "OPTICON_KEY_PASS")
+        .map { providers.gradleProperty(it).orNull?.takeIf(String::isNotBlank) }
+    val hasReleaseCredentials = releaseCredentialProps.all { it != null }
+
     signingConfigs {
-        create("release") {
-            // keystore lives OUTSIDE the repo (never commit!).
-            // Override via ~/.gradle/gradle.properties: OPTICON_STORE_FILE / _PASS / _KEY_PASS
-            storeFile = file(providers.gradleProperty("OPTICON_STORE_FILE").getOrElse(
-                "C:/Users/deser/.android/opticon-release.jks"))
-            storePassword = providers.gradleProperty("OPTICON_STORE_PASS").getOrElse("opticon2026")
-            keyAlias = providers.gradleProperty("OPTICON_KEY_ALIAS").getOrElse("opticon")
-            keyPassword = providers.gradleProperty("OPTICON_KEY_PASS").getOrElse("opticon2026")
+        if (hasReleaseCredentials) {
+            create("release") {
+                storeFile = file(releaseCredentialProps[0]!!)
+                storePassword = releaseCredentialProps[1]
+                keyAlias = releaseCredentialProps[2]
+                keyPassword = releaseCredentialProps[3]
+            }
         }
     }
 
@@ -51,7 +59,8 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = if (hasReleaseCredentials) signingConfigs.getByName("release")
+                else signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -130,17 +139,19 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
 
-// ━━━ Silent package-and-bake: compiles, timestamps, copies to desktop ━━━
+// ━━━ Silent package-and-bake: compiles, timestamps, copies to local archive ━━━
+// (archive/ is gitignored; deliveries go to the release channel — never the
+// desktop, per the 2026-09-19 rule.)
 tasks.register("packageAndBakeApk") {
     dependsOn("assembleDebug")
     notCompatibleWithConfigurationCache("APK copy with runtime timestamp")
     doLast {
-        val desktop = file("C:/Users/deser/Desktop/")
+        val archiveDir = rootProject.file("archive/apk").apply { mkdirs() }
         val sourceDir = file("build/outputs/apk/debug/")
         sourceDir.listFiles()?.filter { it.extension == "apk" }?.forEach { apk ->
             val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss").format(Date())
             val newName = "OptIcon-v$MODULE_VERSION_NAME-$timestamp.apk"
-            apk.copyTo(desktop.resolve(newName), overwrite = true)
+            apk.copyTo(archiveDir.resolve(newName), overwrite = true)
         }
     }
 }
