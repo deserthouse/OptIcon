@@ -57,6 +57,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
         @Volatile var rootCache: Pair<Long, Boolean>? = null
 
+        /** App theme dynamic-color switch, shared across nav destinations —
+         *  MainActivity collects this so a flip inside Settings re-themes the
+         *  whole app instantly. Calibrated from prefs in MainActivity.onCreate
+         *  before first frame. */
+        val dynamicColorFlow = MutableStateFlow(true)
+
         /** Root 检测 — InstallerX Revived 风格: 实际执行 su -c 命令验证 (3s 超时) */
         fun checkRoot(): Boolean {
             val paths = "/data/adb/ksu/bin:/data/adb/ap/bin:/data/adb/magisk/bin"
@@ -210,6 +216,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         PreferenceManager.setVerboseLogging(enabled)
         TraceLogger.setLevel(if (enabled) TraceLogger.DEBUG else TraceLogger.INFO)
         _verboseLogging.value = enabled
+    }
+
+    fun setDynamicColor(enabled: Boolean) {
+        PreferenceManager.setDynamicColor(enabled)
+        dynamicColorFlow.value = enabled
     }
 
     fun setMasterEnabled(enabled: Boolean) {

@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.rounded.ColorLens
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Tune
@@ -283,6 +284,17 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
             // ── 应用（App 自身的外壳行为） ──
             SectionTitle(stringResource(R.string.app_section))
             SettingsCard {
+                // App theme: Material You on by default; off = brand palette.
+                val dynamicColor by SettingsViewModel.dynamicColorFlow.collectAsState()
+                SettingItem(
+                    Icons.Rounded.ColorLens,
+                    stringResource(R.string.dynamic_color_title),
+                    stringResource(R.string.dynamic_color_desc),
+                    onClick = { viewModel.setDynamicColor(!dynamicColor) }
+                ) {
+                    Switch(checked = dynamicColor, onCheckedChange = { viewModel.setDynamicColor(it) })
+                }
+                HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                 // Per-app locale is a system capability (Android 13+); on 12
                 // the row degrades to an honest "system only" note.
                 val localeSupported = android.os.Build.VERSION.SDK_INT >= 33

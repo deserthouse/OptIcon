@@ -32,6 +32,7 @@ object PreferenceManager {
     // global keys
     private const val KEY_GLOBAL_VERBOSE_LOG = "global_verbose_log"
     private const val KEY_GLOBAL_PREDICTIVE_BACK = "global_predictive_back"
+    private const val KEY_GLOBAL_DYNAMIC_COLOR = "global_dynamic_color"
     private const val KEY_EMOJI_UNLOCKED = "emoji_unlocked"
     private const val KEY_SHADE_ICON_MODE = "shade_icon_mode"
     private const val KEY_RAMBLE_EXTRA_SHOWN = "ramble_extra_shown"
@@ -240,6 +241,14 @@ object PreferenceManager {
 
     fun setVerboseLogging(enabled: Boolean) {
         prefs?.edit { putBoolean(KEY_GLOBAL_VERBOSE_LOG, enabled) }
+    }
+
+    /** App 自身主题动态取色（Material You）。默认开；关=品牌靛蓝金色板。 */
+    fun isDynamicColor(): Boolean =
+        prefs?.getBoolean(KEY_GLOBAL_DYNAMIC_COLOR, true) ?: true
+
+    fun setDynamicColor(enabled: Boolean) {
+        prefs?.edit { putBoolean(KEY_GLOBAL_DYNAMIC_COLOR, enabled) }
     }
 
     fun isPredictiveBackEnabled(): Boolean =

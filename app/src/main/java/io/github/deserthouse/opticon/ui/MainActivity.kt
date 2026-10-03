@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -34,6 +35,7 @@ import io.github.deserthouse.opticon.ui.screen.AppListScreen
 import io.github.deserthouse.opticon.ui.screen.SettingsScreen
 import io.github.deserthouse.opticon.ui.theme.MotionTokens
 import io.github.deserthouse.opticon.ui.theme.OptIconTheme
+import io.github.deserthouse.opticon.ui.viewmodel.SettingsViewModel
 import io.github.deserthouse.opticon.util.PreferenceManager
 import io.github.deserthouse.opticon.util.TraceLogger
 
@@ -42,8 +44,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         PreferenceManager.init(applicationContext)
         TraceLogger.init(applicationContext, if (PreferenceManager.isVerboseLogging()) TraceLogger.DEBUG else TraceLogger.INFO)
+        // Calibrate the theme switch from storage before the first frame so a
+        // saved "off" never flashes dynamic colors at cold start.
+        SettingsViewModel.dynamicColorFlow.value = PreferenceManager.isDynamicColor()
         enableEdgeToEdge()
-        setContent { OptIconTheme { OptIconNavHost() } }
+        setContent {
+            val dynamicColor by SettingsViewModel.dynamicColorFlow.collectAsState()
+            OptIconTheme(dynamicColor = dynamicColor) { OptIconNavHost() }
+        }
     }
 }
 

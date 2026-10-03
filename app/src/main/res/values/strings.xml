@@ -63,6 +63,8 @@
     <string name="shade_icon_desc">Which icon the shade rows show (Android 17+)</string>
     <string name="app_section">App</string>
 <string name="language_title">Language</string>
+    <string name="dynamic_color_title">Dynamic color</string>
+    <string name="dynamic_color_desc">Follow the wallpaper palette (Material You); off uses the brand theme</string>
     <string name="language_desc">Display language for the app itself (Android 13+)</string>
     <string name="language_system">Follow system</string>
     <string name="language_applied">Restart to apply</string>
