@@ -26,7 +26,7 @@
     <string name="restart_systemui">重启 SystemUI</string>
     <string name="restart_confirm_title">确认重启</string>
     <string name="restart_confirm_body">重启 SystemUI 后所有通知图标将重新加载。确认重启？</string>
-    <string name="restart_confirm_btn">确认重启</string>
+    <string name="restart_confirm_btn">重启</string>
 
     <string name="module_control">模块控制</string>
     <string name="master_switch">模块总开关</string>

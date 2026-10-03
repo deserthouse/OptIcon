@@ -26,7 +26,7 @@
     <string name="restart_systemui">Restart SystemUI</string>
     <string name="restart_confirm_title">Confirm Restart</string>
     <string name="restart_confirm_body">Restarting SystemUI will reload all notification icons. Confirm?</string>
-    <string name="restart_confirm_btn">Confirm Restart</string>
+    <string name="restart_confirm_btn">Restart</string>
 
     <string name="module_control">Module Control</string>
     <string name="master_switch">Master Switch</string>

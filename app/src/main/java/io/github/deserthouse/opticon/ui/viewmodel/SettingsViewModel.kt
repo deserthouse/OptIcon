@@ -27,20 +27,26 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
          *  原理: Hook 安装时记录 SystemUI 的 PID 到 ContentProvider。
          *  UI 读取 PID 后检查该进程是否仍然存活 — 如果存活, 说明当前 SystemUI 实例有 Hook。
          *  如果用户取消勾选作用域后重启 SystemUI, 新 PID 与记录不匹配, 判定为未激活。
+         *
+         *  带 5s 超时 (A-1, 2026-10-03 审计): provider 调用挂死时两页共用终态 false,
+         *  首页 Hero 与设置页状态卡永不各自为政地停在 Checking。
          */
-        fun checkLsposed(context: android.content.Context): Boolean {
+        suspend fun checkLsposed(context: android.content.Context): Boolean {
             return try {
-                val uri = android.net.Uri.parse("content://io.github.deserthouse.opticon.icons/__flag__")
-                val result = context.contentResolver.call(uri, "get_flag", null, null) ?: return false
-                val hookPid = result.getInt("hook_pid", 0)
-                if (hookPid <= 0) return false
-                // Liveness = flag freshness: the hook re-reports every 5 min
-                // (heartbeat); SystemUI crash/deactivation stops the heartbeat
-                // and the flag goes stale. Avoids /proc cross-process reads
-                // (unreliable under SELinux/hidepid).
-                val flagFile = java.io.File(context.filesDir, "hook_installed")
-                val age = System.currentTimeMillis() - flagFile.lastModified()
-                age < HEARTBEAT_TIMEOUT_MS
+                kotlinx.coroutines.withTimeoutOrNull(5_000L) {
+                    val uri = android.net.Uri.parse("content://io.github.deserthouse.opticon.icons/__flag__")
+                    val result = context.contentResolver.call(uri, "get_flag", null, null)
+                        ?: return@withTimeoutOrNull false
+                    val hookPid = result.getInt("hook_pid", 0)
+                    if (hookPid <= 0) return@withTimeoutOrNull false
+                    // Liveness = flag freshness: the hook re-reports every 5 min
+                    // (heartbeat); SystemUI crash/deactivation stops the heartbeat
+                    // and the flag goes stale. Avoids /proc cross-process reads
+                    // (unreliable under SELinux/hidepid).
+                    val flagFile = java.io.File(context.filesDir, "hook_installed")
+                    val age = System.currentTimeMillis() - flagFile.lastModified()
+                    age < HEARTBEAT_TIMEOUT_MS
+                } ?: false
             } catch (e: Exception) {
                 false
             }

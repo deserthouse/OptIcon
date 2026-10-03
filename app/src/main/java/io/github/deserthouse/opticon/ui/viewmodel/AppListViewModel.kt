@@ -1,6 +1,5 @@
 package io.github.deserthouse.opticon.ui.viewmodel
 
-import android.os.SystemClock
 import android.app.Application
 import android.content.Context
 import android.graphics.Bitmap
@@ -51,27 +50,23 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    /** Real LSPosed hook detection (shared with SettingsViewModel) — the hero
-     *  status must reflect truth, not a hardcoded green dot. */
+    /** Real LSPosed hook detection (same source + timeout as SettingsViewModel) —
+     *  the hero status must reflect truth, not a hardcoded green dot.
+     *  A-1 (2026-10-03 AVD audit): the old C1 first-run grace held null/"Checking…"
+     *  for the first 5 min of every process life on non-activated installs —
+     *  no timeout, no terminal state. Superseded: both booleans are terminal now;
+     *  after a data wipe the ≤5 min heartbeat window may briefly show "not
+     *  activated" before the hook's first report lands (subtitle points to
+     *  Settings, matching the settings page's own verdict). */
     fun refreshLsposedStatus() {
         viewModelScope.launch {
             val active = withContext(Dispatchers.IO) {
                 io.github.deserthouse.opticon.ui.viewmodel.SettingsViewModel
                     .Companion.checkLsposed(getApplication())
             }
-            // C1 first-run grace: a cleared/reinstalled data dir deletes the
-            // hook_installed flag, so checkLsposed reads false until the hook's
-            // next heartbeat (≤5 min) rewrites it. Hard red "not activated"
-            // during that window tells every fresh user the module is broken —
-            // degrade to the neutral checking state; afterwards false is real.
-            val elapsed = SystemClock.elapsedRealtime() - processStartUptime
-            val effective = if (!active && elapsed < HEARTBEAT_GRACE_MS) null else active
-            _uiState.update { it.copy(lsposedActive = effective) }
+            _uiState.update { it.copy(lsposedActive = active) }
         }
     }
-
-    private val HEARTBEAT_GRACE_MS = 5 * 60 * 1000L
-    private val processStartUptime = SystemClock.elapsedRealtime()
 
     //                                           
     //     
