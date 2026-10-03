@@ -224,7 +224,7 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="preview_title">状态栏预览</string>
     <string name="preview_mode_dark">深色状态栏</string>
     <string name="preview_mode_light">浅色状态栏</string>
-    <string name="preview_legend_icon">图标 (#FFF)</string>
+    <string name="preview_legend_icon">默认白色图标</string>
     <string name="preview_legend_edge">半透明描边</string>
     <string name="hit_picp">完美图标</string>
     <string name="hit_picp_failed">完美图标下载失败</string>

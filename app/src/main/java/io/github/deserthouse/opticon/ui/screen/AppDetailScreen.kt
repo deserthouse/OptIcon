@@ -33,25 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.ThumbUp
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.Palette
-import androidx.compose.material.icons.rounded.Email
-import androidx.compose.material.icons.rounded.Lock
-import androidx.compose.material.icons.rounded.Map
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Phone
-import androidx.compose.material.icons.rounded.ShoppingCart
-import androidx.compose.material.icons.rounded.SportsEsports
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -105,16 +87,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import io.github.deserthouse.opticon.ui.theme.MotionTokens
 import io.github.deserthouse.opticon.ui.theme.OptShapes
-
-private val MATERIAL_ICONS = listOf(
-    "Home" to Icons.Filled.Home, "Settings" to Icons.Filled.Settings, "Search" to Icons.Filled.Search,
-    "Share" to Icons.Filled.Share, "Star" to Icons.Filled.Star, "Favorite" to Icons.Filled.Favorite,
-    "Person" to Icons.Filled.Person, "Notifications" to Icons.Filled.Notifications, "Info" to Icons.Filled.Info,
-    "Warning" to Icons.Filled.Warning, "ThumbUp" to Icons.Filled.ThumbUp, "Phone" to Icons.Rounded.Phone,
-    "Email" to Icons.Rounded.Email, "Lock" to Icons.Rounded.Lock, "Cloud" to Icons.Rounded.Cloud,
-    "Music" to Icons.Rounded.MusicNote, "Gaming" to Icons.Rounded.SportsEsports, "Map" to Icons.Rounded.Map,
-    "Shopping" to Icons.Rounded.ShoppingCart, "Check" to Icons.Filled.Check, "Palette" to Icons.Filled.Favorite
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

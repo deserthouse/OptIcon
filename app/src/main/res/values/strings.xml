@@ -179,7 +179,7 @@
     <string name="source_ania_raw">Android Notification Icon Project (ANIP, formerly AndroidNotifyIconAdapt)</string>
     <string name="source_ania_raw_desc">Standardized monochrome notification icon resources maintained by the BetterAndroid community (lead: fankes).
 https://github.com/BetterAndroid/android-notification-icon-project</string>
-    <string name="source_picp_github">Perfect Icons Completion Project (Perfect-Icons-Completion-Project)</string>
+    <string name="source_picp_github">Perfect Icons Completion Project (PICP)</string>
     <string name="source_picp_github_desc">Perfect icon completion project maintained by pzcn and the community.\nhttps://github.com/pzcn/Perfect-Icons-Completion-Project</string>
     <string name="add_source_title">Add Source</string>
     <string name="edit_source_title">Edit Source</string>
@@ -230,7 +230,7 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="preview_title">Status Bar Preview</string>
     <string name="preview_mode_dark">Dark status bar</string>
     <string name="preview_mode_light">Light status bar</string>
-    <string name="preview_legend_icon">Icon (#FFF)</string>
+    <string name="preview_legend_icon">Default white icon</string>
     <string name="preview_legend_edge">Semi-transparent edge</string>
     <string name="hit_picp">Perfect Icons</string>
     <string name="hit_picp_failed">Perfect Icons download failed</string>

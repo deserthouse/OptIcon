@@ -29,6 +29,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.rounded.BugReport
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ErrorOutline
@@ -177,7 +179,9 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
             SectionTitle(stringResource(R.string.module_control))
             SettingsCard {
                 SettingItem(
-                    Icons.Rounded.BugReport,
+                    // A-3 (2026-10-03 AVD audit): master control gets a control
+                    // glyph — the bug icon belongs to Verbose Logging below.
+                    Icons.Rounded.Tune,
                     stringResource(R.string.master_switch),
                     stringResource(R.string.master_switch_desc),
                     onClick = { if (masterEnabled) showMasterOffDialog = true else viewModel.setMasterEnabled(true) }
@@ -232,7 +236,9 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                     else -> stringResource(R.string.shade_mode_app)
                 }
                 SettingItem(
-                    Icons.Rounded.Extension,
+                    // A-3: notifications glyph for the shade-icons row — the
+                    // puzzle piece stays unique to the LSPosed status card.
+                    Icons.Rounded.Notifications,
                     stringResource(R.string.shade_icon_title),
                     stringResource(R.string.shade_icon_desc),
                     onClick = { showShadeSheet = true }
@@ -726,7 +732,8 @@ private fun SourceSection(
                     .clickable { onSelect(source.id) }
                     .padding(vertical = 6.dp, horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = activeId == source.id, onClick = { onSelect(source.id) }, modifier = Modifier.padding(end = 4.dp))
-                    Text(getSourceDisplayName(source), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                    Text(getSourceDisplayName(source), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f),
+                        maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     IconButton(onClick = { onEditSource(source) }) { Icon(Icons.Rounded.Edit, stringResource(R.string.cd_edit_source), Modifier.size(18.dp)) }
                     IconButton(onClick = { pendingDelete = source }) { Icon(Icons.Rounded.Delete, stringResource(R.string.cd_delete_source), Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error) }
                 }
