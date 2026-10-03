@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.OptIcon" parent="android:Theme.Material.Light.NoActionBar">
+    <!-- Dark counterpart of Theme.OptIcon (O-5, 2026-10-03 audit): dark window
+         background + dark status bar icons so cold start never flashes light. -->
+    <style name="Theme.OptIcon" parent="android:Theme.Material.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
-        <!-- O-5: pre-Compose window + splash background (night variant in
-             values-night) so dark-mode cold start doesn't flash white. -->
         <item name="android:windowBackground">@color/window_background</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowSplashScreenBackground">@color/window_background</item>
     </style>
 </resources>

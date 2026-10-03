@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark variant: M3 baseline dark surface — kills the white flash on
+         dark-mode cold start (O-5, 2026-10-03 audit). -->
+    <color name="window_background">#141218</color>
+</resources>

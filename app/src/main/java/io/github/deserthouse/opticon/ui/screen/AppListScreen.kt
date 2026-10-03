@@ -6,12 +6,9 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -233,10 +230,14 @@ fun AppListScreen(
                         )
                     }
                 }
-                val filtered = viewModel.applySearchAndFilter(
-                    state.apps, state.searchQuery, state.filterMode
-                )
-                val grouped = viewModel.buildGroups(filtered)
+                // O-3 (2026-10-03 audit): filter+group are pure functions of
+                // these inputs — remember them so high-frequency recompositions
+                // (search bar collapse/expand) don't re-run the full
+                // filter+group pipeline every frame.
+                val filtered = remember(state.apps, state.searchQuery, state.filterMode) {
+                    viewModel.applySearchAndFilter(state.apps, state.searchQuery, state.filterMode)
+                }
+                val grouped = remember(filtered) { viewModel.buildGroups(filtered) }
                 LazyColumn(
                     state = listState,
                     contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp),
@@ -352,12 +353,21 @@ private fun HeroStatusCard(active: Boolean?, modifiedCount: Int, onClick: () -> 
         null -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
-    val morphTransition = rememberInfiniteTransition(label = "heroShape")
-    val morphProgress by morphTransition.animateFloat(
-        initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "morph"
-    )
+    // O-7 (2026-10-03 audit): the morph carries loading semantics — it cycles
+    // only while the hook check is in flight (active == null) and settles on
+    // the terminal shape once a verdict lands, instead of an infinite
+    // rememberInfiniteTransition producing decorative frames forever.
+    val morphProgress = remember { Animatable(0f) }
+    LaunchedEffect(active) {
+        if (active == null) {
+            while (true) {
+                morphProgress.animateTo(1f, tween(1300, easing = FastOutSlowInEasing))
+                morphProgress.animateTo(0f, tween(1300, easing = FastOutSlowInEasing))
+            }
+        } else {
+            morphProgress.animateTo(1f, tween(600, easing = FastOutSlowInEasing))
+        }
+    }
     val fromShape = when (active) {
         true -> MaterialShapes.Pill
         false -> MaterialShapes.Square
@@ -380,7 +390,7 @@ private fun HeroStatusCard(active: Boolean?, modifiedCount: Int, onClick: () -> 
             Box(contentAlignment = Alignment.Center, modifier = Modifier.size(56.dp)) {
                 // M3 Expressive shape morph, drawn as a fitted path (bounds-normalized)
                 Canvas(Modifier.size(56.dp)) {
-                    val ap = morph.toPath(morphProgress).asAndroidPath()
+                    val ap = morph.toPath(morphProgress.value).asAndroidPath()
                     val b = android.graphics.RectF()
                     ap.computeBounds(b, true)
                     val s = if (b.width() > 1e-6f && b.height() > 1e-6f)

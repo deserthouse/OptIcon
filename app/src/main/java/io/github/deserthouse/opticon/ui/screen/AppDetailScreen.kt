@@ -437,7 +437,7 @@ private fun AssetImportPanel(state: io.github.deserthouse.opticon.ui.state.AppDe
                 if (picpHasIcon) {
                     OutlinedButton(onClick = { viewModel.downloadPicpIcon() }, enabled = !state.perfectIconsLoading && enabled, modifier = Modifier.fillMaxWidth(), shape = OptShapes.medium) {
                         if (state.perfectIconsLoading) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                        else Text(if (state.perfectIconsBitmap != null) "PICP icon loaded" else "Pull PICP icon")
+                        else Text(stringResource(if (state.perfectIconsBitmap != null) R.string.picp_icon_loaded else R.string.picp_pull_icon))
                     }
                 } else {
                     val ctx = LocalContext.current

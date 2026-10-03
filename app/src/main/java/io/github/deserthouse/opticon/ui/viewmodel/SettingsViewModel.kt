@@ -126,6 +126,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     // ━━━ ANIA subscription ━━━
     private val _aniaSyncStatus = MutableStateFlow<String?>(null)
     val aniaSyncStatus: StateFlow<String?> = _aniaSyncStatus.asStateFlow()
+    // O-10 (2026-10-03 audit): structured failure bit — the UI must not guess
+    // failure by matching English substrings inside the status text.
+    private val _aniaSyncFailed = MutableStateFlow(false)
+    val aniaSyncFailed: StateFlow<Boolean> = _aniaSyncFailed.asStateFlow()
     private val _aniaIconCount = MutableStateFlow(SubscriptionManager.getIconCount(getApplication()))
     val aniaIconCount: StateFlow<Int> = _aniaIconCount.asStateFlow()
     private val _aniaSyncing = MutableStateFlow(false)
@@ -138,6 +142,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     // ━━━ PICP subscription ━━━
     private val _picpSyncStatus = MutableStateFlow<String?>(null)
     val picpSyncStatus: StateFlow<String?> = _picpSyncStatus.asStateFlow()
+    private val _picpSyncFailed = MutableStateFlow(false)
+    val picpSyncFailed: StateFlow<Boolean> = _picpSyncFailed.asStateFlow()
     private val _picpCount = MutableStateFlow(PicpEngine.getIndexedCount(getApplication()))
     val picpCount: StateFlow<Int> = _picpCount.asStateFlow()
     private val _picpSyncing = MutableStateFlow(false)
@@ -226,13 +232,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         if (_aniaSyncing.value) return
         val ctx = getApplication<Application>().applicationContext
         _aniaSyncing.value = true
+        _aniaSyncFailed.value = false
         _aniaSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_preparing)
         val sourceUrl = PreferenceManager.getSourceUrl(_activeAniaSource.value)
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 SubscriptionManager.sync(ctx, sourceUrl,
-                    onProgress = { _aniaSyncStatus.value = it },
+                    onProgress = { _aniaSyncFailed.value = false; _aniaSyncStatus.value = it },
                     onResult = { r ->
+                        _aniaSyncFailed.value = !r.success
                         _aniaSyncStatus.value = when {
                             !r.success -> r.errorMessage ?: ctx.getString(io.github.deserthouse.opticon.R.string.sync_failed)
                             r.wasChanged -> ctx.getString(io.github.deserthouse.opticon.R.string.sync_anip_done, r.iconCount)
@@ -265,6 +273,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         if (_picpSyncing.value) return
         val ctx = getApplication<Application>().applicationContext
         _picpSyncing.value = true
+        _picpSyncFailed.value = false
         _picpSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_picp_index)
         val sourceUrl = PreferenceManager.getSourceUrl(_activePicpSource.value)
         if (sourceUrl == null) {
@@ -273,9 +282,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             return
         }
         PicpEngine.syncIndex(ctx, sourceUrl,
-            onProgress = { _picpSyncStatus.value = it },
+            onProgress = { _picpSyncFailed.value = false; _picpSyncStatus.value = it },
             onResult = { ok, count, err ->
                 if (ok) {
+                    _picpSyncFailed.value = false
                     _picpCount.value = count
                     // After index sync, prefetch icons for installed apps
                     val installed = ctx.packageManager.getInstalledApplications(0)
@@ -291,6 +301,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                         }
                     )
                 } else {
+                    _picpSyncFailed.value = true
                     _picpSyncStatus.value = err ?: ctx.getString(io.github.deserthouse.opticon.R.string.sync_picp_failed)
                     _picpSyncing.value = false
                 }

@@ -110,6 +110,8 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
     val lsposedActive by viewModel.lsposedActive.collectAsState()
     val rootAvailable by viewModel.rootAvailable.collectAsState()
     val rechecking by viewModel.rechecking.collectAsState()
+    val aniaSyncFailed by viewModel.aniaSyncFailed.collectAsState()
+    val picpSyncFailed by viewModel.picpSyncFailed.collectAsState()
     val emojiUnlocked by viewModel.emojiUnlocked.collectAsState()
     val rambleExtraShown by viewModel.rambleExtraShown.collectAsState()
     val shadeAppIconMode by viewModel.shadeAppIconMode.collectAsState()
@@ -203,12 +205,14 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                     val picpBuiltinHidden = picpSources.none { it.id == "picp_github" }
 
                     SourceSection(stringResource(R.string.ania_section_title), aniaSources, activeAniaSource, aniaIconCount, aniaSyncing, aniaSyncStatus,
+                        statusIsError = aniaSyncFailed,
                         onSelect = viewModel::setActiveAniaSource, onSync = viewModel::syncAnia,
                         onAddSource = viewModel::startAddSource, onEditSource = viewModel::startEditSource, onDeleteSource = viewModel::removeSource,
                         restoreLabel = if (aniaBuiltinHidden) stringResource(R.string.restore_default_ania) else null,
                         onRestoreDefault = if (aniaBuiltinHidden) viewModel::restoreDefaultAnia else null)
                     Spacer(Modifier.height(8.dp))
                     SourceSection(stringResource(R.string.picp_section_title), picpSources, activePicpSource, picpCount, picpSyncing, picpSyncStatus,
+                        statusIsError = picpSyncFailed,
                         onSelect = viewModel::setActivePicpSource, onSync = viewModel::syncPicp,
                         onAddSource = viewModel::startAddSource, onEditSource = viewModel::startEditSource, onDeleteSource = viewModel::removeSource,
                         restoreLabel = if (picpBuiltinHidden) stringResource(R.string.restore_default_picp) else null,
@@ -282,7 +286,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                     lm?.applicationLocales?.toLanguageTags().orEmpty()
                 } else ""
                 val langLabel = when {
-                    !localeSupported -> "N/A"
+                    !localeSupported -> stringResource(R.string.na_label)
                     currentLocaleTag.startsWith("zh") -> "简体中文"
                     currentLocaleTag.startsWith("en") -> "English"
                     else -> stringResource(R.string.language_system)
@@ -328,7 +332,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                     if (predictiveSupported) {
                         Text(stringResource(R.string.enabled_label), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                     } else {
-                        Text("N/A", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.na_label), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 if (showPredictiveDialog) {
@@ -683,6 +687,7 @@ private fun SourceSection(
     iconCount: Int,
     syncing: Boolean,
     status: String?,
+    statusIsError: Boolean = false,
     onSelect: (String) -> Unit,
     onSync: () -> Unit,
     onAddSource: () -> Unit = {},
@@ -692,6 +697,9 @@ private fun SourceSection(
     onRestoreDefault: (() -> Unit)? = null
 ) {
     val ctx = LocalContext.current
+    // O-4 (2026-10-03 audit): destructive delete gets a confirm dialog — same
+    // protection level as master-off / restart on this screen.
+    var pendingDelete by remember { mutableStateOf<PreferenceManager.SubscriptionSource?>(null) }
     Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
@@ -701,13 +709,12 @@ private fun SourceSection(
                 Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                 }
-            } else IconButton(onClick = onSync) { Icon(Icons.Rounded.Sync, "Sync", Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary) }
+            } else IconButton(onClick = onSync) { Icon(Icons.Rounded.Sync, stringResource(R.string.cd_sync), Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary) }
         }
         status?.let {
-            val isFailure = it.contains("failed", ignoreCase = true) || it.contains("unavailable", ignoreCase = true) || it.contains("Invalid", ignoreCase = true)
             Text(
                 it, style = MaterialTheme.typography.labelSmall,
-                color = if (isFailure) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (statusIsError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -720,8 +727,8 @@ private fun SourceSection(
                     .padding(vertical = 6.dp, horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = activeId == source.id, onClick = { onSelect(source.id) }, modifier = Modifier.padding(end = 4.dp))
                     Text(getSourceDisplayName(source), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { onEditSource(source) }) { Icon(Icons.Rounded.Edit, null, Modifier.size(18.dp)) }
-                    IconButton(onClick = { onDeleteSource(source.id) }) { Icon(Icons.Rounded.Delete, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error) }
+                    IconButton(onClick = { onEditSource(source) }) { Icon(Icons.Rounded.Edit, stringResource(R.string.cd_edit_source), Modifier.size(18.dp)) }
+                    IconButton(onClick = { pendingDelete = source }) { Icon(Icons.Rounded.Delete, stringResource(R.string.cd_delete_source), Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error) }
                 }
                 // Description + link (aligned under the row text: 16dp indent
                 // + radio 48dp touch target)
@@ -739,7 +746,7 @@ private fun SourceSection(
                                 .padding(vertical = 6.dp)) {
                                 Text(linkUrl, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                                 Spacer(Modifier.width(4.dp))
-                                Icon(Icons.Rounded.Launch, "Open", Modifier.size(12.dp), tint = MaterialTheme.colorScheme.primary)
+                                Icon(Icons.Rounded.Launch, stringResource(R.string.cd_open_link), Modifier.size(12.dp), tint = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
@@ -756,6 +763,18 @@ private fun SourceSection(
                 }
             }
         }
+    }
+    pendingDelete?.let { source ->
+        AlertDialog(onDismissRequest = { pendingDelete = null },
+            title = { Text(stringResource(R.string.delete_source_title)) },
+            text = { Text(stringResource(R.string.delete_source_body, getSourceDisplayName(source))) },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingDelete = null
+                    onDeleteSource(source.id)
+                }) { Text(stringResource(R.string.delete_btn), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.cancel)) } })
     }
 }
 

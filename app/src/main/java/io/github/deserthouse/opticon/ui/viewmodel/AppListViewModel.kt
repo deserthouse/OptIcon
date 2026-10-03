@@ -76,7 +76,10 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
         if (_uiState.value.isScanning) return
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isScanning = true, apps = emptyList()) }
+            // O-2 (2026-10-03 audit): keep the previous list visible while a
+            // refresh re-scans — wiping `apps` here flashed the whole screen
+            // empty on every pull-to-refresh.
+            _uiState.update { it.copy(isScanning = true) }
 
             val context = getApplication<Application>().applicationContext
 

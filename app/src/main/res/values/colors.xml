@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- O-5 (2026-10-03 audit): cold-start window background, light variant.
+         Matched to the M3 baseline light surface so the pre-Compose window
+         doesn't flash a mismatched color. -->
+    <color name="window_background">#FEF7FF</color>
+</resources>

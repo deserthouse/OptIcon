@@ -193,6 +193,16 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="add_custom_btn">添加自定义源</string>
     <string name="restore_default_ania">恢复默认 ANIP 图标源</string>
     <string name="restore_default_picp">恢复默认完美图标源</string>
+    <string name="delete_source_title">删除订阅源？</string>
+    <string name="delete_source_body">将从订阅源列表移除「%1$s」，此操作不可撤销。</string>
+    <string name="delete_btn">删除</string>
+    <string name="na_label">不适用</string>
+    <string name="picp_icon_loaded">PICP 图标已加载</string>
+    <string name="picp_pull_icon">拉取 PICP 图标</string>
+    <string name="cd_sync">同步订阅源</string>
+    <string name="cd_edit_source">编辑订阅源</string>
+    <string name="cd_delete_source">删除订阅源</string>
+    <string name="cd_open_link">打开订阅源链接</string>
 
 
     <!-- UI redesign v0.4.0 -->

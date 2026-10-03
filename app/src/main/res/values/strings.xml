@@ -193,6 +193,16 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="add_custom_btn">Add Custom</string>
     <string name="restore_default_ania">Restore Default ANIP Source</string>
     <string name="restore_default_picp">Restore Default PICP Source</string>
+    <string name="delete_source_title">Delete source?</string>
+    <string name="delete_source_body">Remove \"%1$s\" from your sources? This cannot be undone.</string>
+    <string name="delete_btn">Delete</string>
+    <string name="na_label">N/A</string>
+    <string name="picp_icon_loaded">PICP icon loaded</string>
+    <string name="picp_pull_icon">Pull PICP icon</string>
+    <string name="cd_sync">Sync subscription source</string>
+    <string name="cd_edit_source">Edit source</string>
+    <string name="cd_delete_source">Delete source</string>
+    <string name="cd_open_link">Open source link</string>
 
     <!-- v0.3.0-alpha ModernAppCard + AppListScreen -->
     <string name="refresh">Refresh</string>
