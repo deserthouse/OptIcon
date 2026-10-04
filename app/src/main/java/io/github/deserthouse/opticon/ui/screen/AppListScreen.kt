@@ -101,6 +101,7 @@ import io.github.deserthouse.opticon.ui.component.ModernAppCard
 import io.github.deserthouse.opticon.ui.state.AppGroup
 import io.github.deserthouse.opticon.ui.state.FilterMode
 import io.github.deserthouse.opticon.ui.viewmodel.AppListViewModel
+import io.github.deserthouse.opticon.ui.theme.MotionTokens
 import io.github.deserthouse.opticon.ui.theme.OptShapes
 
 /**
@@ -365,7 +366,10 @@ private fun HeroStatusCard(active: Boolean?, modifiedCount: Int, onClick: () -> 
                 morphProgress.animateTo(0f, tween(1300, easing = FastOutSlowInEasing))
             }
         } else {
-            morphProgress.animateTo(1f, tween(600, easing = FastOutSlowInEasing))
+            // Terminal settle uses SLOW (600ms); the 1300ms half-cycle above
+            // is a deliberate un-tokened value (no matching token, half of
+            // the original 2600ms round trip).
+            morphProgress.animateTo(1f, tween(MotionTokens.SLOW, easing = FastOutSlowInEasing))
         }
     }
     val fromShape = when (active) {
