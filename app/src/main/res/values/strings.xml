@@ -145,6 +145,11 @@
     <string name="strategy_algo_open_panel_wip">Fine-tune redraw</string>
     <string name="algo_panel_title_wip">Fine-tune redraw</string>
     <string name="algo_panel_wip_body">Adjust and watch the preview update live. Changes take effect for new notifications after you save.</string>
+    <string name="algo_restore_auto">Reset to auto</string>
+    <string name="algo_auto_alpha_note">This image defines itself by transparency — the glyph is whitened along its alpha outline automatically; no purity threshold needed.</string>
+    <string name="show_tuning_title">Show fine-tune options</string>
+    <string name="show_tuning_desc">Off = all strategies run fully automatic; on = expert sliders appear in strategy cards</string>
+    <string name="save_blocked_guard">Couldn\'t extract a compliant glyph from this source — try a different image (e.g. an icon on a solid background).</string>
 
     <string name="filter_all">All Apps</string>
     <string name="filter_configured">Configured</string>

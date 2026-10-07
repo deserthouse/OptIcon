@@ -145,6 +145,11 @@
     <string name="strategy_algo_open_panel_wip">微调参数</string>
     <string name="algo_panel_title_wip">重绘微调</string>
     <string name="algo_panel_wip_body">拖动滑杆实时预览；保存后对新通知生效。</string>
+    <string name="algo_restore_auto">恢复自动</string>
+    <string name="algo_auto_alpha_note">该图自带透明边距：自动沿 alpha 轮廓白化，无需净化度阈值。</string>
+    <string name="show_tuning_title">显示微调选项</string>
+    <string name="show_tuning_desc">关 = 三级策略全自动；开 = 策略卡内显示专家滑杆</string>
+    <string name="save_blocked_guard">该图片来源无法提取出规范图形——请换一张图片（如纯色底图标）再试。</string>
 
     <string name="filter_all">全部应用</string>
     <string name="filter_configured">已修改</string>

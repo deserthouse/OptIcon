@@ -30,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.rounded.ColorLens
 import androidx.compose.material.icons.rounded.BugReport
+import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Palette
@@ -293,6 +294,17 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                     onClick = { viewModel.setDynamicColor(!dynamicColor) }
                 ) {
                     Switch(checked = dynamicColor, onCheckedChange = { viewModel.setDynamicColor(it) })
+                }
+                HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                // M4：微调选项可见性（默认关=三级策略全自动）
+                val showTuning by viewModel.showTuning.collectAsState()
+                SettingItem(
+                    Icons.Rounded.Build,
+                    stringResource(R.string.show_tuning_title),
+                    stringResource(R.string.show_tuning_desc),
+                    onClick = { viewModel.setShowTuning(!showTuning) }
+                ) {
+                    Switch(checked = showTuning, onCheckedChange = { viewModel.setShowTuning(it) })
                 }
                 HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                 // Per-app locale is a system capability (Android 13+); on 12

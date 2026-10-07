@@ -33,6 +33,7 @@ object PreferenceManager {
     private const val KEY_GLOBAL_VERBOSE_LOG = "global_verbose_log"
     private const val KEY_GLOBAL_PREDICTIVE_BACK = "global_predictive_back"
     private const val KEY_GLOBAL_DYNAMIC_COLOR = "global_dynamic_color"
+    private const val KEY_GLOBAL_SHOW_TUNING = "global_show_tuning"
     private const val KEY_EMOJI_UNLOCKED = "emoji_unlocked"
     private const val KEY_SHADE_ICON_MODE = "shade_icon_mode"
     private const val KEY_RAMBLE_EXTRA_SHOWN = "ramble_extra_shown"
@@ -249,6 +250,14 @@ object PreferenceManager {
 
     fun setDynamicColor(enabled: Boolean) {
         prefs?.edit { putBoolean(KEY_GLOBAL_DYNAMIC_COLOR, enabled) }
+    }
+
+    /** 策略卡微调选项可见性（2026-09-25 用户裁决：默认关=三级策略全自动）。 */
+    fun isTuningOptionsVisible(): Boolean =
+        prefs?.getBoolean(KEY_GLOBAL_SHOW_TUNING, false) ?: false
+
+    fun setTuningOptionsVisible(visible: Boolean) {
+        prefs?.edit { putBoolean(KEY_GLOBAL_SHOW_TUNING, visible) }
     }
 
     fun isPredictiveBackEnabled(): Boolean =

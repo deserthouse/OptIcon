@@ -97,6 +97,9 @@ fun AppDetailScreen(
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
+    val algoInputClass by viewModel.algoInputClass.collectAsState()
+    // M4：微调入口可见性（设置里全局开关，进详情页时读取一次）
+    val tuningVisible = androidx.compose.runtime.remember { io.github.deserthouse.opticon.util.PreferenceManager.isTuningOptionsVisible() }
     LaunchedEffect(packageName) { viewModel.loadApp(packageName) }
 
     // Save feedback (saved / blocked-kept-off) from the VM after the async
@@ -264,7 +267,7 @@ fun AppDetailScreen(
                 onClick = { viewModel.setStrategy(IconStrategy.ASSET_IMPORT) }
             )
             AnimatedVisibility(visible = enabled && state.strategy == IconStrategy.ASSET_IMPORT) {
-                AssetImportPanel(state, viewModel, enabled)
+                AssetImportPanel(state, viewModel, enabled, tuningVisible)
             }
             }
 
@@ -328,7 +331,8 @@ fun AppDetailScreen(
                             )
                         }
                     }
-                    AlgoWipSection(viewModel::showSheet)
+                    // M4 条件五：微调入口默认隐藏（全自动），设置里"显示微调选项"开启才出现
+                    if (tuningVisible) AlgoWipSection(viewModel::showSheet)
                     }
                 }
             }
@@ -343,10 +347,12 @@ fun AppDetailScreen(
             offsetX = state.redrawParams.offsetX,
             offsetY = state.redrawParams.offsetY,
             threshold = state.redrawParams.threshold.toFloat(),
+            inputClass = algoInputClass,
             onScaleChange = viewModel::setScale,
             onOffsetXChange = viewModel::setOffsetX,
             onOffsetYChange = viewModel::setOffsetY,
-            onThresholdChange = viewModel::setThreshold
+            onThresholdChange = viewModel::setThreshold,
+            onRestoreAuto = viewModel::restoreAutoParams
         )
     }
 }
@@ -394,11 +400,11 @@ private fun StrategyCard(
 
 
 @Composable
-private fun AssetImportPanel(state: io.github.deserthouse.opticon.ui.state.AppDetailState, viewModel: AppDetailViewModel, enabled: Boolean) {
+private fun AssetImportPanel(state: io.github.deserthouse.opticon.ui.state.AppDetailState, viewModel: AppDetailViewModel, enabled: Boolean, tuningVisible: Boolean) {
     Column(Modifier.padding(horizontal = 32.dp)) {
         // 1st: Adaptive Decompose
         SelectionRow(stringResource(R.string.strategy_asset_b_label), state.assetSubStrategy == AssetSubStrategy.ADAPTIVE_DECOMPOSE, enabled, onClick = { viewModel.setAssetSubStrategy(AssetSubStrategy.ADAPTIVE_DECOMPOSE) })
-        AnimatedVisibility(state.assetSubStrategy == AssetSubStrategy.ADAPTIVE_DECOMPOSE) { AdaptiveDecomposeSection(state) }
+        AnimatedVisibility(state.assetSubStrategy == AssetSubStrategy.ADAPTIVE_DECOMPOSE) { AdaptiveDecomposeSection(state, viewModel, tuningVisible) }
 
         // 2nd: Perfect Icons
         val ctx = LocalContext.current
@@ -511,19 +517,36 @@ private fun IconPackIconCard(entry: IconPackEngine.PackIconEntry, iconPackPkg: S
 }
 
 @Composable
-private fun AdaptiveDecomposeSection(state: io.github.deserthouse.opticon.ui.state.AppDetailState) {
+private fun AdaptiveDecomposeSection(
+    state: io.github.deserthouse.opticon.ui.state.AppDetailState,
+    viewModel: AppDetailViewModel,
+    tuningVisible: Boolean
+) {
     if (state.isAdaptiveIcon == null) Text(stringResource(R.string.processing), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     else if (state.isAdaptiveIcon == false) Text(stringResource(R.string.strategy_asset_b_not_adaptive), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Medium)
-    else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Column(Modifier.weight(1f)) {
-            Text(stringResource(R.string.strategy_asset_b_foreground), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(4.dp))
-            if (state.adaptiveForeground != null) Image(state.adaptiveForeground!!.asImageBitmap(), "fg", Modifier.size(64.dp))
+    else Column(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.strategy_asset_b_foreground), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(4.dp))
+                if (state.adaptiveForeground != null) Image(state.adaptiveForeground!!.asImageBitmap(), "fg", Modifier.size(64.dp))
+            }
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.strategy_asset_b_background), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(4.dp))
+                if (state.adaptiveBackground != null) Image(state.adaptiveBackground!!.asImageBitmap(), "bg", Modifier.size(64.dp))
+            }
         }
-        Column(Modifier.weight(1f)) {
-            Text(stringResource(R.string.strategy_asset_b_background), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(4.dp))
-            if (state.adaptiveBackground != null) Image(state.adaptiveBackground!!.asImageBitmap(), "bg", Modifier.size(64.dp))
+        // M4/B：自适应前景占幅方差真实存在（40%~顶满）——缩放滑杆（微调开关开启时）
+        if (tuningVisible) {
+            Spacer(Modifier.height(12.dp))
+            SliderLabel(stringResource(R.string.algo_slider_scale), "%.2f".format(state.redrawParams.scale))
+            androidx.compose.material3.Slider(
+                value = state.redrawParams.scale,
+                onValueChange = viewModel::setScale,
+                valueRange = 0.5f..2f,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
@@ -543,11 +566,19 @@ private fun AlgoWipSection(onOpen: () -> Unit) {
 private fun AlgoWipSheet(
     onDismiss: () -> Unit,
     scale: Float, offsetX: Float, offsetY: Float, threshold: Float,
-    onScaleChange: (Float) -> Unit, onOffsetXChange: (Float) -> Unit, onOffsetYChange: (Float) -> Unit, onThresholdChange: (Int) -> Unit
+    inputClass: io.github.deserthouse.opticon.engine.IconRedrawEngine.InputClass?,
+    onScaleChange: (Float) -> Unit, onOffsetXChange: (Float) -> Unit, onOffsetYChange: (Float) -> Unit, onThresholdChange: (Int) -> Unit,
+    onRestoreAuto: () -> Unit
 ) {
     androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp)) {
-            Text(stringResource(R.string.algo_panel_title_wip), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.algo_panel_title_wip), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                // M4 条件三：「恢复自动」常驻
+                androidx.compose.material3.TextButton(onClick = onRestoreAuto) {
+                    Text(stringResource(R.string.algo_restore_auto), style = MaterialTheme.typography.labelLarge)
+                }
+            }
             Spacer(Modifier.height(12.dp)); HorizontalDivider(); Spacer(Modifier.height(8.dp))
             Text(stringResource(R.string.algo_panel_wip_body), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(16.dp))
@@ -560,8 +591,18 @@ private fun AlgoWipSheet(
             androidx.compose.material3.Slider(value = offsetX, onValueChange = onOffsetXChange, valueRange = -50f..50f, modifier = Modifier.fillMaxWidth())
             SliderLabel(stringResource(R.string.algo_slider_offset_y), "%.0f".format(offsetY))
             androidx.compose.material3.Slider(value = offsetY, onValueChange = onOffsetYChange, valueRange = -50f..50f, modifier = Modifier.fillMaxWidth())
-            SliderLabel(stringResource(R.string.algo_slider_purity), "%.0f".format(threshold))
-            androidx.compose.material3.Slider(value = threshold, onValueChange = { onThresholdChange(it.toInt()) }, valueRange = 0f..255f, modifier = Modifier.fillMaxWidth())
+            // M4 条件二：按输入类只显相关参数——alpha 白化通路不消费净化度阈值
+            if (inputClass == io.github.deserthouse.opticon.engine.IconRedrawEngine.InputClass.TRANSPARENT_MARGIN) {
+                Text(
+                    stringResource(R.string.algo_auto_alpha_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                )
+            } else {
+                SliderLabel(stringResource(R.string.algo_slider_purity), "%.0f".format(threshold))
+                androidx.compose.material3.Slider(value = threshold, onValueChange = { onThresholdChange(it.toInt()) }, valueRange = 0f..255f, modifier = Modifier.fillMaxWidth())
+            }
         }
     }
 }

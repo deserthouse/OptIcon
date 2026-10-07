@@ -55,6 +55,10 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
     private val _isDirty = MutableStateFlow(false)
     val isDirty: StateFlow<Boolean> = _isDirty.asStateFlow()
 
+    /** M4：当前 algo 来源图的输入分类（换图时自动分类+参数重置） */
+    private val _algoInputClass = MutableStateFlow<IconRedrawEngine.InputClass?>(null)
+    val algoInputClass: StateFlow<IconRedrawEngine.InputClass?> = _algoInputClass.asStateFlow()
+
     /** One-shot message when a save was altered by validation (e.g. kept off) */
     private val _saveFeedback = MutableStateFlow<String?>(null)
     val saveFeedback: StateFlow<String?> = _saveFeedback.asStateFlow()
@@ -247,6 +251,41 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
     fun setCustomIconPath(path: String?) {
         _isDirty.value = true
         _state.update { it.copy(customIconPath = path) }
+        if (path == null) {
+            _algoInputClass.value = null
+            debouncePreview()
+            return
+        }
+        // M4 自动先行：换图即分类+自动参数重置（用户裁决的四条件之一）
+        viewModelScope.launch {
+            val cls = withContext(Dispatchers.IO) {
+                decodeFileOrUri(getApplication(), path)?.let { bmp ->
+                    val px = IntArray(bmp.width * bmp.height)
+                    bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
+                    val result = IconRedrawEngine.classifyInput(px, bmp.width)
+                    bmp.recycle()
+                    result
+                }
+            }
+            _algoInputClass.value = cls
+            if (cls != null) {
+                _state.update { s -> s.copy(redrawParams = autoParamsFor(cls)) }
+                debouncePreview()
+            }
+        }
+    }
+
+    /** 输入类 → 该类自动默认参数（M3 参数表；alpha 通路不消费 threshold，保持默认即可） */
+    private fun autoParamsFor(cls: IconRedrawEngine.InputClass): RedrawParams = when (cls) {
+        IconRedrawEngine.InputClass.TRANSPARENT_MARGIN -> RedrawParams()
+        else -> RedrawParams()
+    }
+
+    /** 「恢复自动」：滑杆回到当前输入类的自动默认值 */
+    fun restoreAutoParams() {
+        val cls = _algoInputClass.value ?: return
+        _isDirty.value = true
+        _state.update { it.copy(redrawParams = autoParamsFor(cls)) }
         debouncePreview()
     }
 
@@ -314,7 +353,13 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                 bakeResult = withContext(Dispatchers.IO) { bakeCurrentState(ctx, s) }
                 if (bakeResult.bitmap == null) {
                     enabled = false
-                    _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.save_blocked_no_icon)
+                    // M4 条件四：守卫拒绝要诚实引导换源，不得暗示"再调调滑杆就能好"
+                    val guardHit = bakeResult.detail?.startsWith("redraw guard") == true ||
+                        bakeResult.detail?.startsWith("self-filter guard") == true
+                    _saveFeedback.value = ctx.getString(
+                        if (guardHit) io.github.deserthouse.opticon.R.string.save_blocked_guard
+                        else io.github.deserthouse.opticon.R.string.save_blocked_no_icon
+                    )
                 }
             }
             PreferenceManager.setMethodEnabled(pkg, enabled)

@@ -108,9 +108,15 @@ object IconEngine {
     }
 
     private fun bakeAdaptive(context: Context, pkg: String, params: RedrawParams): BakeResult {
-        val result = AdaptiveIconExtractor.extractForegroundWhite(context, pkg)
-        return if (result != null) BakeResult(result, HitSource.ADAPTIVE)
-        else BakeResult(null, HitSource.AUTO_MISS, "adaptive miss")
+        val extracted = AdaptiveIconExtractor.extractForegroundWhite(context, pkg)
+            ?: return BakeResult(null, HitSource.AUTO_MISS, "adaptive miss")
+        // M4/B: adaptive foreground occupancy genuinely varies (40%..full) —
+        // apply the per-app scale like the redraw path does (0.5..1.5).
+        val result = if (params.scale != RedrawParams.DEFAULT_SCALE)
+            IconTint.scaleAndTintWhite(extracted, params.scale.coerceIn(0.5f, 1.5f), OUTPUT_SIZE) ?: extracted
+        else extracted
+        if (result !== extracted) extracted.recycle()
+        return BakeResult(result, HitSource.ADAPTIVE)
     }
 
     private fun bakeSelfFilter(context: Context, pkg: String, params: RedrawParams): BakeResult {

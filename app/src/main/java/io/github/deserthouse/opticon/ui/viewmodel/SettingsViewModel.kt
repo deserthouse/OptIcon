@@ -223,6 +223,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         dynamicColorFlow.value = enabled
     }
 
+    /** M4：策略卡微调选项可见性（默认关=全自动；详情页进入时读取一次） */
+    private val _showTuning = MutableStateFlow(PreferenceManager.isTuningOptionsVisible())
+    val showTuning: StateFlow<Boolean> = _showTuning.asStateFlow()
+
+    fun setShowTuning(visible: Boolean) {
+        PreferenceManager.setTuningOptionsVisible(visible)
+        _showTuning.value = visible
+    }
+
     fun setMasterEnabled(enabled: Boolean) {
         val written = PreferenceManager.setModuleEnabled(enabled)
         if (!written) {
