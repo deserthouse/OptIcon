@@ -419,9 +419,16 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                             val white = IconTint.toWhite(src)
                             if (src !== white) src.recycle()
                             if (white == null) return IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: tint failed")
-                            val refined = IconRedrawEngine.redraw(white, s.redrawParams)
-                            if (refined !== white) white.recycle()
-                            IconEngine.BakeResult(refined ?: white, HitSource.MANUAL, "local file + redraw")
+                            when (val outcome = IconRedrawEngine.redraw(white, s.redrawParams)) {
+                                is IconRedrawEngine.RedrawOutcome.Ok -> {
+                                    if (white !== outcome.bitmap) white.recycle()
+                                    return IconEngine.BakeResult(outcome.bitmap, HitSource.MANUAL, "local file + redraw")
+                                }
+                                is IconRedrawEngine.RedrawOutcome.Rejected -> {
+                                    white.recycle()
+                                    return IconEngine.BakeResult(null, HitSource.AUTO_MISS, "redraw guard: ${outcome.reason}")
+                                }
+                            }
                         } else IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: file decode failed")
                     }
                 }
@@ -432,8 +439,16 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                         if (icon != null) {
                             val bmp = MaterialIconRenderer.renderToWhiteBitmap(icon)
                                 ?: return IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: material render failed")
-                            val refined = IconRedrawEngine.redraw(bmp, s.redrawParams) ?: bmp
-                            IconEngine.BakeResult(refined, HitSource.MANUAL, "material icon + redraw")
+                            when (val outcome = IconRedrawEngine.redraw(bmp, s.redrawParams)) {
+                                is IconRedrawEngine.RedrawOutcome.Ok -> {
+                                    bmp.recycle()
+                                    IconEngine.BakeResult(outcome.bitmap, HitSource.MANUAL, "material icon + redraw")
+                                }
+                                is IconRedrawEngine.RedrawOutcome.Rejected -> {
+                                    bmp.recycle()
+                                    IconEngine.BakeResult(null, HitSource.AUTO_MISS, "redraw guard: ${outcome.reason}")
+                                }
+                            }
                         } else IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: material icon not found")
                     }
                 }
@@ -442,8 +457,16 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                     else {
                         val bmp = io.github.deserthouse.opticon.engine.EmojiRenderer.renderToWhiteBitmap(s.emojiText)
                         if (bmp != null) {
-                            val refined = IconRedrawEngine.redraw(bmp, s.redrawParams) ?: bmp
-                            IconEngine.BakeResult(refined, HitSource.MANUAL, "emoji + redraw")
+                            when (val outcome = IconRedrawEngine.redraw(bmp, s.redrawParams)) {
+                                is IconRedrawEngine.RedrawOutcome.Ok -> {
+                                    bmp.recycle()
+                                    IconEngine.BakeResult(outcome.bitmap, HitSource.MANUAL, "emoji + redraw")
+                                }
+                                is IconRedrawEngine.RedrawOutcome.Rejected -> {
+                                    bmp.recycle()
+                                    IconEngine.BakeResult(null, HitSource.AUTO_MISS, "redraw guard: ${outcome.reason}")
+                                }
+                            }
                         } else IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: emoji render failed")
                     }
                 }

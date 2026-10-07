@@ -116,10 +116,16 @@ object IconEngine {
     private fun bakeSelfFilter(context: Context, pkg: String, params: RedrawParams): BakeResult {
         val base = resolveAppBitmap(context, pkg) ?: return BakeResult(null, HitSource.AUTO_MISS, "cannot get app icon")
         val effParams = if (params.scale == RedrawParams.DEFAULT_SCALE) params.copy(scale = 0.8f) else params
-        val result = IconRedrawEngine.redraw(base, effParams)
-        if (base !== result) base.recycle()
-        return if (result != null) BakeResult(result, HitSource.SELFFILTER)
-        else BakeResult(null, HitSource.AUTO_MISS, "self-filter processing failed")
+        return when (val outcome = IconRedrawEngine.redraw(base, effParams)) {
+            is IconRedrawEngine.RedrawOutcome.Ok -> {
+                if (base !== outcome.bitmap) base.recycle()
+                BakeResult(outcome.bitmap, HitSource.SELFFILTER)
+            }
+            is IconRedrawEngine.RedrawOutcome.Rejected -> {
+                base.recycle()
+                BakeResult(null, HitSource.AUTO_MISS, "self-filter guard: ${outcome.reason}")
+            }
+        }
     }
 
     private fun bakeManual(

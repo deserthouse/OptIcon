@@ -5,116 +5,165 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import io.github.deserthouse.opticon.util.TraceLogger
-import kotlin.math.sqrt
 
 /**
- * IconRedrawEngine — 四角采样阈值的色距过滤重绘算法
+ * IconRedrawEngine — 色距过滤重绘算法（策略三"兼容重绘"核心）
  *
  * 完全自研算法，与 Howard / NotificationIconFix 项目的 Otsu 算法不存在任何代码继承关系。
  *
- * ## 算法原理
- * 1. **背景色采样**：取原图四角落的平均 RGB 均值作为基准背景色 C_bg
- * 2. **色彩空间遍历**：遍历全图像素，计算每像素与 C_bg 的三维欧氏距离 D
- * 3. **阈值二分判断**：若 D ≤ 阈值，判定为背景色，Alpha 刷 0（完全透明）；
- *    若 D > 阈值，判定为前景色，RGB 刷纯白（#FFFFFF），保留原始 Alpha
- * 4. **重绘输出**：生成标准剪影 Bitmap，按缩放/偏移参数渲染后交给 SystemUI
+ * ## 算法原理（M1，2026-10-05 策略三黑盒化批次重写）
+ * 1. **背景色估计（双模式）**：
+ *    - `CORNER_SAMPLE`：≥3 个不透明角 → 不透明角 RGB 均值。修复旧版把透明角的
+ *      (0,0,0) 一并均值进背景导致暗色前景被误滤的偏置（白色圆角矩形事故根因之一）；
+ *    - `DOMINANT_COLOR`：不透明角不足（透明边距类图标）→ 全图不透明像素 32 级量化
+ *      主色统计（#18 glyphKeyWhite 同款），不再依赖角落。
+ * 2. **色距键控**：逐像素与 C_bg 的三维欧氏距离，≤阈值判背景（透明），否则刷白保留 Alpha。
+ * 3. **覆盖率守卫（#18 移植）**：键控后前景占比 >90% = 背景根本没滤掉（白矩形垃圾）→
+ *    拒绝输出；<1% = 前景被滤光（空图标）→ 拒绝输出。调用方收到 [RedrawOutcome.Rejected]
+ *    必须按失败处理（诚实引导换源），禁止回退到未过滤原图。
+ *
+ * 注：#18 的 88% 安全圈裁剪是图标包合成图专属（glyph 居中于安全区），用户上传物前景
+ * 可能触边，故**不**移植进本引擎。
  */
 object IconRedrawEngine {
 
     private const val TAG = "OptIcon/RedrawEngine"
     const val OUTPUT_SIZE = 96
 
+    /** 前景占比守卫上限：背景基本没被滤掉（白矩形垃圾） */
+    internal const val FG_COVERAGE_MAX = 0.90f
+
+    /** 前景占比守卫下限：前景被滤光（空图标） */
+    internal const val FG_COVERAGE_MIN = 0.01f
+
+    private const val OPAQUE_ALPHA = 128
+
+    enum class BgEstimateMode { CORNER_SAMPLE, DOMINANT_COLOR }
+
+    /** 重绘结果：Ok 携带输出与诊断量；Rejected = 守卫拒绝，调用方必须按失败处理 */
+    sealed interface RedrawOutcome {
+        data class Ok(val bitmap: Bitmap, val fgCoverage: Float, val bgMode: BgEstimateMode) : RedrawOutcome
+        data class Rejected(val reason: String, val fgCoverage: Float) : RedrawOutcome
+    }
+
+    internal data class BgEstimate(val rgb: Int, val mode: BgEstimateMode)
+
     /**
-     * 主入口：对源位图执行四角采样色距过滤 + 缩放参数渲染。
+     * 主入口：背景估计 → 色距键控 → 覆盖率守卫 → 缩放参数渲染。
      *
-     * @param source 原始位图（可为 Launcher Icon / Notification Icon 等）
-     * @param params 微调参数集，threshold 映射到 10~150，默认 30。
-     * @return 标准通知图标 Bitmap（96x96）；失败返回 null
+     * @return [RedrawOutcome.Ok]（96x96 标准通知图标）或 [RedrawOutcome.Rejected]（守卫拒绝）
      */
-    fun redraw(source: Bitmap, params: RedrawParams): Bitmap? {
+    fun redraw(source: Bitmap, params: RedrawParams): RedrawOutcome {
         val start = System.currentTimeMillis()
         val eff = params.clamped()
 
-        // 第一阶段：四角采样色距过滤
-        val filtered = filterBackground(source, eff.threshold)
-            ?: return null.also { TraceLogger.e(TAG, "filterBackground returned null") }
-
-        // 第二阶段：缩放 + 参数渲染 + 输出标准尺寸
-        val output = renderToOutput(filtered, eff)
-
-        // 若 filtered != source，回收中间产物
-        if (filtered !== source && filtered !== output) {
-            filtered.recycle()
-        }
-
-        val elapsed = System.currentTimeMillis() - start
-        TraceLogger.d(TAG, "redraw complete in ${elapsed}ms, threshold=${eff.threshold}, scale=${eff.scale}")
-
-        return output
-    }
-
-    /**
-     * 四角采样阈值的色距过滤。
-     *
-     * 采样 Alpha > 0 的四角像素做色彩均值加权计算。
-     * 背景色区域按原始透明度规则处理为完全透明区域，
-     * 确保图标背景无残留，来源图标无白边或黑白条纹瑕疵。
-     */
-    fun filterBackground(source: Bitmap, threshold: Int): Bitmap? {
         val w = source.width
         val h = source.height
-        if (w == 0 || h == 0) return null
+        if (w == 0 || h == 0) return RedrawOutcome.Rejected("empty source", 0f)
 
-        // 1. 四角采样，计算基准背景色 C_bg
-        val safeX1 = 0
-        val safeY1 = 0
-        val safeX2 = (w - 1).coerceAtLeast(0)
-        val safeY2 = (h - 1).coerceAtLeast(0)
-
-        val c1 = source.getPixel(safeX1, safeY1)
-        val c2 = source.getPixel(safeX2, safeY1)
-        val c3 = source.getPixel(safeX1, safeY2)
-        val c4 = source.getPixel(safeX2, safeY2)
-
-        val rb = ((Color.red(c1) + Color.red(c2) + Color.red(c3) + Color.red(c4)) / 4.0).toInt()
-        val gb = ((Color.green(c1) + Color.green(c2) + Color.green(c3) + Color.green(c4)) / 4.0).toInt()
-        val bb = ((Color.blue(c1) + Color.blue(c2) + Color.blue(c3) + Color.blue(c4)) / 4.0).toInt()
-
-        TraceLogger.d(TAG, "Corner sampling: R=$rb G=$gb B=$bb, threshold=$threshold")
-
-        // 2. 提取像素矩阵
         val pixels = IntArray(w * h)
         source.getPixels(pixels, 0, w, 0, 0, w, h)
 
-        // 3. 遍历全图，计算三维欧氏距离并二分判断
-        val thresholdSq = threshold * threshold // 预计算平方阈值，比较时省去 sqrt 开销
-        for (i in pixels.indices) {
-            val c = pixels[i]
-            val alpha = Color.alpha(c)
-            if (alpha == 0) {
-                pixels[i] = 0x00000000 // 原本透明 → 判定为完全透明区
-                continue
-            }
+        val bg = estimateBackground(pixels, w)
+            ?: return RedrawOutcome.Rejected("source has no opaque pixels to estimate background", 0f)
 
-            val dr = Color.red(c) - rb
-            val dg = Color.green(c) - gb
-            val db = Color.blue(c) - bb
-            val distSq = dr * dr + dg * dg + db * db
+        val keyed = keyBackground(pixels, bg.rgb, eff.threshold)
+        val coverage = foregroundCoverage(keyed)
 
-            if (distSq <= thresholdSq) {
-                // 判定为背景色 → Alpha 刷 0，完全透明
-                pixels[i] = 0x00000000
-            } else {
-                // 判定为前景 Logo 区域 → RGB 刷纯白，继承原始 Alpha
-                pixels[i] = Color.argb(alpha, 255, 255, 255)
-            }
+        if (coverage > FG_COVERAGE_MAX) {
+            return RedrawOutcome.Rejected(
+                "degenerate: background not removed (foreground ${(coverage * 100).toInt()}%) — source unsuited for redraw",
+                coverage
+            )
+        }
+        if (coverage < FG_COVERAGE_MIN) {
+            return RedrawOutcome.Rejected("over-keyed: glyph keyed away entirely", coverage)
         }
 
-        // 4. 生成过滤位图
-        val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        out.setPixels(pixels, 0, w, 0, 0, w, h)
+        val filtered = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        filtered.setPixels(keyed, 0, w, 0, 0, w, h)
+        val output = renderToOutput(filtered, eff)
+        if (filtered !== output) filtered.recycle()
 
+        TraceLogger.d(
+            TAG,
+            "redraw ok in ${System.currentTimeMillis() - start}ms, mode=${bg.mode}, coverage=$coverage, threshold=${eff.threshold}"
+        )
+        return RedrawOutcome.Ok(output, coverage, bg.mode)
+    }
+
+    /**
+     * 背景色估计：≥3 个不透明角 → 角均值（修复透明角偏置）；否则全图主色统计。
+     * 全图无不透明像素（纯透明图）→ null（无法估计）。
+     */
+    internal fun estimateBackground(pixels: IntArray, width: Int): BgEstimate? {
+        val h = if (width == 0) 0 else pixels.size / width
+        if (width == 0 || h == 0) return null
+
+        val corners = intArrayOf(
+            pixels[0],
+            pixels[width - 1],
+            pixels[(h - 1) * width],
+            pixels[pixels.size - 1]
+        )
+        val opaqueCorners = corners.filter { (it ushr 24) and 0xFF > OPAQUE_ALPHA }
+        if (opaqueCorners.size >= 3) {
+            val r = opaqueCorners.sumOf { (it shr 16) and 0xFF } / opaqueCorners.size
+            val g = opaqueCorners.sumOf { (it shr 8) and 0xFF } / opaqueCorners.size
+            val b = opaqueCorners.sumOf { it and 0xFF } / opaqueCorners.size
+            return BgEstimate((r shl 16) or (g shl 8) or b, BgEstimateMode.CORNER_SAMPLE)
+        }
+        return dominantOpaqueColor(pixels)?.let { BgEstimate(it, BgEstimateMode.DOMINANT_COLOR) }
+    }
+
+    /** 全图不透明像素 32 级量化主色（#18 glyphKeyWhite 同款），返回桶中心代表色 */
+    internal fun dominantOpaqueColor(pixels: IntArray): Int? {
+        val buckets = HashMap<Int, Int>()
+        for (p in pixels) {
+            if ((p ushr 24) and 0xFF <= OPAQUE_ALPHA) continue
+            val key = (((p shr 16) and 0xFF) / 32 shl 10) or (((p shr 8) and 0xFF) / 32 shl 5) or ((p and 0xFF) / 32)
+            buckets[key] = (buckets[key] ?: 0) + 1
+        }
+        val bgKey = buckets.maxByOrNull { it.value }?.key ?: return null
+        val r = ((bgKey shr 10) and 0x1F) * 32 + 16
+        val g = ((bgKey shr 5) and 0x1F) * 32 + 16
+        val b = (bgKey and 0x1F) * 32 + 16
+        return (r shl 16) or (g shl 8) or b
+    }
+
+    /**
+     * 色距键控：≤阈值判背景（透明），否则刷白保留原 Alpha。纯像素操作，JVM 可测。
+     */
+    internal fun keyBackground(pixels: IntArray, bgColor: Int, threshold: Int): IntArray {
+        val br = (bgColor shr 16) and 0xFF
+        val bg = (bgColor shr 8) and 0xFF
+        val bb = bgColor and 0xFF
+        val thresholdSq = threshold * threshold
+
+        val out = IntArray(pixels.size)
+        for (i in pixels.indices) {
+            val c = pixels[i]
+            val alpha = (c ushr 24) and 0xFF
+            if (alpha == 0) {
+                out[i] = 0x00000000
+                continue
+            }
+            val dr = ((c shr 16) and 0xFF) - br
+            val dg = ((c shr 8) and 0xFF) - bg
+            val db = (c and 0xFF) - bb
+            val distSq = dr * dr + dg * dg + db * db
+            out[i] = if (distSq <= thresholdSq) 0x00000000
+            else (alpha shl 24) or 0x00FFFFFF
+        }
         return out
+    }
+
+    /** 不透明（α≥128）像素占比 */
+    internal fun foregroundCoverage(pixels: IntArray): Float {
+        if (pixels.isEmpty()) return 0f
+        var fg = 0
+        for (p in pixels) if ((p ushr 24) and 0xFF >= OPAQUE_ALPHA) fg++
+        return fg.toFloat() / pixels.size
     }
 
     /**
@@ -132,7 +181,6 @@ object IconRedrawEngine {
         val right = left + scaledW
         val bottom = top + scaledH
 
-        // 圆角裁剪
         if (params.radius > 0f) {
             val path = android.graphics.Path()
             path.addRoundRect(
