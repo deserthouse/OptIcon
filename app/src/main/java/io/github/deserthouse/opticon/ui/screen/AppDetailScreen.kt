@@ -277,7 +277,11 @@ fun AppDetailScreen(
             StrategyCard(selected = state.strategy == IconStrategy.ALGORITHM, enabled = enabled, onClick = { viewModel.setStrategy(IconStrategy.ALGORITHM) }) {
             SelectionRow(
                 label = stringResource(R.string.strategy_algo_label),
-                description = stringResource(R.string.strategy_algo_wip),
+                // F2 (2026-10-07 visual audit): tuning sliders are hidden by
+                // default (global switch off) — the card must not promise them.
+                description = stringResource(
+                    if (tuningVisible) R.string.strategy_algo_wip else R.string.strategy_algo_auto
+                ),
                 selected = state.strategy == IconStrategy.ALGORITHM,
                 enabled = enabled,
                 onClick = { viewModel.setStrategy(IconStrategy.ALGORITHM) }
@@ -295,7 +299,10 @@ fun AppDetailScreen(
                         SettingItem(
                             Icons.Rounded.Tune,
                             stringResource(R.string.algo_source_title),
-                            sourceLabel,
+                            // F1 (2026-10-07 visual audit): the value already
+                            // shows in the tail slot — the description carried
+                            // the same string, duplicating it. Explain instead.
+                            stringResource(R.string.algo_source_desc),
                             onClick = { showSourceSheet = true }
                         ) {
                             Text(sourceLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
@@ -571,7 +578,15 @@ private fun AlgoWipSheet(
     onRestoreAuto: () -> Unit
 ) {
     androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp)) {
+        // F6 (2026-10-07 visual audit): scrollable content + generous bottom
+        // inset — the purity slider used to sit flush against the gesture bar
+        // and any future control would have been clipped.
+        Column(
+            Modifier.fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 48.dp)
+        ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.algo_panel_title_wip), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
                 // M4 条件三：「恢复自动」常驻

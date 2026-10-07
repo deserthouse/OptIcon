@@ -1000,7 +1000,9 @@ private fun RuntimeStatusCard(
             onRecheck = onRecheck,
             hint = if (lsposedActive == false) stringResource(R.string.lsposed_status_hint) else null
         )
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+        // F4 (2026-10-07 visual audit): inset to 16dp matching every other
+        // card on this screen — the full-bleed divider was the lone outlier.
+        HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
         StatusRow(
             title = stringResource(R.string.root_status_title),
             statusText = when {

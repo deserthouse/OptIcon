@@ -57,6 +57,7 @@
     <string name="manual_upload_image">Upload image</string>
     <string name="use_captured_original">Use captured original</string>
     <string name="algo_source_title">Icon source</string>
+    <string name="algo_source_desc">Choose which image the redraw pipeline works from</string>
     <string name="algo_source_self">App own icon</string>
     <string name="algo_source_upload">Upload image</string>
     <string name="algo_source_captured">Captured original</string>
@@ -142,6 +143,7 @@
 
     <string name="strategy_algo_label">Compatibility Redraw</string>
     <string name="strategy_algo_wip">Redraw any icon into a compliant glyph — no rules or icon packs needed. Fine-tune with sliders.</string>
+    <string name="strategy_algo_auto">Redraw any icon into a compliant glyph — fully automatic; enable "Show fine-tune options" in Settings for expert sliders.</string>
     <string name="strategy_algo_open_panel_wip">Fine-tune redraw</string>
     <string name="algo_panel_title_wip">Fine-tune redraw</string>
     <string name="algo_panel_wip_body">Adjust and watch the preview update live. Changes take effect for new notifications after you save.</string>
