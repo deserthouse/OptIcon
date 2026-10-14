@@ -119,8 +119,13 @@ object SharedIconStore {
     fun writeColorOverride(context: Context, pkg: String, value: String): String? =
         writeBytes(context, "$pkg.opticon", value.toByteArray(), subDir = "color_override")
 
+    /** OI-01 follow-up (2026-10-15 acceptance): File.delete silently fails on
+     *  scoped storage for MediaStore-owned rows — the override file survived
+     *  while the UI showed "inherit". Delete through MediaStore too. */
     fun deleteColorOverride(context: Context, pkg: String): Boolean = try {
-        colorOverrideFile(pkg).delete()
+        val fileGone = colorOverrideFile(pkg).delete()
+        val rowGone = deleteByName(context, "$pkg$EXTENSION", "Download/$DIR_NAME/color_override")
+        fileGone || rowGone
     } catch (_: Exception) { false }
 
     fun readColorOverride(pkg: String): String? = try {
