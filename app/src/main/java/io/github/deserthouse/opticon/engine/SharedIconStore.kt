@@ -145,7 +145,7 @@ object SharedIconStore {
     fun deleteIcon(context: Context, pkg: String): Boolean {
         // OI-01: exact RELATIVE_PATH match — the legacy prefix LIKE also hit
         // same-named rows under color_override/ and deleted the override.
-        val rowGone = deleteByName(context, "$pkg$EXTENSION", "Download/$DIR_NAME")
+        val rowGone = deleteByName(context, "$pkg$EXTENSION", "Download/$DIR_NAME/")
         // Orphan guard (mirror of writeBytes'): a physical file with no
         // MediaStore row survives deleteByName — and the hook's Path 0 would
         // keep serving it after the user asked to revert.
@@ -208,10 +208,14 @@ object SharedIconStore {
             // which orphans the write at a path the SystemUI hook never reads
             // (it opens the canonical base name). Updating the row keeps the
             // stored name stable forever.
-            existingRowUri(context, fileName, relativePath)?.let { rowUri ->
+            // MediaStore normalizes RELATIVE_PATH to a TRAILING SLASH form —
+            // the equality match must use the same normalized value
+            // (verified on-device: stored value is "Download/OptIcon/").
+            val matchPath = "$relativePath/"
+            existingRowUri(context, fileName, matchPath)?.let { rowUri ->
                 updateExistingRow(resolver, rowUri, bytes)?.let { return it }
             }
-            return insertFresh(context, fileName, relativePath, bytes, subDir)
+            return insertFresh(context, fileName, matchPath, bytes, subDir)
         } catch (e: Exception) {
             null
         }
@@ -242,7 +246,7 @@ object SharedIconStore {
             val resolver = context.contentResolver
             // OI-01: exact-match cleanup scoped to THIS insert's directory —
             // the legacy prefix LIKE crossed into color_override/.
-            deleteByName(context, fileName, relativePath)
+            deleteByName(context, fileName, "$relativePath/")
             try { File(File(publicDir(), subDir ?: ""), fileName).delete() } catch (_: Exception) { }
 
             val values = ContentValues().apply {
