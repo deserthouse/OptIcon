@@ -138,7 +138,9 @@ object SharedIconStore {
      * Returns true if a row was actually removed.
      */
     fun deleteIcon(context: Context, pkg: String): Boolean {
-        val rowGone = deleteByName(context, "$pkg$EXTENSION")
+        // OI-01: exact RELATIVE_PATH match — the legacy prefix LIKE also hit
+        // same-named rows under color_override/ and deleted the override.
+        val rowGone = deleteByName(context, "$pkg$EXTENSION", "Download/$DIR_NAME")
         // Orphan guard (mirror of writeBytes'): a physical file with no
         // MediaStore row survives deleteByName — and the hook's Path 0 would
         // keep serving it after the user asked to revert.
@@ -167,14 +169,17 @@ object SharedIconStore {
      * Bulk mirror every {pkg}.png from a legacy dir (baked/ or fankes_cache/)
      * into the shared dir. Called after ANIA sync ingest. Returns the number
      * of icons published.
+     * OI-02: [skip] lets the caller protect user-authored products — a package
+     * the predicate accepts is NOT mirrored (its shared file stays the user's
+     * baked icon even when rules update).
      */
-    fun mirrorAllFromDir(context: Context, legacyDir: File): Int {
+    fun mirrorAllFromDir(context: Context, legacyDir: File, skip: ((String) -> Boolean)? = null): Int {
         if (!legacyDir.isDirectory) return 0
         val pngs = legacyDir.listFiles { f -> f.isFile && f.name.endsWith(".png") } ?: return 0
         var published = 0
         for (f in pngs) {
             val pkg = f.name.removeSuffix(".png")
-            if (pkg.isNotEmpty() && mirrorIconToShared(context, f, pkg) != null) published++
+            if (pkg.isNotEmpty() && skip?.invoke(pkg) != true && mirrorIconToShared(context, f, pkg) != null) published++
         }
         return published
     }
@@ -198,7 +203,7 @@ object SharedIconStore {
             // which orphans the write at a path the SystemUI hook never reads
             // (it opens the canonical base name). Updating the row keeps the
             // stored name stable forever.
-            existingRowUri(context, fileName)?.let { rowUri ->
+            existingRowUri(context, fileName, relativePath)?.let { rowUri ->
                 updateExistingRow(resolver, rowUri, bytes)?.let { return it }
             }
             return insertFresh(context, fileName, relativePath, bytes, subDir)
@@ -230,7 +235,9 @@ object SharedIconStore {
     ): String? {
         return try {
             val resolver = context.contentResolver
-            deleteByName(context, fileName)
+            // OI-01: exact-match cleanup scoped to THIS insert's directory —
+            // the legacy prefix LIKE crossed into color_override/.
+            deleteByName(context, fileName, relativePath)
             try { File(File(publicDir(), subDir ?: ""), fileName).delete() } catch (_: Exception) { }
 
             val values = ContentValues().apply {
@@ -253,12 +260,15 @@ object SharedIconStore {
         }
     }
 
-    /** Canonical row for [fileName] in our dir, or null. */
-    private fun existingRowUri(context: Context, fileName: String): Uri? = try {
+    /** Canonical row for [fileName] in exactly [relativePath], or null.
+     *  OI-01: RELATIVE_PATH must be EQUALITY-matched — a prefix LIKE also
+     *  matched same-named rows in subdirectories (color_override/) and the
+     *  update then overwrote the wrong file's bytes. */
+    private fun existingRowUri(context: Context, fileName: String, relativePath: String): Uri? = try {
         val resolver = context.contentResolver
         val selection =
-            "${MediaStore.Downloads.DISPLAY_NAME} = ? AND ${MediaStore.Downloads.RELATIVE_PATH} LIKE ?"
-        val selectionArgs = arrayOf(fileName, "Download/$DIR_NAME%")
+            "${MediaStore.Downloads.DISPLAY_NAME} = ? AND ${MediaStore.Downloads.RELATIVE_PATH} = ?"
+        val selectionArgs = arrayOf(fileName, relativePath)
         resolver.query(collection(), arrayOf(MediaStore.Downloads._ID), selection, selectionArgs, null)?.use { c ->
             if (c.moveToFirst()) {
                 Uri.withAppendedPath(collection(), c.getLong(0).toString())
@@ -266,13 +276,14 @@ object SharedIconStore {
         }
     } catch (_: Exception) { null }
 
-    private fun deleteByName(context: Context, fileName: String): Boolean {
+    private fun deleteByName(context: Context, fileName: String, relativePath: String): Boolean {
         return try {
             val resolver = context.contentResolver
             val projection = arrayOf(MediaStore.Downloads._ID)
+            // OI-01: exact directory match (see existingRowUri).
             val selection =
-                "${MediaStore.Downloads.DISPLAY_NAME} = ? AND ${MediaStore.Downloads.RELATIVE_PATH} LIKE ?"
-            val selectionArgs = arrayOf(fileName, "Download/$DIR_NAME%")
+                "${MediaStore.Downloads.DISPLAY_NAME} = ? AND ${MediaStore.Downloads.RELATIVE_PATH} = ?"
+            val selectionArgs = arrayOf(fileName, relativePath)
             var deleted = false
             resolver.query(collection(), projection, selection, selectionArgs, null)?.use { cursor ->
                 while (cursor.moveToNext()) {

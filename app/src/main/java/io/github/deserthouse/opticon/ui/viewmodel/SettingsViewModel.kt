@@ -276,9 +276,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                                 IconLibEngine.initializeFromFiles(ctx, emptyList())
                             }
                             // Publish all fankes_cache icons to the shared Downloads
-                            // dir so the SystemUI hook can read them (SELinux-safe)
+                            // dir so the SystemUI hook can read them (SELinux-safe).
+                            // OI-02: skip apps the user has configured with a
+                            // non-rules strategy — a rules update must never
+                            // silently replace their authored icon.
                             io.github.deserthouse.opticon.engine.SharedIconStore
-                                .mirrorAllFromDir(ctx, java.io.File(ctx.filesDir, "fankes_cache"))
+                                .mirrorAllFromDir(ctx, java.io.File(ctx.filesDir, "fankes_cache")) { pkg ->
+                                    PreferenceManager.isMethodEnabled(pkg) &&
+                                        PreferenceManager.getStrategy(pkg) != io.github.deserthouse.opticon.ui.state.IconStrategy.FANKES
+                                }
                         }
                         _aniaSyncing.value = false
                     }

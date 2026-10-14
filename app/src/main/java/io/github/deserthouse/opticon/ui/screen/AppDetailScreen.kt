@@ -115,9 +115,18 @@ fun AppDetailScreen(
 
     // ── 未保存修改拦截 ──
     val isDirty by viewModel.isDirty.collectAsState()
+    val saveState by viewModel.saveState.collectAsState()
     var showUnsavedDialog by remember { mutableStateOf(false) }
-    androidx.activity.compose.BackHandler(enabled = isDirty && !showUnsavedDialog) {
-        showUnsavedDialog = true
+    // OI-09: BOTH exits (top-bar arrow + system back) go through the same
+    // guarded requestLeave; OI-03: the dialog's save no longer navigates
+    // immediately — navigation happens when the save reports success.
+    fun requestLeave() {
+        if (isDirty && saveState != AppDetailViewModel.SaveState.Saving) showUnsavedDialog = true
+        else onNavigateBack()
+    }
+    androidx.activity.compose.BackHandler { requestLeave() }
+    androidx.compose.runtime.LaunchedEffect(saveState) {
+        if (saveState == AppDetailViewModel.SaveState.SavedAndExit) onNavigateBack()
     }
     if (showUnsavedDialog) {
         AlertDialog(
@@ -125,11 +134,13 @@ fun AppDetailScreen(
             title = { Text(stringResource(R.string.unsaved_title)) },
             text = { Text(stringResource(R.string.unsaved_body)) },
             confirmButton = {
-                TextButton(onClick = {
-                    showUnsavedDialog = false
-                    viewModel.saveConfig()
-                    onNavigateBack()
-                }) { Text(stringResource(R.string.unsaved_save), fontWeight = FontWeight.Medium) }
+                TextButton(
+                    enabled = saveState != AppDetailViewModel.SaveState.Saving,
+                    onClick = {
+                        showUnsavedDialog = false
+                        viewModel.saveConfig(requestLeaveAfter = true)
+                    }
+                ) { Text(stringResource(R.string.unsaved_save), fontWeight = FontWeight.Medium) }
             },
             dismissButton = {
                 TextButton(onClick = {
@@ -148,9 +159,9 @@ fun AppDetailScreen(
         topBar = {
             TopAppBar(
                 title = { Text(state.appName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) },
-                navigationIcon = { IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
+                navigationIcon = { IconButton(onClick = { requestLeave() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
                 actions = {
-                    IconButton(onClick = { viewModel.saveConfig() }) {
+                    IconButton(onClick = { viewModel.saveConfig() }, enabled = saveState != AppDetailViewModel.SaveState.Saving) {
                         Icon(Icons.Filled.Check, stringResource(R.string.save))
                     }
                 },

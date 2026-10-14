@@ -338,13 +338,29 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
     fun hideSheet() = _state.update { it.copy(sheetVisible = false) }
     fun togglePreviewMode() { _state.update { it.copy(previewMode = if (it.previewMode == StatusBarMode.DARK) StatusBarMode.LIGHT else StatusBarMode.DARK) } }
 
-    fun saveConfig() {
-        _isDirty.value = false
+    /** OI-03/OI-06: save lifecycle as observable state — no premature dirty
+     *  clear, no silent delivery failure, no fire-and-forget navigation. */
+    sealed interface SaveState {
+        data object Idle : SaveState
+        data object Saving : SaveState
+        data object Saved : SaveState
+        /** Saved and the caller asked to leave afterwards (unsaved-dialog path). */
+        data object SavedAndExit : SaveState
+        data object Failed : SaveState
+    }
+
+    private val _saveState = MutableStateFlow<SaveState>(SaveState.Idle)
+    val saveState: StateFlow<SaveState> = _saveState.asStateFlow()
+
+    fun saveConfig(requestLeaveAfter: Boolean = false) {
+        if (_saveState.value == SaveState.Saving) return
         val s = _state.value; val pkg = s.packageName
+        _saveState.value = SaveState.Saving
         viewModelScope.launch {
             val ctx = getApplication<Application>().applicationContext
             var enabled = s.methodEnabled
             var bakeResult: IconEngine.BakeResult? = null
+            var ok = true
             if (enabled) {
                 // Guard: a strategy that cannot produce an icon (e.g. FANKES
                 // rule not covering this app) must NOT persist as "enabled" —
@@ -353,6 +369,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                 bakeResult = withContext(Dispatchers.IO) { bakeCurrentState(ctx, s) }
                 if (bakeResult.bitmap == null) {
                     enabled = false
+                    ok = false
                     // M4 条件四：守卫拒绝要诚实引导换源，不得暗示"再调调滑杆就能好"
                     val guardHit = bakeResult.detail?.startsWith("redraw guard") == true ||
                         bakeResult.detail?.startsWith("self-filter guard") == true
@@ -362,24 +379,39 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                     )
                 }
             }
-            PreferenceManager.setMethodEnabled(pkg, enabled)
-            PreferenceManager.setStrategy(pkg, s.strategy)
-            PreferenceManager.setCustomIconPath(pkg, s.customIconPath)
-            PreferenceManager.setMaterialIconName(pkg, s.materialIconName)
-            PreferenceManager.setEmojiText(pkg, s.emojiText)
-            PreferenceManager.setScale(pkg, s.redrawParams.scale)
-            PreferenceManager.setThreshold(pkg, s.redrawParams.threshold)
-            PreferenceManager.setOffsetX(pkg, s.redrawParams.offsetX)
-            PreferenceManager.setOffsetY(pkg, s.redrawParams.offsetY)
-            PreferenceManager.setRadius(pkg, s.redrawParams.radius)
-
-            withContext(Dispatchers.IO) {
-                if (enabled && bakeResult?.bitmap != null) writeBaked(pkg, bakeResult.bitmap, bakeResult.source.name) else deleteBaked(pkg)
+            if (ok) {
+                PreferenceManager.setMethodEnabled(pkg, enabled)
+                PreferenceManager.setStrategy(pkg, s.strategy)
+                PreferenceManager.setCustomIconPath(pkg, s.customIconPath)
+                PreferenceManager.setMaterialIconName(pkg, s.materialIconName)
+                PreferenceManager.setEmojiText(pkg, s.emojiText)
+                PreferenceManager.setScale(pkg, s.redrawParams.scale)
+                PreferenceManager.setThreshold(pkg, s.redrawParams.threshold)
+                PreferenceManager.setOffsetX(pkg, s.redrawParams.offsetX)
+                PreferenceManager.setOffsetY(pkg, s.redrawParams.offsetY)
+                PreferenceManager.setRadius(pkg, s.redrawParams.radius)
+                // OI-06: delivery result decides success — a shared-dir write
+                // failure must NOT be reported as "已保存，新通知立即生效".
+                ok = if (enabled && bakeResult != null) {
+                    writeBaked(pkg, bakeResult.bitmap!!, bakeResult.detail ?: "saved")
+                } else {
+                    deleteBaked(pkg)
+                }
+                if (!ok) {
+                    // Roll the persisted enabled state back so the user can retry.
+                    PreferenceManager.setMethodEnabled(pkg, s.methodEnabled)
+                    _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.save_failed)
+                }
             }
-            if (enabled) {
+            if (ok) {
+                _isDirty.value = false
+                _state.update { it.copy(methodEnabled = enabled, hitSource = bakeResult?.source ?: HitSource.DISABLED) }
+                _saveState.value = if (requestLeaveAfter) SaveState.SavedAndExit else SaveState.Saved
                 _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.config_saved)
+            } else {
+                _isDirty.value = true
+                _saveState.value = SaveState.Failed
             }
-            _state.update { it.copy(methodEnabled = enabled, hitSource = bakeResult?.source ?: HitSource.DISABLED) }
         }
     }
 
@@ -525,20 +557,28 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         setExecutable(true, false)
         setReadable(true, false)
     }
-    private fun writeBaked(pkg: String, bitmap: Bitmap, sourceName: String) {
-        try {
+    /** OI-06: returns true only when the private bake AND the shared-dir
+     *  delivery both succeeded — the caller must treat false as a failed
+     *  save (rollback + retry), never report "saved". */
+    private fun writeBaked(pkg: String, bitmap: Bitmap, sourceName: String): Boolean {
+        return try {
             val dir = bakeDir()
             val pngFile = File(dir, "$pkg.png")
-            FileOutputStream(pngFile).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            FileOutputStream(pngFile).use { if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) return false }
             pngFile.setReadable(true, false) // World-readable for SystemUI
             val metaFile = File(dir, "$pkg.meta")
             metaFile.writeText(sourceName, Charsets.UTF_8)
             metaFile.setReadable(true, false)
             // Production delivery: publish to shared Downloads dir (SystemUI hook reads there)
-            io.github.deserthouse.opticon.engine.SharedIconStore.mirrorIconToShared(getApplication(), pngFile, pkg)
-        } catch (_: Exception) {}
+            io.github.deserthouse.opticon.engine.SharedIconStore.mirrorIconToShared(getApplication(), pngFile, pkg) != null
+        } catch (_: Exception) { false }
     }
-    private fun deleteBaked(pkg: String) { runCatching { File(bakeDir(), "$pkg.png").delete() }; runCatching { File(bakeDir(), "$pkg.meta").delete() }; runCatching { io.github.deserthouse.opticon.engine.SharedIconStore.deleteIcon(getApplication(), pkg) } }
+    private fun deleteBaked(pkg: String): Boolean {
+        val private1 = runCatching { File(bakeDir(), "$pkg.png").delete() }.getOrDefault(false)
+        val private2 = runCatching { File(bakeDir(), "$pkg.meta").delete() }.getOrDefault(false)
+        val shared = io.github.deserthouse.opticon.engine.SharedIconStore.deleteIcon(getApplication(), pkg)
+        return shared || (private1 && private2)
+    }
 
     private fun loadSavedParams(pkg: String) = RedrawParams(PreferenceManager.getScale(pkg), PreferenceManager.getOffsetX(pkg), PreferenceManager.getOffsetY(pkg), PreferenceManager.getThreshold(pkg), PreferenceManager.getRadius(pkg))
 
