@@ -44,6 +44,7 @@ archive/
 memory/
 .zcode/
 MIGRATION_NOTES.md
+PHASE_SUMMARY*.md
 project_status.md
 tests/
 OptIcon_internal_backup/
