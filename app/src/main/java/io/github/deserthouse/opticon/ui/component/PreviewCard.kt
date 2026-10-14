@@ -225,11 +225,15 @@ private fun DrawScope.drawIcon(bitmap: Bitmap, tintColor: Color) {
     val offsetX = (canvasW - drawW) / 2f
     val offsetY = (canvasH - drawH) / 2f
 
+    // OI-10: the compliance silhouette is pure white — without the tint it
+    // vanished on light preview backgrounds. Tint it to the semantic
+    // foreground color of the current preview mode.
     drawImage(
         image = img,
         dstOffset = IntOffset(offsetX.roundToInt(), offsetY.roundToInt()),
         dstSize = androidx.compose.ui.unit.IntSize(drawW.toInt(), drawH.toInt()),
-        alpha = 1f
+        alpha = 1f,
+        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(tintColor)
     )
 }
 

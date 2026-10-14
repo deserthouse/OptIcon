@@ -193,6 +193,8 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="source_picp_github_desc">Perfect icon completion project maintained by pzcn and the community.\nhttps://github.com/pzcn/Perfect-Icons-Completion-Project</string>
     <string name="add_source_title">Add Source</string>
     <string name="edit_source_title">Edit Source</string>
+    <string name="builtin_source_readonly">Built-in source — fields are read-only. Use "copy to custom" to create an editable variant.</string>
+    <string name="copy_to_custom">Copy to custom</string>
     <string name="source_name_label">Name</string>
     <string name="source_url_label">URL</string>
     <string name="source_description_label">Description</string>

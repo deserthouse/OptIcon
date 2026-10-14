@@ -28,6 +28,23 @@ object IconEngine {
     data class BakeResult(val bitmap: Bitmap?, val source: HitSource, val detail: String? = null)
 
     /**
+     * OI-07: single shared adaptive-foreground bake used by BOTH the detail
+     * ADAPTIVE_DECOMPOSE entry and the engine path — normalize → white →
+     * optional scale, so the slider always consumes the same implementation.
+     */
+    fun bakeAdaptiveForeground(fg: Bitmap, scale: Float): Bitmap? {
+        val normalized = IconNormalizer.normalize(fg)
+        val white = IconTint.toWhite(normalized) ?: return null
+        return applyAdaptiveScale(white, scale)
+    }
+
+    /** OI-07: scale application shared by adaptive paths (0.5..1.5, 1.0 = no-op). */
+    fun applyAdaptiveScale(white: Bitmap, scale: Float): Bitmap =
+        if (scale == RedrawParams.DEFAULT_SCALE) white
+        else IconTint.scaleAndTintWhite(white, scale.coerceIn(0.5f, 1.5f), OUTPUT_SIZE) ?: white
+
+
+    /**
      * Main bake entry. selectedIconPack only used when method==ICON_PACK.
      */
     fun bake(
@@ -110,11 +127,9 @@ object IconEngine {
     private fun bakeAdaptive(context: Context, pkg: String, params: RedrawParams): BakeResult {
         val extracted = AdaptiveIconExtractor.extractForegroundWhite(context, pkg)
             ?: return BakeResult(null, HitSource.AUTO_MISS, "adaptive miss")
-        // M4/B: adaptive foreground occupancy genuinely varies (40%..full) —
-        // apply the per-app scale like the redraw path does (0.5..1.5).
-        val result = if (params.scale != RedrawParams.DEFAULT_SCALE)
-            IconTint.scaleAndTintWhite(extracted, params.scale.coerceIn(0.5f, 1.5f), OUTPUT_SIZE) ?: extracted
-        else extracted
+        // OI-07: adaptive foreground occupancy genuinely varies (40%..full) —
+        // shared scale helper keeps this path identical to the UI branch.
+        val result = applyAdaptiveScale(extracted, params.scale)
         if (result !== extracted) extracted.recycle()
         return BakeResult(result, HitSource.ADAPTIVE)
     }

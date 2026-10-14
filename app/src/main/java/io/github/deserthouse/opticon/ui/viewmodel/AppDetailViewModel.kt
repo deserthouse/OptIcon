@@ -105,7 +105,17 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                     emojiUnlocked = PreferenceManager.isEmojiUnlocked(),
                     redrawParams = loadSavedParams(packageName),
                     iconPacks = packs,
-                    selectedIconPack = null,
+                    // OI-05: restore the FULL branch selection — the old code
+                    // reset the pack and never restored sub-strategy/source, so
+                    // a re-save could silently switch the icon's origin.
+                    assetSubStrategy = PreferenceManager.getAssetSubStrategy(packageName)
+                        ?.let { v -> runCatching { AssetSubStrategy.valueOf(v) }.getOrNull() }
+                        ?: AssetSubStrategy.ADAPTIVE_DECOMPOSE,
+                    algoSource = PreferenceManager.getAlgoSource(packageName)
+                        ?.let { v -> runCatching { AlgoSource.valueOf(v) }.getOrNull() }
+                        ?: AlgoSource.SELF,
+                    selectedIconPack = PreferenceManager.getSelectedIconPack(packageName),
+                    selectedPackIconDrawable = PreferenceManager.getSelectedPackDrawable(packageName),
                     colorOverride = io.github.deserthouse.opticon.engine.SharedIconStore.readColorOverride(packageName),
                     hasOriginalCaptured = io.github.deserthouse.opticon.engine.SharedIconStore.originalIconFile(packageName).exists()
                 )
@@ -149,7 +159,32 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
     fun setAlgoSource(src: AlgoSource) {
         _isDirty.value = true
         _state.update { it.copy(algoSource = src) }
-        debouncePreview()
+        // OI-13: classification belongs to the SOURCE IMAGE — switching to SELF
+        // must re-classify the app's own icon, otherwise "恢复自动" either
+        // no-ops (null class) or reuses the previous upload's class.
+        if (src == AlgoSource.SELF) {
+            viewModelScope.launch {
+                val pkg = _state.value.packageName
+                val cls = withContext(Dispatchers.IO) {
+                    val ctx = getApplication<Application>()
+                    val d = try { ctx.packageManager.getApplicationIcon(pkg) } catch (_: Exception) { null }
+                    if (d == null) null
+                    else {
+                        val bmp = drawableToBitmap(d, 96)
+                        val px = IntArray(bmp.width * bmp.height)
+                        bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
+                        val r = IconRedrawEngine.classifyInput(px, bmp.width)
+                        bmp.recycle()
+                        r
+                    }
+                }
+                _algoInputClass.value = cls
+                if (cls != null) {
+                    _state.update { it.copy(redrawParams = autoParamsFor(cls)) }
+                    debouncePreview()
+                }
+            }
+        } else debouncePreview()
     }
 
     fun setMethodEnabled(enabled: Boolean) {
@@ -283,9 +318,11 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
 
     /** 「恢复自动」：滑杆回到当前输入类的自动默认值 */
     fun restoreAutoParams() {
-        val cls = _algoInputClass.value ?: return
         _isDirty.value = true
-        _state.update { it.copy(redrawParams = autoParamsFor(cls)) }
+        // OI-13: no classification (SELF default) still restores — fall back to
+        // the class-agnostic defaults instead of silently doing nothing.
+        val cls = _algoInputClass.value
+        _state.update { it.copy(redrawParams = if (cls != null) autoParamsFor(cls) else RedrawParams()) }
         debouncePreview()
     }
 
@@ -390,6 +427,10 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                 PreferenceManager.setOffsetX(pkg, s.redrawParams.offsetX)
                 PreferenceManager.setOffsetY(pkg, s.redrawParams.offsetY)
                 PreferenceManager.setRadius(pkg, s.redrawParams.radius)
+                // OI-05: persist the full branch identity alongside the params.
+                PreferenceManager.setAssetSubStrategy(pkg, s.assetSubStrategy.name)
+                PreferenceManager.setAlgoSource(pkg, s.algoSource.name)
+                PreferenceManager.setSelectedIconPack(pkg, s.selectedIconPack, s.selectedPackIconDrawable)
                 // OI-06: delivery result decides success — a shared-dir write
                 // failure must NOT be reported as "已保存，新通知立即生效".
                 ok = if (enabled && bakeResult != null) {
@@ -459,8 +500,11 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                 AssetSubStrategy.ADAPTIVE_DECOMPOSE -> {
                     val fg = s.adaptiveForeground
                     if (fg != null) {
-                        val normalized = IconNormalizer.normalize(fg)
-                        val white = IconTint.toWhite(normalized)
+                        // OI-07: consume scale through the SAME shared helper the
+                        // engine path uses — the M4 slider was wired to a branch
+                        // this entry never called.
+                        val white = io.github.deserthouse.opticon.engine.IconEngine
+                            .bakeAdaptiveForeground(fg, s.redrawParams.scale)
                         if (white != null) IconEngine.BakeResult(white, HitSource.ADAPTIVE, "decompose foreground")
                         else IconEngine.BakeResult(null, HitSource.AUTO_MISS, "decompose tint failed")
                     } else {
@@ -468,7 +512,9 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                     }
                 }
                 AssetSubStrategy.PERFECT_ICONS -> {
-                    val cached = s.previewBitmap ?: s.perfectIconsBitmap
+                    // OI-15: only the actual PICP asset may bake — the shared
+                    // previewBitmap could be another source's cached image.
+                    val cached = s.perfectIconsBitmap
                     if (cached != null) IconEngine.BakeResult(cached, if (s.hitSource != HitSource.OTHER) s.hitSource else HitSource.PICP)
                     else IconEngine.BakeResult(null, HitSource.AUTO_MISS, "picp not fetched")
                 }
@@ -491,18 +537,19 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                 AlgoSource.LOCAL_FILE -> {
                     if (s.customIconPath.isNullOrBlank()) IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: no file")
                     else {
+                        // OI-04: hand the ORIGINAL bitmap to the redraw engine —
+                        // pre-whitening here destroyed the bg/fg color distance
+                        // the keying depends on (flat/gradient uploads keyed to
+                        // empty). The engine whitens AFTER keying.
                         val src = decodeFileOrUri(context, s.customIconPath)
                         if (src != null) {
-                            val white = IconTint.toWhite(src)
-                            if (src !== white) src.recycle()
-                            if (white == null) return IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: tint failed")
-                            when (val outcome = IconRedrawEngine.redraw(white, s.redrawParams)) {
+                            when (val outcome = IconRedrawEngine.redraw(src, s.redrawParams)) {
                                 is IconRedrawEngine.RedrawOutcome.Ok -> {
-                                    if (white !== outcome.bitmap) white.recycle()
+                                    src.recycle()
                                     return IconEngine.BakeResult(outcome.bitmap, HitSource.MANUAL, "local file + redraw")
                                 }
                                 is IconRedrawEngine.RedrawOutcome.Rejected -> {
-                                    white.recycle()
+                                    src.recycle()
                                     return IconEngine.BakeResult(null, HitSource.AUTO_MISS, "redraw guard: ${outcome.reason}")
                                 }
                             }

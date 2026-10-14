@@ -487,8 +487,14 @@ object NotificationHook {
                 xposed.hook(method).setId("opticon:createIcons:${method.toGenericString().hashCode()}").intercept(
                     XposedInterface.Hooker { chain ->
                         try {
-                            if (initialized && masterEnabled) {
+                            // OI-08: refresh BEFORE the enabled gate — once the hook had read
+                                // false, the old guard skipped every future refresh
+                                // and re-enabling could never reach this process
+                                // without a SystemUI restart.
                                 maybeRefreshMasterSwitch()
+                                // OI-08: refresh before the gate (see createIcons).
+                            maybeRefreshMasterSwitch()
+                            if (initialized && masterEnabled) {
                                 val entry = chain.getArg(0)
                                 val sbn = sbnField.get(entry) as? StatusBarNotification
                                 val pkg = sbn?.packageName
@@ -555,6 +561,8 @@ object NotificationHook {
                 xposed.hook(method).setId("opticon:updateIcons:" + method.toGenericString().hashCode()).intercept(
                     XposedInterface.Hooker { chain ->
                         try {
+                            // OI-08: refresh before the gate (see createIcons).
+                            maybeRefreshMasterSwitch()
                             if (initialized && masterEnabled) {
                                 val sbn = when {
                                     chain.args.size == 1 && entryClass.isInstance(chain.getArg(0)) ->
@@ -616,6 +624,8 @@ object NotificationHook {
                 xposed.hook(m).setId("opticon:CachingIconView.setImageIcon").intercept(
                     XposedInterface.Hooker { chain ->
                         try {
+                            // OI-08: refresh before the gate (see createIcons).
+                            maybeRefreshMasterSwitch()
                             if (initialized && masterEnabled) {
                                 val icon = chain.getArg(0) as? Icon
                                 if (icon != null) {
@@ -654,6 +664,10 @@ object NotificationHook {
      *  here — after recoverBuilder returns, before build() is called — closes
      *  the race for heads-up banners, list rows, and single-line views alike,
      *  because they all rebuild content from this recovered builder. */
+    // Xposed 模块在 SystemUI 进程内以目标 classloader 反射访问系统内部 API——
+    // lint 的 SoonBlockedPrivateApi 按"普通应用 targetSdk 37"假设判定必崩，
+    // 不适用于 hook 运行环境（10-15 审查 OI 批确认保留 + 定向豁免）。
+    @Suppress("SoonBlockedPrivateApi")
     private fun hookRecoverBuilder(xposed: XposedInterface) {
         try {
             val builderClass = Notification.Builder::class.java
@@ -666,6 +680,7 @@ object NotificationHook {
                 XposedInterface.Hooker { chain ->
                     val builder = chain.proceed()
                     try {
+                        maybeRefreshMasterSwitch()
                         if (initialized && masterEnabled && builder != null) {
                             val n = chain.getArg(1) as? Notification ?: return@Hooker builder
                             // Self-contained attribution: the builder AppInfo stashed
@@ -714,6 +729,10 @@ object NotificationHook {
      *  builds. Directly setting setImageDrawable here guarantees the
      *  baked icon renders. StatusBarIconView extends ImageView, so
      *  setImageDrawable is inherited and safe. */
+    // Xposed 模块在 SystemUI 进程内以目标 classloader 反射访问系统内部 API——
+    // lint 的 SoonBlockedPrivateApi 按"普通应用 targetSdk 37"假设判定必崩，
+    // 不适用于 hook 运行环境（10-15 审查 OI 批确认保留 + 定向豁免）。
+    @Suppress("SoonBlockedPrivateApi")
     private fun hookStatusBarIconViewSet(xposed: XposedInterface, classLoader: ClassLoader) {
         try {
             val sbiViewClass = classLoader.loadClass(
@@ -791,6 +810,7 @@ object NotificationHook {
                         val entry = chain.getArg(0)
                         val sbn = sbnField.get(entry) as? StatusBarNotification
                         val pkg = sbn?.packageName
+                        maybeRefreshMasterSwitch()
                         if (initialized && masterEnabled && pkg != null && pkg != MODULE_PKG) {
                             val replacement = resolveReplacementIcon(pkg, iconDrawableOf(sbn.notification))
                             if (replacement != null && result != null) {
@@ -982,6 +1002,10 @@ object NotificationHook {
         } catch (e: Throwable) { null }
     }
 
+    // Xposed 模块在 SystemUI 进程内以目标 classloader 反射访问系统内部 API——
+    // lint 的 SoonBlockedPrivateApi 按"普通应用 targetSdk 37"假设判定必崩，
+    // 不适用于 hook 运行环境（10-15 审查 OI 批确认保留 + 定向豁免）。
+    @Suppress("SoonBlockedPrivateApi")
     private fun getSystemUiContext(): Context? {
         return try {
             val atClass = Class.forName("android.app.ActivityThread")

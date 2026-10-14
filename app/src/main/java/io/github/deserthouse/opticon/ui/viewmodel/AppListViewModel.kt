@@ -205,14 +205,10 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
         val hasLib = try { IconLibEngine.hasIcon(pkgName) } catch (e: Exception) { false }
         val picpAdapted = PicpEngine.hasIcon(pkgName, context)
         val hasAdaptive = AdaptiveIconExtractor.hasAdaptiveIcon(context, pkgName)
-        //          isUserModified = isMethodEnabled     
+        // OI-11: derive from the CURRENT strategy model — the legacy IconMethod
+        // values drifted from what the detail screen actually saves.
         val enabled = PreferenceManager.isMethodEnabled(pkgName)
-        val method = PreferenceManager.getMethod(pkgName)
-        val modSource = if (!enabled) ModificationSource.NONE else when (method) {
-            IconMethod.REMOTE_SUB -> ModificationSource.ICON_LIBRARY
-            IconMethod.SELF_FILTER -> ModificationSource.ALGORITHM
-            else -> ModificationSource.CUSTOM
-        }
+        val modSource = PreferenceManager.getModificationSource(pkgName)
 
         return AppUiEntry(
             packageName = pkgName, appName = appName, icon = icon, isSystemApp = isSystem,

@@ -569,8 +569,13 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
         showEditSource?.let { source ->
             EditSourceDialog(
                 source = source,
+                isBuiltin = PreferenceManager.isBuiltinSource(source.id),
                 onDismiss = viewModel::dismissEditSource,
-                onConfirm = { id, name, url, desc -> viewModel.updateSource(id, name, url, desc) }
+                onConfirm = { id, name, url, desc -> viewModel.updateSource(id, name, url, desc) },
+                onCopyToCustom = { name, url, desc ->
+                    viewModel.dismissEditSource()
+                    viewModel.addSource(name, url, desc)
+                }
             )
         }
     }
@@ -623,8 +628,10 @@ private fun AddSourceDialog(onDismiss: () -> Unit, onConfirm: (String, String, S
 @Composable
 private fun EditSourceDialog(
     source: PreferenceManager.SubscriptionSource,
+    isBuiltin: Boolean,
     onDismiss: () -> Unit,
-    onConfirm: (String, String, String, String) -> Unit
+    onConfirm: (String, String, String, String) -> Unit,
+    onCopyToCustom: (String, String, String) -> Unit
 ) {
     var name by remember { mutableStateOf(source.name) }
     var url by remember { mutableStateOf(source.url) }
@@ -635,10 +642,22 @@ private fun EditSourceDialog(
         title = { Text(stringResource(R.string.edit_source_title)) },
         text = {
             Column {
+                // OI-14: builtin sources silently dropped edits before — the
+                // fields are now read-only and the only write path is
+                // "copy to custom", which actually persists.
+                if (isBuiltin) {
+                    Text(
+                        stringResource(R.string.builtin_source_readonly),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
                 OutlinedTextField(
                     value = name, onValueChange = { name = it },
                     label = { Text(stringResource(R.string.source_name_label)) },
                     singleLine = true,
+                    readOnly = isBuiltin,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(8.dp))
@@ -646,6 +665,7 @@ private fun EditSourceDialog(
                     value = url, onValueChange = { url = it },
                     label = { Text(stringResource(R.string.source_url_label)) },
                     singleLine = true,
+                    readOnly = isBuiltin,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(8.dp))
@@ -653,15 +673,22 @@ private fun EditSourceDialog(
                     value = desc, onValueChange = { desc = it },
                     label = { Text(stringResource(R.string.source_description_label)) },
                     maxLines = 3,
+                    readOnly = isBuiltin,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         },
         confirmButton = {
-            TextButton(
-                onClick = { if (name.isNotBlank() && url.isNotBlank()) onConfirm(source.id, name, url, desc) },
-                enabled = name.isNotBlank() && url.isNotBlank()
-            ) { Text(stringResource(R.string.save_btn)) }
+            if (isBuiltin) {
+                TextButton(onClick = { onCopyToCustom(name, url, desc) }) {
+                    Text(stringResource(R.string.copy_to_custom), color = MaterialTheme.colorScheme.primary)
+                }
+            } else {
+                TextButton(
+                    onClick = { if (name.isNotBlank() && url.isNotBlank()) onConfirm(source.id, name, url, desc) },
+                    enabled = name.isNotBlank() && url.isNotBlank()
+                ) { Text(stringResource(R.string.save_btn)) }
+            }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel_btn)) } }
     )
@@ -911,7 +938,11 @@ private suspend fun restartSystemUi(): RestartResult = kotlinx.coroutines.withCo
         val proc = ProcessBuilder("su", "-c", "kill \$(pidof com.android.systemui)")
             .redirectErrorStream(true)
             .start()
-        val output = proc.inputStream.bufferedReader().readText().trim()
+        // OI-16: drain output off-thread so waitFor's 5s deadline actually
+        // bounds the whole call even when su never closes its stdout.
+        val outputRef = java.util.concurrent.atomic.AtomicReference<String>("")
+        val drained = Thread { try { outputRef.set(proc.inputStream.bufferedReader().readText().trim()) } catch (_: Exception) {} }
+        drained.start()
         val exited = proc.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)
         if (!exited) {
             proc.destroy()
@@ -919,7 +950,7 @@ private suspend fun restartSystemUi(): RestartResult = kotlinx.coroutines.withCo
         } else if (proc.exitValue() == 0) {
             RestartResult.Ok
         } else {
-            RestartResult.Failed(proc.exitValue(), output)
+            RestartResult.Failed(proc.exitValue(), outputRef.get())
         }
     } catch (e: Exception) {
         RestartResult.Error(e.message ?: e.javaClass.simpleName)

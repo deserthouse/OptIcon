@@ -63,17 +63,25 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
          *  before first frame. */
         val dynamicColorFlow = MutableStateFlow(true)
 
-        /** Root 检测 — InstallerX Revived 风格: 实际执行 su -c 命令验证 (3s 超时) */
+        /** Root 检测 — InstallerX Revived 风格: 实际执行 su -c 命令验证 (3s 超时)。
+         *  OI-16: output drain runs on a reader thread so waitFor's deadline
+         *  covers the whole call — a su that never closes its output stream
+         *  used to block past the timeout on readText(). */
         fun checkRoot(): Boolean {
             val paths = "/data/adb/ksu/bin:/data/adb/ap/bin:/data/adb/magisk/bin"
             return try {
                 val proc = ProcessBuilder("su", "-c", "export PATH=\$PATH:$paths && echo ok")
                     .redirectErrorStream(true)
                     .start()
-                val result = proc.inputStream.bufferedReader().readText()
+                val output = java.util.concurrent.atomic.AtomicReference<String?>(null)
+                val reader = Thread {
+                    try { output.set(proc.inputStream.bufferedReader().readText()) } catch (_: Exception) {}
+                }
+                reader.start()
                 val exited = proc.waitFor(3, TimeUnit.SECONDS)
-                if (!exited) { proc.destroy(); return false }
-                result.contains("ok")
+                if (!exited) { proc.destroy(); reader.join(500); return false }
+                reader.join(500)
+                output.get()?.contains("ok") ?: false
             } catch (e: Exception) { false }
         }
     }

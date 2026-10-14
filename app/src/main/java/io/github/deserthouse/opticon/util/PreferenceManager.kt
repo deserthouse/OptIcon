@@ -86,6 +86,47 @@ object PreferenceManager {
         prefs?.edit { putString("$KEY_STRATEGY_PREFIX$pkgName", strategy.name) }
     }
 
+    // ━━━ OI-05: full per-app branch persistence (sub-strategy / algo source / pack) ━━━
+
+    fun getAssetSubStrategy(pkgName: String): String? =
+        prefs?.getString("asset_sub_$pkgName", null)
+
+    fun setAssetSubStrategy(pkgName: String, value: String?) {
+        prefs?.edit { if (value == null) remove("asset_sub_$pkgName") else putString("asset_sub_$pkgName", value) }
+    }
+
+    fun getAlgoSource(pkgName: String): String? =
+        prefs?.getString("algo_source_$pkgName", null)
+
+    fun setAlgoSource(pkgName: String, value: String?) {
+        prefs?.edit { if (value == null) remove("algo_source_$pkgName") else putString("algo_source_$pkgName", value) }
+    }
+
+    fun getSelectedIconPack(pkgName: String): String? =
+        prefs?.getString("icon_pack_$pkgName", null)
+
+    fun getSelectedPackDrawable(pkgName: String): String? =
+        prefs?.getString("pack_drawable_$pkgName", null)
+
+    fun setSelectedIconPack(pkgName: String, packPkg: String?, drawable: String?) {
+        prefs?.edit {
+            if (packPkg == null) { remove("icon_pack_$pkgName"); remove("pack_drawable_$pkgName") }
+            else { putString("icon_pack_$pkgName", packPkg); putString("pack_drawable_$pkgName", drawable ?: "") }
+        }
+    }
+
+    /** OI-11: single source of truth for the list's modification-source badge —
+     *  derived from the CURRENT strategy model (the legacy IconMethod values
+     *  drifted from what the detail screen actually saves). */
+    fun getModificationSource(pkgName: String): io.github.deserthouse.opticon.ui.state.ModificationSource {
+        if (!isMethodEnabled(pkgName)) return io.github.deserthouse.opticon.ui.state.ModificationSource.NONE
+        return when (getStrategy(pkgName)) {
+            io.github.deserthouse.opticon.ui.state.IconStrategy.FANKES -> io.github.deserthouse.opticon.ui.state.ModificationSource.ICON_LIBRARY
+            io.github.deserthouse.opticon.ui.state.IconStrategy.ALGORITHM -> io.github.deserthouse.opticon.ui.state.ModificationSource.ALGORITHM
+            io.github.deserthouse.opticon.ui.state.IconStrategy.ASSET_IMPORT -> io.github.deserthouse.opticon.ui.state.ModificationSource.CUSTOM
+        }
+    }
+
     // ━━━ 图标策略方法 (5 方案 + 智能全自动) ━━━
 
     fun getMethod(pkgName: String): IconMethod {
@@ -323,6 +364,11 @@ object PreferenceManager {
             "https://api.github.com/repos/pzcn/Perfect-Icons-Completion-Project/zipball/main",
             "", true),
     )
+
+    /** OI-14: builtin sources have no editable registry entry — expose the
+     *  capability so the edit dialog can go read-only instead of假保存. */
+    fun isBuiltinSource(id: String): Boolean =
+        BUILTIN_ANIA_SOURCES.any { it.id == id } || BUILTIN_PICP_SOURCES.any { it.id == id }
 
     private const val KEY_CUSTOM_SOURCES = "custom_sub_sources"
     private const val KEY_ACTIVE_ANIA_SOURCE = "active_ania_source"

@@ -50,6 +50,10 @@ class MainHook : XposedModule() {
         TraceLogger.i(TAG, "Hot reload completed")
     }
 
+    // Xposed 模块在 SystemUI 进程内以目标 classloader 反射访问系统内部 API——
+    // lint 的 SoonBlockedPrivateApi 按"普通应用 targetSdk 37"假设判定必崩，
+    // 不适用于 hook 运行环境（10-15 审查 OI 批确认保留 + 定向豁免）。
+    @Suppress("SoonBlockedPrivateApi")
     private fun writeHookInstalledFlag(value: Boolean) {
         try {
             val atClass = Class.forName("android.app.ActivityThread")

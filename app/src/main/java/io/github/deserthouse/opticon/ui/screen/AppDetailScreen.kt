@@ -324,13 +324,19 @@ fun AppDetailScreen(
                                 selected = state.algoSource.name,
                                 options = listOf(
                                     RadioOption("SELF", stringResource(R.string.algo_source_self), null),
-                                    RadioOption("LOCAL", stringResource(R.string.algo_source_upload), null)
+                                    RadioOption("LOCAL_FILE", stringResource(R.string.algo_source_upload), null)
                                 ),
                                 onSelect = { pick ->
+                                    // OI-12: option key must match the enum name so
+                                    // the highlight tracks the stored value; LOCAL
+                                    // commits only AFTER a valid image is picked —
+                                    // cancelling the picker keeps source/dirty intact.
                                     when (pick) {
-                                        "SELF" -> viewModel.setAlgoSource(io.github.deserthouse.opticon.ui.state.AlgoSource.SELF)
-                                        "LOCAL" -> {
-                                            viewModel.setAlgoSource(io.github.deserthouse.opticon.ui.state.AlgoSource.LOCAL_FILE)
+                                        "SELF" -> {
+                                            viewModel.setAlgoSource(io.github.deserthouse.opticon.ui.state.AlgoSource.SELF)
+                                            showSourceSheet = false
+                                        }
+                                        "LOCAL_FILE" -> {
                                             showSourceSheet = false
                                             pickLauncher.launch("image/*")
                                         }

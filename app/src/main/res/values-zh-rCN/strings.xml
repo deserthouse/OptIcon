@@ -193,6 +193,8 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="source_picp_github_desc">由 pzcn 及社区维护的完美图标补全计划，为海量应用提供高质量的自适应图标资源。\nhttps://github.com/pzcn/Perfect-Icons-Completion-Project</string>
     <string name="add_source_title">添加订阅源</string>
     <string name="edit_source_title">编辑订阅源</string>
+    <string name="builtin_source_readonly">内置订阅源——字段只读。如需修改请用「复制为自定义源」创建可编辑副本。</string>
+    <string name="copy_to_custom">复制为自定义源</string>
     <string name="source_name_label">名称</string>
     <string name="source_url_label">URL</string>
     <string name="source_description_label">描述</string>
