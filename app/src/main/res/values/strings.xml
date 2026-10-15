@@ -146,7 +146,7 @@
     <string name="strategy_algo_auto">Redraw any icon into a compliant glyph — fully automatic; enable "Show fine-tune options" in Settings for expert sliders.</string>
     <string name="strategy_algo_open_panel_wip">Fine-tune redraw</string>
     <string name="algo_panel_title_wip">Fine-tune redraw</string>
-    <string name="algo_panel_wip_body">Adjust and watch the preview update live. "Reset to auto" only restores this route's parameters — it never changes the chosen source. Changes take effect for new notifications after you save.</string>
+    <string name="algo_panel_wip_body">Adjust and watch the preview update live. \"Reset to auto\" only restores this route\'s parameters — it never changes the chosen source. Changes take effect for new notifications after you save.</string>
     <string name="algo_restore_auto">Reset to auto</string>
     <string name="algo_auto_alpha_note">This image defines itself by transparency — the glyph is whitened along its alpha outline automatically; no purity threshold needed.</string>
     <string name="show_tuning_title">Show fine-tune options</string>
