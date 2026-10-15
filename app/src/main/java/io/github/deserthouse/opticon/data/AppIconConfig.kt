@@ -34,9 +34,7 @@ data class AppIconConfig(
     val materialIconName: String? = null,
     /** strategy=ALGORITHM 且 algoSource=EMOJI_TEXT 时有意义 */
     val emojiText: String? = null,
-    val params: RedrawParams = RedrawParams(),
-    /** null=跟随全局 / "mono"=强制单色 / "color"=保持原色（契约 §4） */
-    val colorOverride: String? = null
+    val params: RedrawParams = RedrawParams()
 ) {
 
     /** 返回所有违反类型约束的描述；空列表=配置合法。
