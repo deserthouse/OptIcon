@@ -525,13 +525,15 @@ private fun FilterChipRow(
             )
         }
         }
-        // ME-07：渐隐仅覆盖末端窄区域（24dp）——旧实现 matchParentSize 全行
-        // 覆盖，chips 中段也被罩上底色。RTL 方向 TODO。
+        // ME-07：渐隐仅覆盖末端窄区域（24dp）——matchParentSize 取 Box 内容
+        // （chips 行）高度后由 width 收窄；勿改 fillMaxHeight，那会把 Box 撑到
+        // 页面剩余全高、把 LazyColumn 挤出屏幕（本次实施曾踩，注释即教训）。
+        // RTL 方向 TODO。
         Box(
             Modifier
-                .align(Alignment.CenterEnd)
-                .fillMaxHeight()
+                .matchParentSize()
                 .width(24.dp)
+                .align(Alignment.CenterEnd)
                 .background(
                     androidx.compose.ui.graphics.Brush.horizontalGradient(
                         colors = listOf(
