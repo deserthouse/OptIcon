@@ -90,9 +90,10 @@ fun ModernAppCard(
                 scaleX = scale; scaleY = scale
             }
             .clip(OptShapes.large)
+            // ME-08：恢复默认 ripple——indication=null 曾绕过项目「按压波纹
+            // 覆盖视觉边界」门禁；缩放动画保留与波纹共存。
             .combinedClickable(
                 interactionSource = interactionSource,
-                indication = null,
                 onClick = onClick,
                 onLongClick = onLongClick
             ),
@@ -138,14 +139,8 @@ fun ModernAppCard(
 
 @Composable
 private fun AppIconCircle(entry: AppUiEntry) {
-    val accent = run {
-        val h = entry.packageName.hashCode()
-        Color(
-            red = ((h shr 16) and 0xFF).coerceIn(60, 220),
-            green = ((h shr 8) and 0xFF).coerceIn(60, 220),
-            blue = (h and 0xFF).coerceIn(60, 220)
-        )
-    }
+    // ME-05：包名哈希任意 RGB 与主题无关——统一中性容器，应用原图自带色彩。
+    val accent = MaterialTheme.colorScheme.surfaceVariant
     Box(
         modifier = Modifier
             .size(48.dp)
@@ -179,21 +174,25 @@ private fun AppIconCircle(entry: AppUiEntry) {
     }
 }
 
+private data class BadgeColors(val labelRes: Int, val bg: Color, val fg: Color)
+
 @Composable
 private fun ModificationBadge(source: ModificationSource) {
-    val (labelRes, color) = when (source) {
-        ModificationSource.ICON_LIBRARY -> io.github.deserthouse.opticon.R.string.badge_source_lib to MaterialTheme.colorScheme.primary
-        ModificationSource.ALGORITHM -> io.github.deserthouse.opticon.R.string.badge_source_algo to MaterialTheme.colorScheme.tertiary
-        ModificationSource.CUSTOM -> io.github.deserthouse.opticon.R.string.badge_source_custom to MaterialTheme.colorScheme.secondary
+    // ME-05：背景/前景按颜色角色成对——旧实现背景三变而前景一律 onPrimary。
+    val c = MaterialTheme.colorScheme
+    val badge = when (source) {
+        ModificationSource.ICON_LIBRARY -> BadgeColors(io.github.deserthouse.opticon.R.string.badge_source_lib, c.primary, c.onPrimary)
+        ModificationSource.ALGORITHM -> BadgeColors(io.github.deserthouse.opticon.R.string.badge_source_algo, c.tertiary, c.onTertiary)
+        ModificationSource.CUSTOM -> BadgeColors(io.github.deserthouse.opticon.R.string.badge_source_custom, c.secondary, c.onSecondary)
         ModificationSource.NONE -> return
     }
     Surface(
         shape = OptShapes.small,
-        color = color,
-        contentColor = MaterialTheme.colorScheme.onPrimary
+        color = badge.bg,
+        contentColor = badge.fg
     ) {
         Text(
-            text = stringResource(labelRes),
+            text = stringResource(badge.labelRes),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -234,6 +233,8 @@ private fun StatusPill(
     )
     val fg by animateColorAsState(
         targetValue = when {
+            // ME-05：警示分支前景配 onErrorContainer（旧实现无 alert 前景分支）
+            alert -> MaterialTheme.colorScheme.onErrorContainer
             active -> MaterialTheme.colorScheme.primary
             dim -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
             else -> MaterialTheme.colorScheme.onSurfaceVariant

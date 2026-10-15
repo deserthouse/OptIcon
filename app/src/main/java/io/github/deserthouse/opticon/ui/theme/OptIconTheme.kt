@@ -2,7 +2,7 @@ package io.github.deserthouse.opticon.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -33,7 +33,9 @@ fun OptIconTheme(
         else -> BrandLightColors
     }
 
-    MaterialTheme(
+    // ME-04（M3E 评审）：Expressive 根主题——默认动效走 MotionScheme.expressive，
+    // 组件默认行为与局部 Expressive 表达（hero 形变/波浪/弹簧）统一在同一体系内。
+    MaterialExpressiveTheme(
         colorScheme = colorScheme,
         content = content
     )

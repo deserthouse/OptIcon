@@ -145,12 +145,16 @@ fun AppListScreen(
     // itself while browsing. The search bar + chips sit under the title bar
     // and auto-hide on scroll down / pop back on ANY pull-up.
     val scrollUp by listState.isScrollingUp()
+    // ME-07：搜索聚焦或有词时，搜索入口保持稳定——不随滚动方向收起。
+    var searchActive by remember { mutableStateOf(false) }
     val headerVisible by remember {
-        derivedStateOf { listState.firstVisibleItemIndex == 0 || scrollUp }
+        derivedStateOf {
+            searchActive || state.searchQuery.isNotEmpty() ||
+                listState.firstVisibleItemIndex == 0 || scrollUp
+        }
     }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    var searchActive by remember { mutableStateOf(false) }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -521,14 +525,13 @@ private fun FilterChipRow(
             )
         }
         }
-        // Right-edge fade so horizontally scrolling chips melt into the
-        // background instead of clipping hard at the screen edge.
+        // ME-07：渐隐仅覆盖末端窄区域（24dp）——旧实现 matchParentSize 全行
+        // 覆盖，chips 中段也被罩上底色。RTL 方向 TODO。
         Box(
             Modifier
-                // matchParentSize: does NOT influence the parent's size —
-                // fillMaxHeight here would balloon the row to full height
-                // and push the LazyColumn off-screen.
-                .matchParentSize()
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight()
+                .width(24.dp)
                 .background(
                     androidx.compose.ui.graphics.Brush.horizontalGradient(
                         colors = listOf(
