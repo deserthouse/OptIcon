@@ -484,126 +484,27 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     private fun bakeCurrentState(context: android.content.Context, s: AppDetailState): IconEngine.BakeResult {
-        return when (s.strategy) {
-            IconStrategy.FANKES -> {
-                val icon = IconLibEngine.lookup(s.packageName)
-                if (icon != null) IconEngine.BakeResult(icon, HitSource.ICONLIB)
-                else IconEngine.BakeResult(null, HitSource.AUTO_MISS, "fankes rules miss")
-            }
-            IconStrategy.ASSET_IMPORT -> when (s.assetSubStrategy) {
-                AssetSubStrategy.ICON_PACK -> {
-                    if (s.selectedPackIconDrawable != null && s.selectedIconPack != null) {
-                        IconEngine.bakeIconPackViaDrawable(context, s.packageName, s.selectedIconPack, s.selectedPackIconDrawable, s.redrawParams)
-                    } else {
-                        val packs = IconPackEngine.listInstalledIconPacks(context)
-                        val target = if (s.selectedIconPack != null) packs.filter { it.packageName == s.selectedIconPack } else packs
-                        var result: IconEngine.BakeResult? = null
-                        for (pack in target) {
-                            val r = IconPackEngine.extractForPackage(context, pack.packageName, s.packageName)
-                            if (r != null) { result = IconEngine.BakeResult(r, HitSource.ICONPACK, "${pack.label}"); break }
-                        }
-                        result ?: IconEngine.BakeResult(null, HitSource.AUTO_MISS, "icon pack miss")
-                    }
-                }
-                AssetSubStrategy.ADAPTIVE_DECOMPOSE -> {
-                    val fg = s.adaptiveForeground
-                    if (fg != null) {
-                        // OI-07: consume scale through the SAME shared helper the
-                        // engine path uses — the M4 slider was wired to a branch
-                        // this entry never called.
-                        val white = io.github.deserthouse.opticon.engine.IconEngine
-                            .bakeAdaptiveForeground(fg, s.redrawParams.scale)
-                        if (white != null) IconEngine.BakeResult(white, HitSource.ADAPTIVE, "decompose foreground")
-                        else IconEngine.BakeResult(null, HitSource.AUTO_MISS, "decompose tint failed")
-                    } else {
-                        IconEngine.BakeResult(null, HitSource.AUTO_MISS, "not an adaptive icon")
-                    }
-                }
-                AssetSubStrategy.PERFECT_ICONS -> {
-                    // OI-15: only the actual PICP asset may bake — the shared
-                    // previewBitmap could be another source's cached image.
-                    val cached = s.perfectIconsBitmap
-                    if (cached != null) IconEngine.BakeResult(cached, if (s.hitSource != HitSource.OTHER) s.hitSource else HitSource.PICP)
-                    else IconEngine.BakeResult(null, HitSource.AUTO_MISS, "picp not fetched")
-                }
-            }
-            IconStrategy.ALGORITHM -> when (s.algoSource) {
-                AlgoSource.SELF -> {
-                    // Zero-friction default: redraw the app's own launcher
-                    // icon through the four-corner self-filter pipeline.
-                    IconEngine.bake(
-                        context = context,
-                        packageName = s.packageName,
-                        method = io.github.deserthouse.opticon.util.PreferenceManager.IconMethod.SELF_FILTER,
-                        branch = null,
-                        params = s.redrawParams,
-                        localPath = null,
-                        materialIconName = null,
-                        emojiText = null
-                    )
-                }
-                AlgoSource.LOCAL_FILE -> {
-                    if (s.customIconPath.isNullOrBlank()) IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: no file")
-                    else {
-                        // OI-04: hand the ORIGINAL bitmap to the redraw engine —
-                        // pre-whitening here destroyed the bg/fg color distance
-                        // the keying depends on (flat/gradient uploads keyed to
-                        // empty). The engine whitens AFTER keying.
-                        val src = decodeFileOrUri(context, s.customIconPath)
-                        if (src != null) {
-                            when (val outcome = IconRedrawEngine.redraw(src, s.redrawParams)) {
-                                is IconRedrawEngine.RedrawOutcome.Ok -> {
-                                    src.recycle()
-                                    return IconEngine.BakeResult(outcome.bitmap, HitSource.MANUAL, "local file + redraw")
-                                }
-                                is IconRedrawEngine.RedrawOutcome.Rejected -> {
-                                    src.recycle()
-                                    return IconEngine.BakeResult(null, HitSource.AUTO_MISS, "redraw guard: ${outcome.reason}")
-                                }
-                            }
-                        } else IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: file decode failed")
-                    }
-                }
-                AlgoSource.MATERIAL_LIB -> {
-                    if (s.materialIconName.isNullOrBlank()) IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: no material icon")
-                    else {
-                        val icon = MaterialIconRenderer.findByName(s.materialIconName)
-                        if (icon != null) {
-                            val bmp = MaterialIconRenderer.renderToWhiteBitmap(icon)
-                                ?: return IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: material render failed")
-                            when (val outcome = IconRedrawEngine.redraw(bmp, s.redrawParams)) {
-                                is IconRedrawEngine.RedrawOutcome.Ok -> {
-                                    bmp.recycle()
-                                    IconEngine.BakeResult(outcome.bitmap, HitSource.MANUAL, "material icon + redraw")
-                                }
-                                is IconRedrawEngine.RedrawOutcome.Rejected -> {
-                                    bmp.recycle()
-                                    IconEngine.BakeResult(null, HitSource.AUTO_MISS, "redraw guard: ${outcome.reason}")
-                                }
-                            }
-                        } else IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: material icon not found")
-                    }
-                }
-                AlgoSource.EMOJI_TEXT -> {
-                    if (s.emojiText.isNullOrBlank()) IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: no emoji/text")
-                    else {
-                        val bmp = io.github.deserthouse.opticon.engine.EmojiRenderer.renderToWhiteBitmap(s.emojiText)
-                        if (bmp != null) {
-                            when (val outcome = IconRedrawEngine.redraw(bmp, s.redrawParams)) {
-                                is IconRedrawEngine.RedrawOutcome.Ok -> {
-                                    bmp.recycle()
-                                    IconEngine.BakeResult(outcome.bitmap, HitSource.MANUAL, "emoji + redraw")
-                                }
-                                is IconRedrawEngine.RedrawOutcome.Rejected -> {
-                                    bmp.recycle()
-                                    IconEngine.BakeResult(null, HitSource.AUTO_MISS, "redraw guard: ${outcome.reason}")
-                                }
-                            }
-                        } else IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: emoji render failed")
-                    }
-                }
-            }
-        }
+        // A3（阶段 3）：统一烘焙入口——预览与保存共用同一生产路径。
+        // VM 只负责从 UI 状态构造 config + inputs；引擎负责全部处理。
+        val config = io.github.deserthouse.opticon.data.AppIconConfig(
+            pkg = s.packageName,
+            enabled = s.methodEnabled,
+            strategy = s.strategy,
+            assetSubStrategy = s.assetSubStrategy,
+            algoSource = s.algoSource,
+            iconPackPkg = s.selectedIconPack,
+            packDrawable = s.selectedPackIconDrawable,
+            customIconPath = s.customIconPath,
+            materialIconName = s.materialIconName,
+            emojiText = s.emojiText,
+            params = s.redrawParams
+        )
+        val inputs = io.github.deserthouse.opticon.engine.BakeInputs(
+            adaptiveForeground = s.adaptiveForeground,
+            perfectIconsBitmap = s.perfectIconsBitmap,
+            hitSource = s.hitSource
+        )
+        return io.github.deserthouse.opticon.engine.bakeFromConfigEntry(context, config, inputs)
     }
 
     private fun bakeDir() = File(getApplication<Application>().filesDir, BAKED_DIR).apply {

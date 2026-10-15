@@ -134,7 +134,7 @@ object IconEngine {
         return BakeResult(result, HitSource.ADAPTIVE)
     }
 
-    private fun bakeSelfFilter(context: Context, pkg: String, params: RedrawParams): BakeResult {
+    internal fun bakeSelfFilter(context: Context, pkg: String, params: RedrawParams): BakeResult {
         val base = resolveAppBitmap(context, pkg) ?: return BakeResult(null, HitSource.AUTO_MISS, "cannot get app icon")
         val effParams = if (params.scale == RedrawParams.DEFAULT_SCALE) params.copy(scale = 0.8f) else params
         return when (val outcome = IconRedrawEngine.redraw(base, effParams)) {
