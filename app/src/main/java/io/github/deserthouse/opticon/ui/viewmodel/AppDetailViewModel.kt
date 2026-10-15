@@ -163,6 +163,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         // must re-classify the app's own icon, otherwise "恢复自动" either
         // no-ops (null class) or reuses the previous upload's class.
         if (src == AlgoSource.SELF) {
+            val gen = algoClassGeneration.incrementAndGet()
             viewModelScope.launch {
                 val pkg = _state.value.packageName
                 val cls = withContext(Dispatchers.IO) {
@@ -178,6 +179,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                         r
                     }
                 }
+                if (algoClassGeneration.get() != gen) return@launch   // 过期结果丢弃
                 _algoInputClass.value = cls
                 if (cls != null) {
                     _state.update { it.copy(redrawParams = autoParamsFor(cls)) }
@@ -283,9 +285,14 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    /** OI-13 补强（架构报告 §5）：分类协程的 generation 守卫——快速切换
+     *  来源/素材时，晚到的旧分类结果不得回填覆盖新选择。 */
+    private val algoClassGeneration = java.util.concurrent.atomic.AtomicInteger(0)
+
     fun setCustomIconPath(path: String?) {
         _isDirty.value = true
         _state.update { it.copy(customIconPath = path) }
+        val gen = algoClassGeneration.incrementAndGet()
         if (path == null) {
             _algoInputClass.value = null
             debouncePreview()
@@ -302,6 +309,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                     result
                 }
             }
+            if (algoClassGeneration.get() != gen) return@launch   // 过期结果丢弃
             _algoInputClass.value = cls
             if (cls != null) {
                 _state.update { s -> s.copy(redrawParams = autoParamsFor(cls)) }

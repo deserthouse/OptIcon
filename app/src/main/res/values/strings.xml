@@ -104,10 +104,10 @@
     <string name="package_name_copied">Package name copied</string>
 
     <string name="enable_custom_icon">Enable custom notification icon</string>
-    <string name="detail_enable_hint">Turn the switch on above to configure how this app replaces its notification icon. The options below stay inactive while it is off.</string>
+    <string name="detail_enable_hint">Turn the switch on above to configure how this app replaces its notification icon. When off, this app falls back to the rule-library icon (or stays native if no rule covers it).</string>
     <string name="source_prefix">Source: %s</string>
         <string name="save_blocked_no_icon">This strategy produced no compliant icon — the switch was kept off.</string>
-    <string name="config_saved">Saved — new notifications from this app use it immediately</string>
+    <string name="config_saved">Saved &amp; published — new notifications from this app will use it</string>
 
     <string name="strategy_fankes_label">Android Notification Icon Standard Adaptation</string>
     <string name="strategy_fankes_covered">This app is already covered in the adaptation library.</string>
@@ -146,7 +146,7 @@
     <string name="strategy_algo_auto">Redraw any icon into a compliant glyph — fully automatic; enable "Show fine-tune options" in Settings for expert sliders.</string>
     <string name="strategy_algo_open_panel_wip">Fine-tune redraw</string>
     <string name="algo_panel_title_wip">Fine-tune redraw</string>
-    <string name="algo_panel_wip_body">Adjust and watch the preview update live. Changes take effect for new notifications after you save.</string>
+    <string name="algo_panel_wip_body">Adjust and watch the preview update live. "Reset to auto" only restores this route's parameters — it never changes the chosen source. Changes take effect for new notifications after you save.</string>
     <string name="algo_restore_auto">Reset to auto</string>
     <string name="algo_auto_alpha_note">This image defines itself by transparency — the glyph is whitened along its alpha outline automatically; no purity threshold needed.</string>
     <string name="show_tuning_title">Show fine-tune options</string>
@@ -242,7 +242,7 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="preview_title">Status Bar Preview</string>
     <string name="preview_mode_dark">Dark status bar</string>
     <string name="preview_mode_light">Light status bar</string>
-    <string name="preview_legend_icon">Default white icon</string>
+    <string name="preview_legend_icon">Monochrome silhouette (white)</string>
     <string name="preview_legend_edge">Semi-transparent edge</string>
     <string name="hit_picp">Perfect Icons</string>
     <string name="hit_picp_failed">Perfect Icons download failed</string>
@@ -292,7 +292,7 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="enabled_label">Enabled</string>
     <string name="unsaved_title">Unsaved changes</string>
     <string name="unsaved_body">You changed this app icon settings but have not saved. Save before leaving?</string>
-    <string name="unsaved_save">Save</string>
+    <string name="unsaved_save">Save &amp; leave</string>
     <string name="unsaved_discard">Discard</string>
 
     <!-- UI redesign v0.5.0 — hero status card -->

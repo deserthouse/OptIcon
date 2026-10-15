@@ -104,10 +104,10 @@
     <string name="package_name_copied">包名已复制</string>
 
     <string name="enable_custom_icon">开启自定义通知图标</string>
-    <string name="detail_enable_hint">先打开上方开关，才能配置此应用的通知图标替换策略；关闭时下方选项均不可用。</string>
+    <string name="detail_enable_hint">先打开上方开关，才能配置此应用的通知图标替换策略；关闭时下方选项均不可用，该应用回落规则库图标（如无规则则保持原生）。</string>
     <string name="source_prefix">来源: %s</string>
         <string name="save_blocked_no_icon">该策略未能生成规范图标，已自动保持关闭。</string>
-    <string name="config_saved">已保存——该应用的新通知立即使用新图标</string>
+    <string name="config_saved">已保存并发布，该应用的新通知将使用新图标</string>
 
     <string name="strategy_fankes_label">通知图标适配</string>
     <string name="strategy_fankes_covered">该应用已在通知图标适配规则库中，可直接使用。</string>
@@ -146,7 +146,7 @@
     <string name="strategy_algo_auto">无需规则与图标包，任意图标自动重绘为合规剪影；如需专家滑杆，请在设置中开启「显示微调选项」。</string>
     <string name="strategy_algo_open_panel_wip">微调参数</string>
     <string name="algo_panel_title_wip">重绘微调</string>
-    <string name="algo_panel_wip_body">拖动滑杆实时预览；保存后对新通知生效。</string>
+    <string name="algo_panel_wip_body">拖动滑杆实时预览；「恢复自动」仅重置本路线参数，不改变所选来源；保存后对新通知生效。</string>
     <string name="algo_restore_auto">恢复自动</string>
     <string name="algo_auto_alpha_note">该图自带透明边距：自动沿 alpha 轮廓白化，无需净化度阈值。</string>
     <string name="show_tuning_title">显示微调选项</string>
@@ -236,7 +236,7 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="preview_title">状态栏预览</string>
     <string name="preview_mode_dark">深色状态栏</string>
     <string name="preview_mode_light">浅色状态栏</string>
-    <string name="preview_legend_icon">默认白色图标</string>
+    <string name="preview_legend_icon">单色剪影（默认白）</string>
     <string name="preview_legend_edge">半透明描边</string>
     <string name="hit_picp">完美图标</string>
     <string name="hit_picp_failed">完美图标下载失败</string>
@@ -290,7 +290,7 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="predictive_back_dialog_text">Android 13+ 上预览由系统自身渲染，不存在可暴露的开关；强行关闭需要侵入系统行为，这不是本模块会做的事。</string>
     <string name="unsaved_title">有未保存的修改</string>
     <string name="unsaved_body">你修改了该应用的图标设置但尚未保存，离开前要保存吗？</string>
-    <string name="unsaved_save">保存</string>
+    <string name="unsaved_save">保存并离开</string>
     <string name="unsaved_discard">放弃</string>
 
     <!-- UI redesign v0.5.0 — 首页状态大卡 -->
