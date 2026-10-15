@@ -442,7 +442,20 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                 // OI-06: delivery result decides success — a shared-dir write
                 // failure must NOT be reported as "已保存，新通知立即生效".
                 ok = if (enabled && bakeResult != null) {
-                    writeBaked(pkg, bakeResult.bitmap!!, bakeResult.detail ?: "saved")
+                    // D1（阶段 4）：可恢复发布管线——准备→记录→发布→（配置由上层已提交）→完成
+                    val op = io.github.deserthouse.opticon.engine.PublishTransaction.prepare(ctx, pkg, bakeResult.bitmap!!)
+                    if (op != null && io.github.deserthouse.opticon.engine.PublishTransaction.recordIntent(ctx, op)) {
+                        val published = io.github.deserthouse.opticon.engine.PublishTransaction.publish(ctx, op)
+                        if (published) {
+                            io.github.deserthouse.opticon.engine.PublishTransaction.complete(ctx, op)
+                            // 写 .meta
+                            try { File(bakeDir(), "$pkg.meta").writeText(bakeResult.detail ?: "saved") } catch (_: Exception) {}
+                            true
+                        } else {
+                            io.github.deserthouse.opticon.engine.PublishTransaction.compensate(ctx, op)
+                            false
+                        }
+                    } else false
                 } else {
                     deleteBaked(pkg)
                 }

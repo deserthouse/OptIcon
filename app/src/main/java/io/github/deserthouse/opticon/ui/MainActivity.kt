@@ -43,6 +43,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         PreferenceManager.init(applicationContext)
+        // D2（阶段 4）：重启恢复——扫 pending_ops 收敛未完成发布
+        io.github.deserthouse.opticon.engine.PublishTransaction.recoverOnStartup(applicationContext)
         TraceLogger.init(applicationContext, if (PreferenceManager.isVerboseLogging()) TraceLogger.DEBUG else TraceLogger.INFO)
         // Calibrate the theme switch from storage before the first frame so a
         // saved "off" never flashes dynamic colors at cold start.
