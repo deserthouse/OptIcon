@@ -148,6 +148,14 @@
     <string name="algo_panel_title_wip">Fine-tune redraw</string>
     <string name="algo_panel_wip_body">Adjust and watch the preview update live. \"Reset to auto\" only restores this route\'s parameters — it never changes the chosen source. Changes take effect for new notifications after you save.</string>
     <string name="algo_restore_auto">Reset to auto</string>
+    <string name="current_source">Current source</string>
+    <string name="source_change_title">Change icon source</string>
+    <string name="source_change_desc">Choose which source provides the icon for this app</string>
+    <string name="strategy_fankes_label_short">Rule library (ANIP)</string>
+    <string name="strategy_asset_label_short">Asset import</string>
+    <string name="strategy_algo_desc_short">Compatibility redraw</string>
+    <string name="strategy_asset_desc_short">Extract from icon packs or adaptive icons</string>
+
     <string name="algo_auto_alpha_note">This image defines itself by transparency — the glyph is whitened along its alpha outline automatically; no purity threshold needed.</string>
     <string name="show_tuning_title">Show fine-tune options</string>
     <string name="show_tuning_desc">Off = all strategies run fully automatic; on = expert sliders appear in strategy cards</string>

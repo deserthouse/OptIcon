@@ -148,6 +148,14 @@
     <string name="algo_panel_title_wip">重绘微调</string>
     <string name="algo_panel_wip_body">拖动滑杆实时预览；「恢复自动」仅重置本路线参数，不改变所选来源；保存后对新通知生效。</string>
     <string name="algo_restore_auto">恢复自动</string>
+    <string name="current_source">当前来源</string>
+    <string name="source_change_title">更换图标来源</string>
+    <string name="source_change_desc">选择此应用的通知图标来源</string>
+    <string name="strategy_fankes_label_short">规则库（ANIP）</string>
+    <string name="strategy_asset_label_short">资产导入</string>
+    <string name="strategy_algo_desc_short">兼容重绘</string>
+    <string name="strategy_asset_desc_short">从图标包或自适应图标提取</string>
+
     <string name="algo_auto_alpha_note">该图自带透明边距：自动沿 alpha 轮廓白化，无需净化度阈值。</string>
     <string name="show_tuning_title">显示微调选项</string>
     <string name="show_tuning_desc">关 = 三级策略全自动；开 = 策略卡内显示专家滑杆</string>
