@@ -308,6 +308,7 @@ fun AppDetailScreen(
             offsetY = state.redrawParams.offsetY,
             threshold = state.redrawParams.threshold.toFloat(),
             inputClass = algoInputClass,
+            previewBitmap = state.previewBitmap,
             onScaleChange = viewModel::setScale,
             onOffsetXChange = viewModel::setOffsetX,
             onOffsetYChange = viewModel::setOffsetY,
@@ -471,6 +472,7 @@ private fun AlgoWipSheet(
     onDismiss: () -> Unit,
     scale: Float, offsetX: Float, offsetY: Float, threshold: Float,
     inputClass: io.github.deserthouse.opticon.engine.IconRedrawEngine.InputClass?,
+    previewBitmap: android.graphics.Bitmap?,
     onScaleChange: (Float) -> Unit, onOffsetXChange: (Float) -> Unit, onOffsetYChange: (Float) -> Unit,
     onThresholdChange: (Int) -> Unit, onRestoreAuto: () -> Unit
 ) {
@@ -490,6 +492,15 @@ private fun AlgoWipSheet(
             Spacer(Modifier.height(12.dp)); HorizontalDivider(); Spacer(Modifier.height(8.dp))
             Text(stringResource(R.string.algo_panel_wip_body), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(16.dp))
+            // ME-02：面板内轻量预览——拖滑杆时结果可见，不需看 sheet 背后
+            if (previewBitmap != null) {
+                androidx.compose.foundation.Image(
+                    previewBitmap.asImageBitmap(), null,
+                    Modifier.fillMaxWidth().height(120.dp).clip(OptShapes.large),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                )
+                Spacer(Modifier.height(12.dp))
+            }
             SliderLabel(stringResource(R.string.algo_slider_scale), "%.2f".format(scale))
             Slider(value = scale, onValueChange = onScaleChange, valueRange = 0.5f..2f, modifier = Modifier.fillMaxWidth())
             SliderLabel(stringResource(R.string.algo_slider_offset_x), "%.0f".format(offsetX))
