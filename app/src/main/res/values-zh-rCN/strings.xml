@@ -141,6 +141,16 @@
     <string name="strategy_asset_c_wip_hint">该功能目前尚未完成，但您仍然可以查看完美图标计划。</string>
     <string name="strategy_asset_c_link">\u2192 前往完美图标计划 GitHub 页面</string>
 
+    <string name="asset_picker_title">选择素材</string>
+    <string name="asset_picker_apply">应用</string>
+    <string name="asset_picker_close">关闭</string>
+    <string name="asset_sub_adaptive">自适应拆解</string>
+    <string name="asset_sub_picp">完美图标</string>
+    <string name="asset_sub_pack">图标包</string>
+    <string name="asset_picp_ready">素材已就绪</string>
+    <string name="asset_picp_download">获取素材</string>
+    <string name="current_asset">当前素材</string>
+
     <string name="strategy_algo_label">兼容重绘（非自适应图标）</string>
     <string name="strategy_algo_wip">无需规则与图标包，任意图标重绘为合规剪影，滑杆微调</string>
     <string name="strategy_algo_auto">无需规则与图标包，任意图标自动重绘为合规剪影；如需专家滑杆，请在设置中开启「显示微调选项」。</string>

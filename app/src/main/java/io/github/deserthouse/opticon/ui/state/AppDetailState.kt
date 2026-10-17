@@ -4,7 +4,6 @@ import io.github.deserthouse.opticon.engine.HitSource
 import io.github.deserthouse.opticon.R
 
 import android.graphics.Bitmap
-import io.github.deserthouse.opticon.engine.IconPackEngine
 import io.github.deserthouse.opticon.engine.IconPackEngine.IconPackInfo
 import io.github.deserthouse.opticon.engine.RedrawParams
 
@@ -27,7 +26,6 @@ data class AppDetailState(
     val iconPacks: List<IconPackInfo> = emptyList(),
     val selectedIconPack: String? = null,
     val selectedPackIconDrawable: String? = null,
-    val iconPackIcons: List<IconPackEngine.PackIconEntry> = emptyList(),
     val adaptiveForeground: Bitmap? = null,
     val adaptiveBackground: Bitmap? = null,
     val isAdaptiveIcon: Boolean? = null,

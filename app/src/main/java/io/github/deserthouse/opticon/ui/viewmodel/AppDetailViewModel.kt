@@ -142,15 +142,25 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         debouncePreview()
     }
 
-    fun setAssetSubStrategy(sub: AssetSubStrategy) {
+    /** B2（ME-03）：全屏素材选择器的原子回填——取消不落任何字段，
+     *  确认一次写全（子策略+图标包+drawable+PICP 草稿素材）后统一刷新预览。 */
+    fun applyAssetSelection(
+        sub: AssetSubStrategy,
+        iconPack: String?,
+        drawable: String?,
+        picpBitmap: Bitmap? = null
+    ) {
         _isDirty.value = true
-        val cached = state.value.perfectIconsBitmap
         _state.update {
-            if (sub == AssetSubStrategy.PERFECT_ICONS && cached != null) {
-                it.copy(assetSubStrategy = sub, previewBitmap = cached, hitSource = HitSource.PICP)
-            } else {
-                it.copy(assetSubStrategy = sub)
-            }
+            val newPicp = picpBitmap ?: it.perfectIconsBitmap
+            it.copy(
+                assetSubStrategy = sub,
+                selectedIconPack = iconPack,
+                selectedPackIconDrawable = drawable,
+                perfectIconsBitmap = newPicp,
+                previewBitmap = if (sub == AssetSubStrategy.PERFECT_ICONS && newPicp != null) newPicp else it.previewBitmap,
+                hitSource = if (sub == AssetSubStrategy.PERFECT_ICONS && newPicp != null) HitSource.PICP else it.hitSource
+            )
         }
         if (sub == AssetSubStrategy.ADAPTIVE_DECOMPOSE) decomposeAdaptiveIcon()
         debouncePreview()
@@ -193,27 +203,6 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         _isDirty.value = true
         _state.update { it.copy(methodEnabled = enabled) }
         debouncePreview()
-    }
-
-    fun setSelectedIconPack(pkg: String?) {
-        _isDirty.value = true
-        _state.update { it.copy(selectedIconPack = pkg, selectedPackIconDrawable = null) }
-        if (pkg != null) loadIconPackIcons(pkg)
-        debouncePreview()
-    }
-
-    fun setSelectedPackIconDrawable(drawableName: String?) {
-        _isDirty.value = true
-        _state.update { it.copy(selectedPackIconDrawable = drawableName) }
-        debouncePreview()
-    }
-
-    private fun loadIconPackIcons(pkg: String) {
-        viewModelScope.launch {
-            val ctx = getApplication<Application>().applicationContext
-            val icons = withContext(Dispatchers.IO) { IconPackEngine.listAllIcons(ctx, pkg) }
-            _state.update { it.copy(iconPackIcons = icons) }
-        }
     }
 
     fun pullFromPerfectIcons() {

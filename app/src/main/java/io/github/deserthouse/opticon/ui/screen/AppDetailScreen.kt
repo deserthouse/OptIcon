@@ -23,8 +23,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -78,7 +76,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import io.github.deserthouse.opticon.engine.IconPackEngine
 import io.github.deserthouse.opticon.engine.IconLibEngine
 import io.github.deserthouse.opticon.ui.component.PreviewCard
-import io.github.deserthouse.opticon.ui.component.SelectionRow
 import io.github.deserthouse.opticon.ui.state.AppDetailState
 import io.github.deserthouse.opticon.ui.state.IconStrategy
 import io.github.deserthouse.opticon.ui.state.hitLevelRes
@@ -153,6 +150,8 @@ fun AppDetailScreen(
 
     // ── Source change sheet ──
     var showSourceSheet by remember { mutableStateOf(false) }
+    // ── Full-screen asset picker (ME-03/B2) ──
+    var showAssetPicker by remember { mutableStateOf(false) }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -225,7 +224,7 @@ fun AppDetailScreen(
                 Column {
                     when (state.strategy) {
                         IconStrategy.FANKES -> FankesAdjustments(state)
-                        IconStrategy.ASSET_IMPORT -> AssetImportAdjustments(state, viewModel, tuningVisible, pickLauncher)
+                        IconStrategy.ASSET_IMPORT -> AssetImportAdjustments(state, viewModel, tuningVisible, onOpenPicker = { showAssetPicker = true })
                         IconStrategy.ALGORITHM -> AlgorithmAdjustments(state, viewModel, tuningVisible, algoInputClass, pickLauncher)
                     }
                 }
@@ -316,6 +315,18 @@ fun AppDetailScreen(
             onRestoreAuto = viewModel::restoreAutoParams
         )
     }
+
+    // ── Full-screen asset picker (B2/ME-03): draft state, atomic apply ──
+    if (showAssetPicker) {
+        AssetPickerScreen(
+            state = state,
+            onDismiss = { showAssetPicker = false },
+            onConfirm = { sub, pack, drawable, picp ->
+                viewModel.applyAssetSelection(sub, pack, drawable, picp)
+                showAssetPicker = false
+            }
+        )
+    }
 }
 
 // ━━━ Source summary row (② in the new layout) ━━━
@@ -383,33 +394,57 @@ private fun FankesAdjustments(state: AppDetailState) {
     }
 }
 
-// ━━━ ③b: ASSET_IMPORT adjustments ━━━
+// ━━━ ③b: ASSET_IMPORT adjustments — summary + full-screen picker entry ━━━
 @Composable
 private fun AssetImportAdjustments(
     state: AppDetailState,
     viewModel: AppDetailViewModel,
     tuningVisible: Boolean,
-    pickLauncher: androidx.activity.result.ActivityResultLauncher<String>
+    onOpenPicker: () -> Unit
 ) {
+    val context = LocalContext.current
+    // Current asset thumbnail (per sub-strategy)
+    var thumb by remember(state.assetSubStrategy, state.selectedIconPack, state.selectedPackIconDrawable, state.perfectIconsBitmap) { mutableStateOf<android.graphics.Bitmap?>(null) }
+    LaunchedEffect(state.assetSubStrategy, state.selectedIconPack, state.selectedPackIconDrawable, state.perfectIconsBitmap) {
+        thumb = when (state.assetSubStrategy) {
+            io.github.deserthouse.opticon.ui.state.AssetSubStrategy.ICON_PACK ->
+                if (state.selectedIconPack != null && state.selectedPackIconDrawable != null)
+                    IconPackEngine.loadIconPreviewCached(context, state.selectedIconPack!!, state.selectedPackIconDrawable!!, 48)
+                else null
+            io.github.deserthouse.opticon.ui.state.AssetSubStrategy.PERFECT_ICONS -> state.perfectIconsBitmap
+            io.github.deserthouse.opticon.ui.state.AssetSubStrategy.ADAPTIVE_DECOMPOSE -> state.adaptiveForeground
+        }
+    }
+    val selectionLabel = when (state.assetSubStrategy) {
+        io.github.deserthouse.opticon.ui.state.AssetSubStrategy.ICON_PACK ->
+            state.selectedPackIconDrawable ?: stringResource(R.string.select_icon_pack_hint)
+        io.github.deserthouse.opticon.ui.state.AssetSubStrategy.PERFECT_ICONS ->
+            if (state.perfectIconsBitmap != null) stringResource(R.string.asset_picp_ready)
+            else stringResource(R.string.strategy_picp_not_downloaded)
+        io.github.deserthouse.opticon.ui.state.AssetSubStrategy.ADAPTIVE_DECOMPOSE ->
+            if (state.isAdaptiveIcon == false) stringResource(R.string.strategy_asset_b_not_adaptive)
+            else stringResource(R.string.strategy_asset_b_label)
+    }
     Card(shape = OptShapes.large, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text(stringResource(R.string.strategy_asset_b_label), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
-            Spacer(Modifier.height(8.dp))
-            // Adaptive decompose preview
-            if (state.isAdaptiveIcon == true && state.adaptiveForeground != null) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Column(Modifier.weight(1f)) {
-                        Text(stringResource(R.string.strategy_asset_b_foreground), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(4.dp))
-                        Image(state.adaptiveForeground!!.asImageBitmap(), "fg", Modifier.size(64.dp))
-                    }
+            Row(Modifier.fillMaxWidth().clickable(onClick = onOpenPicker).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                // Neutral thumbnail slot (surfaceVariant) — no decorative fallback
+                Box(
+                    Modifier.size(48.dp).clip(OptShapes.small).background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (thumb != null) Image(thumb!!.asImageBitmap(), null, Modifier.size(40.dp))
                 }
-            } else if (state.isAdaptiveIcon == false) {
-                Text(stringResource(R.string.strategy_asset_b_not_adaptive), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.current_asset), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(selectionLabel, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+                Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             // Scale slider (when tuning enabled)
             if (tuningVisible && state.assetSubStrategy == io.github.deserthouse.opticon.ui.state.AssetSubStrategy.ADAPTIVE_DECOMPOSE) {
-                Spacer(Modifier.height(12.dp))
+                HorizontalDivider(Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                 SliderLabel(stringResource(R.string.algo_slider_scale), "%.2f".format(state.redrawParams.scale))
                 Slider(value = state.redrawParams.scale, onValueChange = viewModel::setScale, valueRange = 0.5f..2f, modifier = Modifier.fillMaxWidth())
             }

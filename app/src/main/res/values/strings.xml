@@ -141,6 +141,16 @@
     <string name="strategy_asset_c_wip_hint">This feature is under development. You can still browse the project.</string>
     <string name="strategy_asset_c_link">→ Go to Perfect Icons Project GitHub</string>
 
+    <string name="asset_picker_title">Choose asset</string>
+    <string name="asset_picker_apply">Apply</string>
+    <string name="asset_picker_close">Close</string>
+    <string name="asset_sub_adaptive">Adaptive layers</string>
+    <string name="asset_sub_picp">Perfect Icons</string>
+    <string name="asset_sub_pack">Icon pack</string>
+    <string name="asset_picp_ready">Asset ready</string>
+    <string name="asset_picp_download">Fetch asset</string>
+    <string name="current_asset">Current asset</string>
+
     <string name="strategy_algo_label">Compatibility Redraw</string>
     <string name="strategy_algo_wip">Redraw any icon into a compliant glyph — no rules or icon packs needed. Fine-tune with sliders.</string>
     <string name="strategy_algo_auto">Redraw any icon into a compliant glyph — fully automatic; enable "Show fine-tune options" in Settings for expert sliders.</string>
