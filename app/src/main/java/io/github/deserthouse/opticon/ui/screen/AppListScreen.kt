@@ -390,7 +390,7 @@ private fun HeroStatusCard(active: Boolean?, modifiedCount: Int, onClick: () -> 
 
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(32.dp),
+        shape = OptShapes.large,
         color = container,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
     ) {
@@ -473,7 +473,7 @@ private fun SearchField(
             }
         },
         singleLine = true,
-        shape = RoundedCornerShape(28.dp),
+        shape = OptShapes.large,
         colors = OutlinedTextFieldDefaults.colors(
             unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,

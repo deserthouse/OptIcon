@@ -271,7 +271,7 @@ fun AppDetailScreen(
 
     // ── Source selection sheet ──
     if (showSourceSheet) {
-        ModalBottomSheet(onDismissRequest = { showSourceSheet = false }, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)) {
+        ModalBottomSheet(onDismissRequest = { showSourceSheet = false }, shape = OptShapes.large) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp)) {
                 Text(stringResource(R.string.source_change_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.height(12.dp)); HorizontalDivider(); Spacer(Modifier.height(8.dp))
@@ -476,7 +476,7 @@ private fun AlgoWipSheet(
     onScaleChange: (Float) -> Unit, onOffsetXChange: (Float) -> Unit, onOffsetYChange: (Float) -> Unit,
     onThresholdChange: (Int) -> Unit, onRestoreAuto: () -> Unit
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss, shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)) {
+    ModalBottomSheet(onDismissRequest = onDismiss, shape = OptShapes.large) {
         Column(
             Modifier.fillMaxWidth()
                 .verticalScroll(rememberScrollState())
