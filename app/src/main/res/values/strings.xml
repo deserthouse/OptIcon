@@ -231,6 +231,7 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="picp_pull_icon">Pull PICP icon</string>
     <string name="cd_sync">Sync subscription source</string>
     <string name="cd_edit_source">Edit source</string>
+    <string name="cd_more_options">More options</string>
     <string name="cd_delete_source">Delete source</string>
     <string name="cd_open_link">Open source link</string>
 

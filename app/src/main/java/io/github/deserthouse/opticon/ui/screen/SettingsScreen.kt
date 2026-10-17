@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -49,10 +51,13 @@ import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -86,6 +91,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -180,27 +186,25 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
             // ── 模块控制 ──
             SectionTitle(stringResource(R.string.module_control))
             SettingsCard {
-                SettingItem(
+                SwitchSettingItem(
                     // A-3 (2026-10-03 AVD audit): master control gets a control
                     // glyph — the bug icon belongs to Verbose Logging below.
                     Icons.Rounded.Tune,
                     stringResource(R.string.master_switch),
                     stringResource(R.string.master_switch_desc),
-                    onClick = { if (masterEnabled) showMasterOffDialog = true else viewModel.setMasterEnabled(true) }
-                ) {
-                    Switch(checked = masterEnabled, onCheckedChange = { on ->
+                    checked = masterEnabled,
+                    onCheckedChange = { on ->
                         if (on) viewModel.setMasterEnabled(true) else showMasterOffDialog = true
-                    })
-                }
+                    }
+                )
                 HorizontalDivider(Modifier.padding(horizontal = 16.dp))
-                SettingItem(
+                SwitchSettingItem(
                     Icons.Rounded.BugReport,
                     stringResource(R.string.verbose_logging),
                     stringResource(R.string.verbose_logging_desc),
-                    onClick = { viewModel.setVerboseLogging(!verboseLogging) }
-                ) {
-                    Switch(checked = verboseLogging, onCheckedChange = viewModel::setVerboseLogging)
-                }
+                    checked = verboseLogging,
+                    onCheckedChange = viewModel::setVerboseLogging
+                )
             }
 
             // ── 工具 / 订阅源 ──
@@ -271,15 +275,14 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                 // D2: the "policy unreadable" hint lives in the supporting
                 // slot, not under the Switch — the trailing slot gave the
                 // long hint no width constraint and the row collapsed.
-                SettingItem(
+                SwitchSettingItem(
                     Icons.Rounded.Palette,
                     stringResource(R.string.force_mono_title),
                     stringResource(R.string.force_mono_desc),
-                    onClick = { viewModel.setForceMono(!forceMono) },
+                    checked = forceMono,
+                    onCheckedChange = { viewModel.setForceMono(it) },
                     supportingHint = if (forceMonoUnknown) stringResource(R.string.force_mono_unknown) else null
-                ) {
-                    Switch(checked = forceMono, onCheckedChange = { viewModel.setForceMono(it) })
-                }
+                )
             }
 
             // ── 应用（App 自身的外壳行为） ──
@@ -287,25 +290,23 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
             SettingsCard {
                 // App theme: Material You on by default; off = brand palette.
                 val dynamicColor by SettingsViewModel.dynamicColorFlow.collectAsState()
-                SettingItem(
+                SwitchSettingItem(
                     Icons.Rounded.ColorLens,
                     stringResource(R.string.dynamic_color_title),
                     stringResource(R.string.dynamic_color_desc),
-                    onClick = { viewModel.setDynamicColor(!dynamicColor) }
-                ) {
-                    Switch(checked = dynamicColor, onCheckedChange = { viewModel.setDynamicColor(it) })
-                }
+                    checked = dynamicColor,
+                    onCheckedChange = { viewModel.setDynamicColor(it) }
+                )
                 HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                 // M4：微调选项可见性（默认关=三级策略全自动）
                 val showTuning by viewModel.showTuning.collectAsState()
-                SettingItem(
+                SwitchSettingItem(
                     Icons.Rounded.Build,
                     stringResource(R.string.show_tuning_title),
                     stringResource(R.string.show_tuning_desc),
-                    onClick = { viewModel.setShowTuning(!showTuning) }
-                ) {
-                    Switch(checked = showTuning, onCheckedChange = { viewModel.setShowTuning(it) })
-                }
+                    checked = showTuning,
+                    onCheckedChange = { viewModel.setShowTuning(it) }
+                )
                 HorizontalDivider(Modifier.padding(horizontal = 16.dp))
                 // Per-app locale is a system capability (Android 13+); on 12
                 // the row degrades to an honest "system only" note.
@@ -779,14 +780,28 @@ private fun SourceSection(
             Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 // D4: clickable row carries its own 16dp indent — ripple spans
                 // the full card width.
+                // ME-10: row reads as name + selection + overflow; edit/delete
+                // moved into the menu (delete keeps its O-4 confirm dialog).
+                var rowMenuOpen by remember(source.id) { mutableStateOf(false) }
                 Row(Modifier.fillMaxWidth()
-                    .clickable { onSelect(source.id) }
+                    .selectable(selected = activeId == source.id, role = Role.RadioButton) { onSelect(source.id) }
                     .padding(vertical = 6.dp, horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = activeId == source.id, onClick = { onSelect(source.id) }, modifier = Modifier.padding(end = 4.dp))
+                    RadioButton(selected = activeId == source.id, onClick = null, modifier = Modifier.padding(end = 4.dp))
                     Text(getSourceDisplayName(source), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f),
                         maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                    IconButton(onClick = { onEditSource(source) }) { Icon(Icons.Rounded.Edit, stringResource(R.string.cd_edit_source), Modifier.size(18.dp)) }
-                    IconButton(onClick = { pendingDelete = source }) { Icon(Icons.Rounded.Delete, stringResource(R.string.cd_delete_source), Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error) }
+                    Box {
+                        IconButton(onClick = { rowMenuOpen = true }) { Icon(Icons.Rounded.MoreVert, stringResource(R.string.cd_more_options), Modifier.size(18.dp)) }
+                        DropdownMenu(expanded = rowMenuOpen, onDismissRequest = { rowMenuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.cd_edit_source)) },
+                                onClick = { rowMenuOpen = false; onEditSource(source) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.cd_delete_source), color = MaterialTheme.colorScheme.error) },
+                                onClick = { rowMenuOpen = false; pendingDelete = source }
+                            )
+                        }
+                    }
                 }
                 // Description + link (aligned under the row text: 16dp indent
                 // + radio 48dp touch target)
@@ -1065,8 +1080,7 @@ private fun RuntimeStatusCard(
     }
 }
 
-@Composable private fun SectionTitle(title: String) {
-    Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
+@Composable private fun SectionTitle(title: String) {    Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
 }
 
 @Composable internal fun SettingItem(
@@ -1104,6 +1118,38 @@ private fun RuntimeStatusCard(
     }
 }
 
+/** ME-10/11: a pure switch row is ONE semantics surface — the row carries
+ *  toggleable(value, Role.Switch); the trailing Switch is display-only
+ *  (onCheckedChange=null, its localized on/off state description applies to
+ *  the whole row). Replaces the old SettingItem+Switch pairing where row
+ *  clickable and switch each kept a separate behavior surface. */
+@Composable
+internal fun SwitchSettingItem(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    supportingHint: String? = null
+) {
+    Row(Modifier.fillMaxWidth()
+        .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
+        .padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, Modifier.padding(end = 12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (supportingHint != null) {
+                Text(supportingHint, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, lineHeight = 14.sp)
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        Box(Modifier.align(Alignment.Top).padding(top = 2.dp)) {
+            Switch(checked = checked, onCheckedChange = null)
+        }
+    }
+}
+
 /** Apply per-app locale (Android 13+). Empty tag = follow system.
  *  The system persists it and recreates the activity; localization
  *  applies to every locale-qualified resource automatically. */
@@ -1123,7 +1169,9 @@ data class RadioOption<T>(val value: T, val label: String, val desc: String?)
 
 /** M3 bottom-sheet single-choice picker: the whole row is the hit target,
  *  selected option carries the primary color + medium weight, options can
- *  carry a supporting description. */
+ *  carry a supporting description.
+ *  ME-11: options scroll when tall (large font scales), each row is ONE
+ *  selectable surface with Role.RadioButton; the radio is display-only. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun <T> RadioSheet(
@@ -1134,7 +1182,13 @@ fun <T> RadioSheet(
     onDismiss: () -> Unit
 ) {
     androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, shape = OptShapes.large) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp)) {
+        Column(
+            Modifier.fillMaxWidth()
+                .heightIn(max = 480.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp)
+        ) {
             Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(12.dp)); HorizontalDivider(); Spacer(Modifier.height(4.dp))
             options.forEach { opt ->
@@ -1142,11 +1196,11 @@ fun <T> RadioSheet(
                 Row(
                     Modifier.fillMaxWidth()
                         .clip(OptShapes.medium)
-                        .clickable { onSelect(opt.value) }
+                        .selectable(selected = selectedHere, role = Role.RadioButton) { onSelect(opt.value) }
                         .padding(horizontal = 4.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    RadioButton(selected = selectedHere, onClick = { onSelect(opt.value) })
+                    RadioButton(selected = selectedHere, onClick = null)
                     Spacer(Modifier.size(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(

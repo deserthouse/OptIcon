@@ -72,9 +72,10 @@ fun PreviewCard(
     val labelColor = if (mode == StatusBarMode.DARK) PreviewSemanticBar.darkFg else PreviewSemanticBar.lightFg
 
     Surface(
+        // ME-06: no page-level horizontal indent inside reusable components —
+        // the hosting page owns the 16dp margin (detail Column already pads).
         modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
+            .fillMaxWidth(),
         shape = OptShapes.medium,
         shadowElevation = 4.dp,
         color = MaterialTheme.colorScheme.surface

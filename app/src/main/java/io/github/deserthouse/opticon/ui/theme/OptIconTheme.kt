@@ -3,6 +3,7 @@ package io.github.deserthouse.opticon.ui.theme
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -35,14 +36,24 @@ fun OptIconTheme(
 
     // ME-04（M3E 评审）：Expressive 根主题——默认动效走 MotionScheme.expressive，
     // 组件默认行为与局部 Expressive 表达（hero 形变/波浪/弹簧）统一在同一体系内。
+    // ME-06：OptShapes 三档注入主题 shapes——未显式传形状的组件也落同一套圆角词汇。
     MaterialExpressiveTheme(
         colorScheme = colorScheme,
+        shapes = OptThemeShapes,
         content = content
     )
 }
 
+/** ME-06：三档形状词汇进主题（extraSmall/extraLarge 留库默认——不在三档词汇内）。 */
+private val OptThemeShapes = Shapes(
+    small = OptShapes.small,
+    medium = OptShapes.medium,
+    large = OptShapes.large
+)
+
 // ━━━ 品牌静态色板：靛蓝主色 + 琥珀金强调（v0.9.4 adaptive icon 同源），M3 tonal 对 ━━━
 // 关闭动态取色时的观感——不落 M3 默认紫，落自家颜色。
+// ME-06：中性色补齐（surface 系/outline 系按靛蓝色调 tinted-neutral），不再继承库默认紫灰。
 private val BrandLightColors = lightColorScheme(
     primary = Color(0xFF4355C0),
     onPrimary = Color(0xFFFFFFFF),
@@ -56,6 +67,23 @@ private val BrandLightColors = lightColorScheme(
     onTertiary = Color(0xFFFFFFFF),
     tertiaryContainer = Color(0xFFFFDF9F),
     onTertiaryContainer = Color(0xFF271900),
+    surfaceDim = Color(0xFFDBD9E4),
+    surfaceBright = Color(0xFFFAF8FF),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF4F2FA),
+    surfaceContainer = Color(0xFFEFEDF5),
+    surfaceContainerHigh = Color(0xFFE9E7EF),
+    surfaceContainerHighest = Color(0xFFE3E1EA),
+    surface = Color(0xFFFAF8FF),
+    onSurface = Color(0xFF1B1B21),
+    surfaceVariant = Color(0xFFE3E1EC),
+    onSurfaceVariant = Color(0xFF46464F),
+    outline = Color(0xFF777680),
+    outlineVariant = Color(0xFFC7C5D0),
+    inverseSurface = Color(0xFF303036),
+    inverseOnSurface = Color(0xFFF2EFF7),
+    inversePrimary = Color(0xFFBAC3FF),
+    scrim = Color(0xFF000000),
 )
 
 private val BrandDarkColors = darkColorScheme(
@@ -71,4 +99,21 @@ private val BrandDarkColors = darkColorScheme(
     onTertiary = Color(0xFF3F2E00),
     tertiaryContainer = Color(0xFF5B4300),
     onTertiaryContainer = Color(0xFFFFDF9F),
+    surfaceDim = Color(0xFF131318),
+    surfaceBright = Color(0xFF3A3942),
+    surfaceContainerLowest = Color(0xFF0E0E13),
+    surfaceContainerLow = Color(0xFF1B1B21),
+    surfaceContainer = Color(0xFF1F1F25),
+    surfaceContainerHigh = Color(0xFF2A292F),
+    surfaceContainerHighest = Color(0xFF35343A),
+    surface = Color(0xFF131318),
+    onSurface = Color(0xFFE4E1EA),
+    surfaceVariant = Color(0xFF46464F),
+    onSurfaceVariant = Color(0xFFC7C5D0),
+    outline = Color(0xFF91909A),
+    outlineVariant = Color(0xFF46464F),
+    inverseSurface = Color(0xFFE4E1EA),
+    inverseOnSurface = Color(0xFF303036),
+    inversePrimary = Color(0xFF4355C0),
+    scrim = Color(0xFF000000),
 )

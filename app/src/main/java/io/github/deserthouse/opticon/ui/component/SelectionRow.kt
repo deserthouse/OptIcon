@@ -13,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -41,11 +42,13 @@ fun SelectionRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .then(if (enabled) Modifier.selectable(selected = selected, onClick = onClick) else Modifier)
+            // ME-11: ONE selection surface — the row carries Role.RadioButton
+            // semantics; the inner radio is display-only (onClick=null).
+            .then(if (enabled) Modifier.selectable(selected = selected, role = Role.RadioButton, onClick = onClick) else Modifier)
             .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        RadioButton(selected = selected, onClick = onClick, enabled = enabled)
+        RadioButton(selected = selected, onClick = null, enabled = enabled)
         Spacer(Modifier.size(8.dp))
         Column {
             Text(label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = labelColor)

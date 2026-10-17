@@ -18,6 +18,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -191,9 +192,12 @@ fun AppDetailScreen(
             // ═══ ② ENABLE + SOURCE SUMMARY ═══
             Card(shape = OptShapes.large, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                    // Enable switch
+                    // Enable switch — ME-10/11: one toggleable surface with
+                    // Role.Switch; the trailing Switch is display-only.
                     Row(
-                        Modifier.fillMaxWidth().clickable { viewModel.setMethodEnabled(!state.methodEnabled) }.padding(vertical = 4.dp),
+                        Modifier.fillMaxWidth()
+                            .toggleable(value = state.methodEnabled, role = androidx.compose.ui.semantics.Role.Switch) { viewModel.setMethodEnabled(it) }
+                            .padding(vertical = 4.dp),
                         Arrangement.SpaceBetween, Alignment.CenterVertically
                     ) {
                         Column(Modifier.weight(1f)) {
@@ -203,7 +207,7 @@ fun AppDetailScreen(
                                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Switch(state.methodEnabled, viewModel::setMethodEnabled)
+                        Switch(state.methodEnabled, onCheckedChange = null)
                     }
                     if (!state.methodEnabled) {
                         Text(stringResource(R.string.detail_enable_hint), style = MaterialTheme.typography.bodySmall,
