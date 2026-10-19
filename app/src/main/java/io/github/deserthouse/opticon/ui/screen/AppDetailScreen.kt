@@ -120,11 +120,12 @@ fun AppDetailScreen(
     val saveState by viewModel.saveState.collectAsState()
     val scope = rememberCoroutineScope()
     var showUnsavedDialog by remember { mutableStateOf(false) }
+    val savingMsg = stringResource(R.string.save_in_progress)
     fun requestLeave() {
         when {
             // 保存中离开 = viewModelScope 随导航取消 = 保存丢失——拦下并说明
             saveState == SaveState.Saving -> scope.launch {
-                snackbarHostState.showSnackbar(context.getString(R.string.save_in_progress))
+                snackbarHostState.showSnackbar(savingMsg)
             }
             isDirty -> showUnsavedDialog = true
             else -> onNavigateBack()
