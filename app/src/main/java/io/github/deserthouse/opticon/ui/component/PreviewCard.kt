@@ -267,7 +267,8 @@ private fun LegendDot(color: Color, label: String) {
 /** D1: semantic constants for the simulated status bar. Foreground is
  *  always paired to its background — these describe how a real status bar
  *  looks in each mode and must not ride the theme's surface ramp. */
-private object PreviewSemanticBar {
+/** 预览语义色（深/浅状态栏底-前景对）——微调面板固定预览头同源复用（A11） */
+internal object PreviewSemanticBar {
     val darkBg = Color(0xFF141318)
     val darkFg = Color(0xFFF2EFF4)
     val lightBg = Color(0xFFF4F2F7)

@@ -525,24 +525,28 @@ private fun FilterChipRow(
             )
         }
         }
-        // ME-07：渐隐仅覆盖末端窄区域（24dp）——matchParentSize 取 Box 内容
-        // （chips 行）高度后由 width 收窄；勿改 fillMaxHeight，那会把 Box 撑到
-        // 页面剩余全高、把 LazyColumn 挤出屏幕（本次实施曾踩，注释即教训）。
+        // ME-07+A09（F3-1）：渐隐重做——外层 matchParentSize 只借高度不绘制；
+        // 末端 24dp 绘制层由内层承担（width 无法收窄 matchParentSize 的固定
+        // 全宽约束，Constraints 实测 360→360，旧写法自始无效）。内层
+        // fillMaxHeight 安全：父已被 matchParentSize 定尺寸，不会再撑高页面
+        // （旧注释担心的撑高场景来自把内层直接挂 matchParentSize 容器）。
         // RTL 方向 TODO。
-        Box(
-            Modifier
-                .matchParentSize()
-                .width(24.dp)
-                .align(Alignment.CenterEnd)
-                .background(
-                    androidx.compose.ui.graphics.Brush.horizontalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0f),
-                            MaterialTheme.colorScheme.surfaceContainer
+        Box(Modifier.matchParentSize()) {
+            Box(
+                Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight()
+                    .width(24.dp)
+                    .background(
+                        androidx.compose.ui.graphics.Brush.horizontalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0f),
+                                MaterialTheme.colorScheme.surfaceContainer
+                            )
                         )
                     )
-                )
-        )
+            )
+        }
     }
 }
 

@@ -178,6 +178,8 @@
     <string name="save_in_progress">Saving — please wait a moment.</string>
     <string name="upload_decode_failed">Could not read the selected image. The previous source is kept.</string>
     <string name="color_override_write_failed">Could not write the color policy. The previous value is kept.</string>
+    <string name="preview_generating">Generating…</string>
+    <string name="preview_none">No preview yet</string>
 
     <string name="filter_all">All Apps</string>
     <string name="filter_configured">Configured</string>

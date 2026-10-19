@@ -324,6 +324,7 @@ fun AppDetailScreen(
             threshold = state.redrawParams.threshold.toFloat(),
             inputClass = algoInputClass,
             previewBitmap = state.previewBitmap,
+            isRedrawing = state.isRedrawing,
             onScaleChange = viewModel::setScale,
             onOffsetXChange = viewModel::setOffsetX,
             onOffsetYChange = viewModel::setOffsetY,
@@ -442,8 +443,10 @@ private fun AssetImportAdjustments(
             else stringResource(R.string.strategy_asset_b_label)
     }
     Card(shape = OptShapes.large, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Row(Modifier.fillMaxWidth().clickable(onClick = onOpenPicker).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        // A12（F3-3）：D4 结构回归——裁剪先行、缩进内移：单动作状态整卡可点，
+        // 波纹满幅覆盖卡片轮廓；滑杆区为独立操作区，视觉边界自划
+        Column(Modifier.fillMaxWidth().clip(OptShapes.large)) {
+            Row(Modifier.fillMaxWidth().clickable(onClick = onOpenPicker).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 // Neutral thumbnail slot (surfaceVariant) — no decorative fallback
                 Box(
                     Modifier.size(48.dp).clip(OptShapes.small).background(MaterialTheme.colorScheme.surfaceVariant),
@@ -458,13 +461,16 @@ private fun AssetImportAdjustments(
                 }
                 Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            // Scale slider (when tuning enabled)
+            // Scale slider (when tuning enabled) — independent action zone,
+            // visually divided from the picker row, own 16dp inset
             if (tuningVisible && state.assetSubStrategy == io.github.deserthouse.opticon.ui.state.AssetSubStrategy.ADAPTIVE_DECOMPOSE) {
-                HorizontalDivider(Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                SliderLabel(stringResource(R.string.algo_slider_scale), "%.2f".format(state.redrawParams.scale))
-                // A13（F2-5）：自适应烘焙路径 applyAdaptiveScale 收紧到 0.5..1.5——
-                // 控件范围与引擎约束一致，去掉显示变化但结果不变的无效上段
-                Slider(value = state.redrawParams.scale, onValueChange = viewModel::setScale, valueRange = 0.5f..1.5f, modifier = Modifier.fillMaxWidth())
+                HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 4.dp)) {
+                    SliderLabel(stringResource(R.string.algo_slider_scale), "%.2f".format(state.redrawParams.scale))
+                    // A13（F2-5）：自适应烘焙路径 applyAdaptiveScale 收紧到 0.5..1.5——
+                    // 控件范围与引擎约束一致，去掉显示变化但结果不变的无效上段
+                    Slider(value = state.redrawParams.scale, onValueChange = viewModel::setScale, valueRange = 0.5f..1.5f, modifier = Modifier.fillMaxWidth())
+                }
             }
         }
     }
@@ -549,13 +555,15 @@ private fun AlgoWipSheet(
     scale: Float, offsetX: Float, offsetY: Float, threshold: Float,
     inputClass: io.github.deserthouse.opticon.engine.IconRedrawEngine.InputClass?,
     previewBitmap: android.graphics.Bitmap?,
+    isRedrawing: Boolean,
     onScaleChange: (Float) -> Unit, onOffsetXChange: (Float) -> Unit, onOffsetYChange: (Float) -> Unit,
     onThresholdChange: (Int) -> Unit, onRestoreAuto: () -> Unit
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss, shape = OptShapes.large) {
+        // A11（F3-2）：外层定高不滚动（预览头固定），滚动只在参数内层
         Column(
             Modifier.fillMaxWidth()
-                .verticalScroll(rememberScrollState())
+                .heightIn(max = 560.dp)
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 48.dp)
         ) {
@@ -565,30 +573,53 @@ private fun AlgoWipSheet(
                     Text(stringResource(R.string.algo_restore_auto), style = MaterialTheme.typography.labelLarge)
                 }
             }
-            Spacer(Modifier.height(12.dp)); HorizontalDivider(); Spacer(Modifier.height(8.dp))
-            Text(stringResource(R.string.algo_panel_wip_body), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(16.dp))
-            // ME-02：面板内轻量预览——拖滑杆时结果可见，不需看 sheet 背后
-            if (previewBitmap != null) {
-                androidx.compose.foundation.Image(
-                    previewBitmap.asImageBitmap(), null,
-                    Modifier.fillMaxWidth().height(120.dp).clip(OptShapes.large),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
-                )
-                Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(12.dp)); HorizontalDivider()
+            Spacer(Modifier.height(12.dp))
+            // A11（F3-2）：固定预览头——深色语义底/前景对（与主预览同源常量），
+            // 白色剪影恒可读；生成中→spinner+文案；空→明确占位而非整块消失
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(96.dp)
+                    .clip(OptShapes.large)
+                    .background(io.github.deserthouse.opticon.ui.component.PreviewSemanticBar.darkBg),
+                contentAlignment = Alignment.Center
+            ) {
+                val preview = previewBitmap
+                when {
+                    preview != null -> androidx.compose.foundation.Image(
+                        preview.asImageBitmap(), null,
+                        Modifier.height(64.dp),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                    )
+                    isRedrawing -> Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = io.github.deserthouse.opticon.ui.component.PreviewSemanticBar.darkFg)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.preview_generating), style = MaterialTheme.typography.labelMedium, color = io.github.deserthouse.opticon.ui.component.PreviewSemanticBar.darkFg)
+                    }
+                    else -> Text(stringResource(R.string.preview_none), style = MaterialTheme.typography.labelMedium, color = io.github.deserthouse.opticon.ui.component.PreviewSemanticBar.darkFg)
+                }
             }
-            SliderLabel(stringResource(R.string.algo_slider_scale), "%.2f".format(scale))
-            Slider(value = scale, onValueChange = onScaleChange, valueRange = 0.5f..2f, modifier = Modifier.fillMaxWidth())
-            SliderLabel(stringResource(R.string.algo_slider_offset_x), "%.0f".format(offsetX))
-            Slider(value = offsetX, onValueChange = onOffsetXChange, valueRange = -50f..50f, modifier = Modifier.fillMaxWidth())
-            SliderLabel(stringResource(R.string.algo_slider_offset_y), "%.0f".format(offsetY))
-            Slider(value = offsetY, onValueChange = onOffsetYChange, valueRange = -50f..50f, modifier = Modifier.fillMaxWidth())
-            if (inputClass != io.github.deserthouse.opticon.engine.IconRedrawEngine.InputClass.TRANSPARENT_MARGIN) {
-                SliderLabel(stringResource(R.string.algo_slider_purity), "%.0f".format(threshold))
-                Slider(value = threshold, onValueChange = { onThresholdChange(it.toInt()) }, valueRange = 0f..255f, modifier = Modifier.fillMaxWidth())
-            } else {
-                Text(stringResource(R.string.algo_auto_alpha_note), style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+            Spacer(Modifier.height(12.dp))
+            // 参数区独立滚动——预览头不随内容滚走
+            Column(
+                Modifier.fillMaxWidth().weight(1f, fill = false).verticalScroll(rememberScrollState())
+            ) {
+                Text(stringResource(R.string.algo_panel_wip_body), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(8.dp))
+                SliderLabel(stringResource(R.string.algo_slider_scale), "%.2f".format(scale))
+                Slider(value = scale, onValueChange = onScaleChange, valueRange = 0.5f..2f, modifier = Modifier.fillMaxWidth())
+                SliderLabel(stringResource(R.string.algo_slider_offset_x), "%.0f".format(offsetX))
+                Slider(value = offsetX, onValueChange = onOffsetXChange, valueRange = -50f..50f, modifier = Modifier.fillMaxWidth())
+                SliderLabel(stringResource(R.string.algo_slider_offset_y), "%.0f".format(offsetY))
+                Slider(value = offsetY, onValueChange = onOffsetYChange, valueRange = -50f..50f, modifier = Modifier.fillMaxWidth())
+                if (inputClass != io.github.deserthouse.opticon.engine.IconRedrawEngine.InputClass.TRANSPARENT_MARGIN) {
+                    SliderLabel(stringResource(R.string.algo_slider_purity), "%.0f".format(threshold))
+                    Slider(value = threshold, onValueChange = { onThresholdChange(it.toInt()) }, valueRange = 0f..255f, modifier = Modifier.fillMaxWidth())
+                } else {
+                    Text(stringResource(R.string.algo_auto_alpha_note), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+                }
             }
         }
     }

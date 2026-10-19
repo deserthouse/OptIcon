@@ -178,6 +178,8 @@
     <string name="save_in_progress">正在保存，请稍候。</string>
     <string name="upload_decode_failed">无法读取所选图片，已保持原来源不变。</string>
     <string name="color_override_write_failed">色彩策略写入失败，已保持原值不变。</string>
+    <string name="preview_generating">生成中…</string>
+    <string name="preview_none">暂无预览</string>
 
     <string name="filter_all">全部应用</string>
     <string name="filter_configured">已修改</string>
