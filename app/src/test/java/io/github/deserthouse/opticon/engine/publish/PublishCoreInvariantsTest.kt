@@ -3,6 +3,7 @@ package io.github.deserthouse.opticon.engine.publish
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -83,7 +84,7 @@ class PublishCoreInvariantsTest {
         assertArrayEquals(NEW, File(op.newPath).readBytes())
 
         val applied = ArrayList<String?>()
-        core.recover { applied.add(it) }
+        core.recover { applied.add(it); true }
 
         // 恢复后：共享位与私有位都是旧产物、配置回滚到旧快照
         assertArrayEquals(OLD, store.readDelivered("com.a"))
@@ -104,7 +105,7 @@ class PublishCoreInvariantsTest {
         store.refuseDeliver = true
 
         val applied = ArrayList<String?>()
-        core.recover { applied.add(it) }
+        core.recover { applied.add(it); true }
 
         // 恢复失败：记录保留（Partial），不做任何配置变更
         assertTrue(File(opsDir, "${op2.opId}.json").exists())
@@ -221,7 +222,7 @@ class PublishCoreInvariantsTest {
         // 崩溃于 publish 后、配置提交前
 
         val applied = ArrayList<String?>()
-        core.recover { applied.add(it) }
+        core.recover { applied.add(it); true }
         assertEquals(listOf(NEW_CFG), applied)
         assertFalse(File(opsDir, "${op.opId}.json").exists())
         op.backupPath?.let { assertFalse(File(it).exists()) }
@@ -240,7 +241,7 @@ class PublishCoreInvariantsTest {
         assertTrue(core.record(op2))
         store.refuseDeliver = true // 第二条走 Partial，验证 broken 被隔离后仍处理到第二条
 
-        core.recover { }
+        core.recover { true }
         assertTrue(File(opsDir, "broken.json.corrupt").exists())
         assertFalse(File(opsDir, "broken.json").exists())
         assertTrue(File(opsDir, "${op2.opId}.json").exists())
@@ -259,7 +260,7 @@ class PublishCoreInvariantsTest {
         )
 
         val applied = ArrayList<String?>()
-        core.recover { applied.add(it) }
+        core.recover { applied.add(it); true }
         // 交付位非本次产物 → 保留不动；无旧配置 → 不触碰配置
         assertArrayEquals(RULES_OLD, store.readDelivered("com.a"))
         assertTrue(applied.isEmpty())
@@ -280,5 +281,55 @@ class PublishCoreInvariantsTest {
         assertEquals(NEW_CFG, parsed?.newConfigJson)
         assertEquals(PublishCore.Stage.PREPARED, parsed?.stage)
         assertEquals(PublishCore.sha256(NEW), parsed?.newSha)
+    }
+
+    // ━━ C03：恢复配置提交失败 → 记录保留（Partial），不静默清账 ━━
+
+    @Test
+    fun `recover keeps record when config commit returns false`() {
+        newCore()
+        val op = core.prepare("com.a", NEW, OLD_CFG, NEW_CFG)!!
+        assertTrue(core.record(op))
+        assertTrue(core.publish(op))
+        // 崩溃于 publish 后；恢复时配置提交失败
+        var failConfig = true
+        core.recover { if (it == NEW_CFG && failConfig) false else true }
+        assertTrue(File(opsDir, "${op.opId}.json").exists()) // 记录保留
+        // 重试成功后清除
+        failConfig = false
+        core.recover { true }
+        assertFalse(File(opsDir, "${op.opId}.json").exists())
+    }
+
+    // ━━ C04：首次自定义覆盖共享旧版后失败 → 补偿恢复原共享内容 ━━
+
+    @Test
+    fun `first custom publish overwriting shared rules artifact restores it on compensation`() {
+        newCore()
+        // 共享位已有规则库镜像（9），无私有 baked——prepare 应快照共享旧态
+        store.delivered["com.a"] = RULES_OLD.copyOf()
+        val op = core.prepare("com.a", NEW, null, NEW_CFG)!!
+        assertNull(op.backupPath)
+        assertNotNull(op.sharedBackupPath)
+        assertTrue(core.record(op))
+        // deliver 成功（共享位已被覆盖为 NEW），随后 verify/commit 失败 → 补偿
+        store.corruptBytes = true
+        assertFalse(core.publish(op))
+        store.corruptBytes = false
+        assertTrue(core.compensate(op))
+        assertArrayEquals(RULES_OLD, store.readDelivered("com.a")) // 原共享内容恢复
+    }
+
+    @Test
+    fun `shared backup cleaned on complete`() {
+        newCore()
+        store.delivered["com.a"] = RULES_OLD.copyOf()
+        val op = core.prepare("com.a", NEW, OLD_CFG, NEW_CFG)!!
+        val sharedBak = File(op.sharedBackupPath!!)
+        assertTrue(sharedBak.exists())
+        assertTrue(core.record(op))
+        assertTrue(core.publish(op))
+        core.complete(op)
+        assertFalse(sharedBak.exists())
     }
 }

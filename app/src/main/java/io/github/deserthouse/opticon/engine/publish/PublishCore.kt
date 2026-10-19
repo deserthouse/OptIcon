@@ -40,7 +40,9 @@ class PublishCore(
         /** 完整新配置快照 JSON；blank = 旧版本记录，恢复时不触碰配置 */
         val newConfigJson: String?,
         /** 新产物字节 SHA-256（交付位一致性判据） */
-        val newSha: String
+        val newSha: String,
+        /** 事务开始时交付位旧内容的字节快照路径；null=当时交付位为空（C04） */
+        val sharedBackupPath: String? = null
     )
 
     // ━━ 阶段 1：准备 ━━
@@ -56,10 +58,18 @@ class PublishCore(
                     oldFile.absolutePath
                 } else null
                 newFile.writeBytes(pngBytes)
+                // C04：交付位旧内容快照——私有 baked 备份不代表共享权威旧态；
+                // 首次自定义发布覆盖了规则库镜像等共享内容时，补偿的恢复源在此
+                val sharedBackupPath = store.readDelivered(pkg)?.let { oldShared ->
+                    val bak = File(bakedDir, "$pkg.shared.bak")
+                    bak.writeBytes(oldShared)
+                    bak.absolutePath
+                }
                 PendingOp(
                     pkg = pkg, backupPath = backupPath, newPath = newFile.absolutePath,
                     oldConfigJson = oldConfigJson, newConfigJson = newConfigJson,
-                    newSha = sha256(pngBytes)
+                    newSha = sha256(pngBytes),
+                    sharedBackupPath = sharedBackupPath
                 )
             } catch (e: Exception) {
                 log.e("prepare failed: ${e.message}")
@@ -135,6 +145,7 @@ class PublishCore(
             try {
                 File(opsDir, "${op.opId}.json").delete()
                 op.backupPath?.let { File(it).delete() }
+                op.sharedBackupPath?.let { File(it).delete() }
             } catch (_: Exception) {
             }
         }
@@ -151,8 +162,32 @@ class PublishCore(
      */
     fun compensate(op: PendingOp): Boolean = synchronized(lock) {
         try {
-            val backupPath = op.backupPath
-            if (backupPath != null) {
+            // C04：共享快照优先——它才是事务开始时交付位的真实旧态（无私有
+            // baked 备份的首次自定义发布也靠它恢复被覆盖的规则库镜像）
+            val sharedBak = op.sharedBackupPath?.let { File(it) }?.takeIf { it.exists() }
+            val backupPath = if (sharedBak != null) null else op.backupPath
+            if (sharedBak != null) {
+                val bytes = sharedBak.readBytes()
+                // 交付位未被本事务改动（仍等于快照）→ 已是一致态，免重发
+                val current = store.readDelivered(op.pkg)
+                if (current != null && current.contentEquals(bytes)) {
+                    log.i("compensate: shared artifact already consistent for ${op.pkg}")
+                    return true
+                }
+                var ok = store.deliver(op.pkg, bytes)
+                if (!ok) {
+                    log.i("compensate: shared-restore refused, retrying once for ${op.pkg}")
+                    ok = store.deliver(op.pkg, bytes)
+                }
+                if (!ok) return false
+                val confirmed = store.readDelivered(op.pkg)
+                if (confirmed == null || !confirmed.contentEquals(bytes)) {
+                    log.e("compensate: shared-restore bytes mismatch for ${op.pkg}")
+                    return false
+                }
+                log.i("compensate: restored previous shared artifact for ${op.pkg}")
+                true
+            } else if (backupPath != null) {
                 val backup = File(backupPath)
                 if (!backup.exists()) {
                     log.e("compensate: backup missing for ${op.pkg}")
@@ -199,7 +234,7 @@ class PublishCore(
      * 不触碰配置——当时流程先提交配置，磁盘配置已为新值）。
      * 无法安全收敛时保留记录（Partial），不静默丢弃。
      */
-    fun recover(applyConfig: (String?) -> Unit) {
+    fun recover(applyConfig: (String?) -> Boolean) {
         synchronized(lock) {
             try {
                 if (!opsDir.isDirectory) return
@@ -216,24 +251,26 @@ class PublishCore(
                         }
                         val delivered = store.readDelivered(op.pkg)
                         val deliveredSha = delivered?.let { sha256(it) }
-                        val applyOld = {
-                            if (op.oldConfigJson.isNullOrBlank()) {
-                                log.i("recover ${op.pkg}: no old config recorded — artifact-only")
-                            } else {
-                                applyConfig(op.oldConfigJson)
-                            }
-                        }
+                        // C03：配置提交结果决定收敛——false 时本记录整体保留（Partial）
+                        fun applyOld(): Boolean = if (op.oldConfigJson.isNullOrBlank()) {
+                            log.i("recover ${op.pkg}: no old config recorded — artifact-only")
+                            true
+                        } else applyConfig(op.oldConfigJson)
                         when {
                             // 发布已确认完成 → 幂等补提交新配置
                             deliveredSha != null && deliveredSha == op.newSha -> {
-                                if (op.newConfigJson.isNullOrBlank()) {
+                                val cfgOk = if (op.newConfigJson.isNullOrBlank()) {
                                     log.i("recover ${op.pkg}: publish confirmed, no new config recorded")
+                                    true
+                                } else applyConfig(op.newConfigJson)
+                                if (cfgOk) {
+                                    f.delete()
+                                    op.backupPath?.let { File(it).delete() }
+                                    op.sharedBackupPath?.let { File(it).delete() }
+                                    log.i("recover ${op.pkg}: publish confirmed — config applied, record cleared")
                                 } else {
-                                    applyConfig(op.newConfigJson)
+                                    log.e("recover ${op.pkg}: config commit failed — record kept (Partial)")
                                 }
-                                f.delete()
-                                op.backupPath?.let { File(it).delete() }
-                                log.i("recover ${op.pkg}: publish confirmed — config applied, record cleared")
                             }
                             // 发布未完成且有旧产物备份 → 恢复旧版
                             op.backupPath != null -> {
@@ -249,10 +286,15 @@ class PublishCore(
                                     }
                                     if (restored) {
                                         File(op.newPath).writeBytes(backupBytes)
-                                        applyOld()
-                                        f.delete()
-                                        backup.delete()
-                                        log.i("recover ${op.pkg}: publish incomplete — old artifact restored")
+                                        val cfgOk = applyOld()
+                                        if (cfgOk) {
+                                            f.delete()
+                                            backup.delete()
+                                            op.sharedBackupPath?.let { File(it).delete() }
+                                        } else {
+                                            restored = false
+                                        }
+                                        log.i("recover ${op.pkg}: publish incomplete — old artifact restored" + if (cfgOk) "" else " (config kept Partial)")
                                     }
                                 }
                                 if (!restored) {
@@ -267,9 +309,13 @@ class PublishCore(
                                 } else {
                                     log.i("recover ${op.pkg}: delivered content is not ours; kept")
                                 }
-                                applyOld()
-                                f.delete()
-                                log.i("recover ${op.pkg}: first publish not delivered — reverted")
+                                if (applyOld()) {
+                                    f.delete()
+                                    op.sharedBackupPath?.let { File(it).delete() }
+                                    log.i("recover ${op.pkg}: first publish not delivered — reverted")
+                                } else {
+                                    log.e("recover ${op.pkg}: config revert failed — record kept (Partial)")
+                                }
                             }
                         }
                     } catch (e: Exception) {
@@ -293,7 +339,8 @@ class PublishCore(
         "stage" to op.stage.name,
         "oldCfg" to op.oldConfigJson,
         "newCfg" to op.newConfigJson,
-        "sha" to op.newSha
+        "sha" to op.newSha,
+        "sharedBak" to op.sharedBackupPath
     )
 
     /** 兼容 v0.13/14 旧记录（无 stage/sha/config 字段）：sha=""永不与交付位相符 → 走备份/保留分支 */
@@ -311,7 +358,8 @@ class PublishCore(
         val oldCfg = jsonGetString(json, "oldCfg")?.takeIf { it.isNotBlank() }
         val newCfg = jsonGetString(json, "newCfg")?.takeIf { it.isNotBlank() }
         val sha = jsonGetString(json, "sha") ?: ""
-        return PendingOp(opId, pkg, ts, backup, newPath, stage, oldCfg, newCfg, sha)
+        val sharedBak = jsonGetString(json, "sharedBak")?.takeIf { it.isNotBlank() }
+        return PendingOp(opId, pkg, ts, backup, newPath, stage, oldCfg, newCfg, sha, sharedBak)
     }
 
     private val lock = Any()

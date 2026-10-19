@@ -49,9 +49,16 @@ class MainActivity : ComponentActivity() {
         // 引导同款）；文件/MediaStore IO 不进主线程；配置收敛经仓库提交，
         // 与用户新保存由 PublishCore 的锁互斥。
         Thread {
+            // C02（X2）：进程一次守卫——Activity 重建不再重复触发恢复；恢复整段
+            // 与保存流水线经 PublishCoordinator 互斥
+            if (!io.github.deserthouse.opticon.engine.publish.PublishCoordinator.beginRecoveryOnce()) return@Thread
             try {
-                io.github.deserthouse.opticon.engine.PublishTransaction.recoverOnStartup(applicationContext) { cfg ->
-                    io.github.deserthouse.opticon.data.AppIconConfigRepository.saveJson(cfg)
+                kotlinx.coroutines.runBlocking {
+                    io.github.deserthouse.opticon.engine.publish.PublishCoordinator.withPipeline {
+                        io.github.deserthouse.opticon.engine.PublishTransaction.recoverOnStartup(applicationContext) { cfg ->
+                            io.github.deserthouse.opticon.data.AppIconConfigRepository.saveJson(cfg)
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 TraceLogger.w("OptIcon/Main", "recoverOnStartup async: ${e.message}")

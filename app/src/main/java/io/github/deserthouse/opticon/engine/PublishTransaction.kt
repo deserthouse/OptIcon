@@ -26,15 +26,27 @@ object PublishTransaction {
     private const val PENDING_DIR = "pending_ops"
     private const val BAKED_DIR = "baked"
 
-    private fun coreOf(context: Context): PublishCore = PublishCore(
-        store = SharedPublishStore(context),
-        opsDir = File(context.filesDir, PENDING_DIR),
-        bakedDir = File(context.filesDir, BAKED_DIR),
-        log = object : PublishLog {
-            override fun i(m: String) = TraceLogger.i(TAG, m)
-            override fun e(m: String) = TraceLogger.e(TAG, m)
+    // C02（X2）：进程级单例——lock 是 PublishCore 实例字段，逐调用建实例等于
+    // 没有公共锁；applicationContext 进程内稳定，单例后方法级 synchronized 才生效。
+    @Volatile
+    private var coreRef: PublishCore? = null
+    private val coreGuard = Any()
+    private fun coreOf(context: Context): PublishCore {
+        coreRef?.let { return it }
+        synchronized(coreGuard) {
+            coreRef?.let { return it }
+            coreRef = PublishCore(
+                store = SharedPublishStore(context.applicationContext),
+                opsDir = File(context.applicationContext.filesDir, PENDING_DIR),
+                bakedDir = File(context.applicationContext.filesDir, BAKED_DIR),
+                log = object : PublishLog {
+                    override fun i(m: String) = TraceLogger.i(TAG, m)
+                    override fun e(m: String) = TraceLogger.e(TAG, m)
+                }
+            )
+            return coreRef!!
         }
-    )
+    }
 
     /** 阶段 1：准备——烘焙到私有目录+备份旧产物（newFile 保持 world-readable 供 SystemUI） */
     fun prepare(
@@ -72,11 +84,12 @@ object PublishTransaction {
     fun compensate(context: Context, op: PublishCore.PendingOp): Boolean =
         coreOf(context).compensate(op)
 
-    /** 重启恢复：按交付内容证据收敛。applyConfig 在记录携带配置快照时回调。 */
-    fun recoverOnStartup(context: Context, applyConfig: ((String) -> Unit)? = null) {
+    /** 重启恢复：按交付内容证据收敛。applyConfig 返回配置提交结果——false 时
+     *  核心保留记录为 Partial（C03），调用方须如实消费。 */
+    fun recoverOnStartup(context: Context, applyConfig: ((String) -> Boolean)? = null) {
         val dir = File(context.filesDir, PENDING_DIR)
         TraceLogger.i(TAG, "recoverOnStartup: enter (opsDir exists=${dir.isDirectory}, files=${dir.listFiles()?.size ?: -1})")
-        coreOf(context).recover { cfg -> if (cfg != null) applyConfig?.invoke(cfg) }
+        coreOf(context).recover { cfg -> if (cfg != null) (applyConfig?.invoke(cfg) ?: true) else true }
         TraceLogger.i(TAG, "recoverOnStartup: done")
     }
 
