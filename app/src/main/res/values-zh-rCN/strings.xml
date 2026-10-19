@@ -60,6 +60,8 @@
     <string name="algo_source_desc">选择重绘管线所使用的图形来源</string>
     <string name="algo_source_self">应用自身图标</string>
     <string name="algo_source_upload">上传图片</string>
+    <string name="algo_source_self_desc">对应用自身的启动图标做白色剪影重绘</string>
+    <string name="algo_source_upload_desc">选择一张图片作为重绘来源——解码校验通过后才切换</string>
     <string name="algo_source_captured">抓取的原始图标</string>
     <string name="shade_icon_desc">通知列表左侧显示的图标类型（Android 17+）</string>
     <string name="app_section">应用</string>
@@ -173,6 +175,9 @@
     <string name="save_failed">保存失败，请重试；若持续失败请检查存储权限。</string>
     <string name="save_recovery_pending">发布失败且自动恢复也未成功。旧图标仍在使用；已保留恢复记录，下次打开本应用时自动完成恢复。</string>
     <string name="save_disable_cleanup_failed">自定义图标已关闭，但旧文件清理失败；不影响图标替换功能。</string>
+    <string name="save_in_progress">正在保存，请稍候。</string>
+    <string name="upload_decode_failed">无法读取所选图片，已保持原来源不变。</string>
+    <string name="color_override_write_failed">色彩策略写入失败，已保持原值不变。</string>
 
     <string name="filter_all">全部应用</string>
     <string name="filter_configured">已修改</string>

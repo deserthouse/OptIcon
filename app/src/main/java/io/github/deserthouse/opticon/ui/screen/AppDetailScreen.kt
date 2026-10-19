@@ -67,6 +67,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
@@ -114,13 +115,20 @@ fun AppDetailScreen(
         }
     }
 
-    // ── Guarded leave (OI-09 + OI-03) ──
+    // ── Guarded leave (OI-09 + OI-03 + A05) ──
     val isDirty by viewModel.isDirty.collectAsState()
     val saveState by viewModel.saveState.collectAsState()
+    val scope = rememberCoroutineScope()
     var showUnsavedDialog by remember { mutableStateOf(false) }
     fun requestLeave() {
-        if (isDirty && saveState != SaveState.Saving) showUnsavedDialog = true
-        else onNavigateBack()
+        when {
+            // 保存中离开 = viewModelScope 随导航取消 = 保存丢失——拦下并说明
+            saveState == SaveState.Saving -> scope.launch {
+                snackbarHostState.showSnackbar(context.getString(R.string.save_in_progress))
+            }
+            isDirty -> showUnsavedDialog = true
+            else -> onNavigateBack()
+        }
     }
     androidx.activity.compose.BackHandler { requestLeave() }
     LaunchedEffect(saveState) {
@@ -146,7 +154,8 @@ fun AppDetailScreen(
     }
 
     val pickLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let { viewModel.setCustomIconPath(it.toString()) }
+        // A04（F2-1）：解码成功才原子切源（LOCAL_FILE）；失败保持旧选择
+        uri?.let { viewModel.applyUploadedIcon(it.toString()) }
     }
 
     // ── Source change sheet ──
@@ -165,7 +174,9 @@ fun AppDetailScreen(
                     // ME-01: text-labeled save button (was icon-only Check)
                     TextButton(
                         onClick = { viewModel.saveConfig() },
-                        enabled = saveState != SaveState.Saving && state.methodEnabled
+                        // A07（F2-3）：关闭也是一种需要提交的配置变化——按钮可用性
+                        // 只看保存忙碌态，不看开关值
+                        enabled = saveState != SaveState.Saving
                     ) {
                         if (saveState == SaveState.Saving) {
                             CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
@@ -450,7 +461,9 @@ private fun AssetImportAdjustments(
             if (tuningVisible && state.assetSubStrategy == io.github.deserthouse.opticon.ui.state.AssetSubStrategy.ADAPTIVE_DECOMPOSE) {
                 HorizontalDivider(Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                 SliderLabel(stringResource(R.string.algo_slider_scale), "%.2f".format(state.redrawParams.scale))
-                Slider(value = state.redrawParams.scale, onValueChange = viewModel::setScale, valueRange = 0.5f..2f, modifier = Modifier.fillMaxWidth())
+                // A13（F2-5）：自适应烘焙路径 applyAdaptiveScale 收紧到 0.5..1.5——
+                // 控件范围与引擎约束一致，去掉显示变化但结果不变的无效上段
+                Slider(value = state.redrawParams.scale, onValueChange = viewModel::setScale, valueRange = 0.5f..1.5f, modifier = Modifier.fillMaxWidth())
             }
         }
     }
@@ -472,19 +485,42 @@ private fun AlgorithmAdjustments(
                 io.github.deserthouse.opticon.ui.state.AlgoSource.SELF -> stringResource(R.string.algo_source_self)
                 else -> stringResource(R.string.algo_source_upload)
             }
+            // A04（F2-1）：显式来源选择——点击行为不再随当前来源隐式翻转
+            var showAlgoSourceSheet by remember { mutableStateOf(false) }
             SettingItem(
                 Icons.Rounded.Tune,
                 stringResource(R.string.algo_source_title),
                 stringResource(R.string.algo_source_desc),
-                onClick = {
-                    if (state.algoSource == io.github.deserthouse.opticon.ui.state.AlgoSource.SELF) {
-                        pickLauncher.launch("image/*")
-                    } else {
-                        viewModel.setAlgoSource(io.github.deserthouse.opticon.ui.state.AlgoSource.SELF)
-                    }
-                }
+                onClick = { showAlgoSourceSheet = true }
             ) {
                 Text(sourceLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            }
+            if (showAlgoSourceSheet) {
+                RadioSheet(
+                    title = stringResource(R.string.algo_source_title),
+                    selected = state.algoSource?.name ?: "",
+                    options = listOf(
+                        RadioOption(
+                            io.github.deserthouse.opticon.ui.state.AlgoSource.SELF.name,
+                            stringResource(R.string.algo_source_self),
+                            stringResource(R.string.algo_source_self_desc)
+                        ),
+                        RadioOption(
+                            io.github.deserthouse.opticon.ui.state.AlgoSource.LOCAL_FILE.name,
+                            stringResource(R.string.algo_source_upload),
+                            stringResource(R.string.algo_source_upload_desc)
+                        )
+                    ),
+                    onSelect = { picked ->
+                        showAlgoSourceSheet = false
+                        when (io.github.deserthouse.opticon.ui.state.AlgoSource.valueOf(picked)) {
+                            io.github.deserthouse.opticon.ui.state.AlgoSource.SELF ->
+                                viewModel.setAlgoSource(io.github.deserthouse.opticon.ui.state.AlgoSource.SELF)
+                            else -> pickLauncher.launch("image/*") // 取消选择器不改变任何状态
+                        }
+                    },
+                    onDismiss = { showAlgoSourceSheet = false }
+                )
             }
             // Fine-tune entry (when tuning enabled)
             if (tuningVisible) {

@@ -38,6 +38,13 @@ object SharedIconStore {
     const val EXTENSION = ".opticon"  // no image suffix — MediaScanner ignores it
 
     /** Canonical read path used by the SystemUI hook (File API). */
+    /** A10（F2-4）：共享 RELATIVE_PATH 的唯一规范形——恒带尾斜杠（与 MediaStore
+     *  存储形态一致）。所有查询/删除/清理统一经此构造，禁止各处自拼斜杠。 */
+    internal fun normalizedRelPath(subDir: String?): String {
+        val sub = subDir?.trimEnd('/')
+        return "Download/$DIR_NAME" + (sub?.let { "/$it" } ?: "") + "/"
+    }
+
     fun publicDir(): File =
         File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), DIR_NAME)
 
@@ -124,7 +131,7 @@ object SharedIconStore {
      *  while the UI showed "inherit". Delete through MediaStore too. */
     fun deleteColorOverride(context: Context, pkg: String): Boolean = try {
         val fileGone = colorOverrideFile(pkg).delete()
-        val rowGone = deleteByName(context, "$pkg$EXTENSION", "Download/$DIR_NAME/color_override")
+        val rowGone = deleteByName(context, "$pkg$EXTENSION", normalizedRelPath("color_override"))
         fileGone || rowGone
     } catch (_: Exception) { false }
 
@@ -145,7 +152,7 @@ object SharedIconStore {
     fun deleteIcon(context: Context, pkg: String): Boolean {
         // OI-01: exact RELATIVE_PATH match — the legacy prefix LIKE also hit
         // same-named rows under color_override/ and deleted the override.
-        val rowGone = deleteByName(context, "$pkg$EXTENSION", "Download/$DIR_NAME/")
+        val rowGone = deleteByName(context, "$pkg$EXTENSION", normalizedRelPath(null))
         // Orphan guard (mirror of writeBytes'): a physical file with no
         // MediaStore row survives deleteByName — and the hook's Path 0 would
         // keep serving it after the user asked to revert.
@@ -201,7 +208,7 @@ object SharedIconStore {
             val resolver = context.contentResolver
             // DISPLAY_NAME must be a bare file name — subdirectories belong
             // in RELATIVE_PATH only (a slash in DISPLAY_NAME fails silently).
-            val relativePath = "Download/$DIR_NAME" + (subDir?.let { "/$it" } ?: "")
+            val relativePath = normalizedRelPath(subDir)
 
             // Update-in-place when a row already exists: delete+insert lets
             // MediaStore auto-rename on any name collision ("file (1).ext"),
@@ -211,7 +218,7 @@ object SharedIconStore {
             // MediaStore normalizes RELATIVE_PATH to a TRAILING SLASH form —
             // the equality match must use the same normalized value
             // (verified on-device: stored value is "Download/OptIcon/").
-            val matchPath = "$relativePath/"
+            val matchPath = relativePath
             existingRowUri(context, fileName, matchPath)?.let { rowUri ->
                 updateExistingRow(resolver, rowUri, bytes)?.let { return it }
             }
@@ -246,7 +253,7 @@ object SharedIconStore {
             val resolver = context.contentResolver
             // OI-01: exact-match cleanup scoped to THIS insert's directory —
             // the legacy prefix LIKE crossed into color_override/.
-            deleteByName(context, fileName, "$relativePath/")
+            deleteByName(context, fileName, relativePath)
             try { File(File(publicDir(), subDir ?: ""), fileName).delete() } catch (_: Exception) { }
 
             val values = ContentValues().apply {

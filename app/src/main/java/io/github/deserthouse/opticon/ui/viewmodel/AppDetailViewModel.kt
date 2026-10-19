@@ -56,6 +56,14 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
     private val _isDirty = MutableStateFlow(false)
     val isDirty: StateFlow<Boolean> = _isDirty.asStateFlow()
 
+    /** A05（F2-2）：草稿版本号——每次编辑递增。保存完成时仅当快照版本仍为
+     *  最新才清 dirty，保存期间的新编辑保持未保存状态。 */
+    private val draftRevision = java.util.concurrent.atomic.AtomicInteger(0)
+    private fun markDirty() {
+        draftRevision.incrementAndGet()
+        _isDirty.value = true
+    }
+
     /** M4：当前 algo 来源图的输入分类（换图时自动分类+参数重置） */
     private val _algoInputClass = MutableStateFlow<IconRedrawEngine.InputClass?>(null)
     val algoInputClass: StateFlow<IconRedrawEngine.InputClass?> = _algoInputClass.asStateFlow()
@@ -133,7 +141,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun setStrategy(strategy: IconStrategy) {
-        _isDirty.value = true
+        markDirty()
         _state.update { it.copy(strategy = strategy, previewBitmap = null, hitSource = HitSource.OTHER) }
         debouncePreview()
     }
@@ -146,7 +154,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         drawable: String?,
         picpBitmap: Bitmap? = null
     ) {
-        _isDirty.value = true
+        markDirty()
         _state.update {
             val newPicp = picpBitmap ?: it.perfectIconsBitmap
             it.copy(
@@ -163,7 +171,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun setAlgoSource(src: AlgoSource) {
-        _isDirty.value = true
+        markDirty()
         _state.update { it.copy(algoSource = src) }
         // OI-13: classification belongs to the SOURCE IMAGE — switching to SELF
         // must re-classify the app's own icon, otherwise "恢复自动" either
@@ -196,7 +204,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun setMethodEnabled(enabled: Boolean) {
-        _isDirty.value = true
+        markDirty()
         _state.update { it.copy(methodEnabled = enabled) }
         debouncePreview()
     }
@@ -274,8 +282,43 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
      *  来源/素材时，晚到的旧分类结果不得回填覆盖新选择。 */
     private val algoClassGeneration = java.util.concurrent.atomic.AtomicInteger(0)
 
+    /** A04（F2-1）：上传图片=一次原子切换来源——解码成功才同写
+     *  customIconPath+LOCAL_FILE+分类/参数重置；解码失败保持旧选择并如实反馈。
+     *  （旧实现只写路径不切来源，引擎仍烘焙应用自身图标。） */
+    fun applyUploadedIcon(uri: String) {
+        markDirty()
+        val gen = algoClassGeneration.incrementAndGet()
+        viewModelScope.launch {
+            val decoded: Pair<IconRedrawEngine.InputClass?, Boolean> = withContext(Dispatchers.IO) {
+                val bmp = decodeFileOrUri(getApplication(), uri)
+                if (bmp == null) null to false
+                else {
+                    val px = IntArray(bmp.width * bmp.height)
+                    bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
+                    val r = IconRedrawEngine.classifyInput(px, bmp.width)
+                    bmp.recycle()
+                    r to true
+                }
+            }
+            if (algoClassGeneration.get() != gen) return@launch // 过期结果丢弃
+            val (classified, ok) = decoded
+            if (!ok) {
+                _saveFeedback.value = getApplication<Application>().getString(
+                    io.github.deserthouse.opticon.R.string.upload_decode_failed
+                )
+                return@launch
+            }
+            _state.update { it.copy(customIconPath = uri, algoSource = AlgoSource.LOCAL_FILE) }
+            _algoInputClass.value = classified
+            if (classified != null) {
+                _state.update { it.copy(redrawParams = autoParamsFor(classified)) }
+            }
+            debouncePreview()
+        }
+    }
+
     fun setCustomIconPath(path: String?) {
-        _isDirty.value = true
+        markDirty()
         _state.update { it.copy(customIconPath = path) }
         val gen = algoClassGeneration.incrementAndGet()
         if (path == null) {
@@ -311,7 +354,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
 
     /** 「恢复自动」：滑杆回到当前输入类的自动默认值 */
     fun restoreAutoParams() {
-        _isDirty.value = true
+        markDirty()
         // OI-13: no classification (SELF default) still restores — fall back to
         // the class-agnostic defaults instead of silently doing nothing.
         val cls = _algoInputClass.value
@@ -323,43 +366,52 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
      *  立即写共享目录（hook 侧 mtime 缓存即时感知），不随保存流程。 */
     fun setColorOverride(value: String?) {
         val ctx = getApplication<Application>()
-        if (value == null) io.github.deserthouse.opticon.engine.SharedIconStore.deleteColorOverride(ctx, _state.value.packageName)
-        else io.github.deserthouse.opticon.engine.SharedIconStore.writeColorOverride(ctx, _state.value.packageName, value)
-        _state.update { it.copy(colorOverride = value) }
+        // A10（F2-4）：写入/删除结果决定 UI 显示值——失败保持旧值并如实反馈，
+        // 不得出现"显示已切换但从未持久生效"。
+        val ok = if (value == null) {
+            io.github.deserthouse.opticon.engine.SharedIconStore.deleteColorOverride(ctx, _state.value.packageName)
+        } else {
+            io.github.deserthouse.opticon.engine.SharedIconStore.writeColorOverride(ctx, _state.value.packageName, value) != null
+        }
+        if (ok) {
+            _state.update { it.copy(colorOverride = value) }
+        } else {
+            _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.color_override_write_failed)
+        }
     }
     fun setEmojiText(text: String?) {
-        _isDirty.value = true
+        markDirty()
         _state.update { it.copy(emojiText = text) }
         debouncePreview()
     }
     fun selectMaterialIcon(name: String) {
-        _isDirty.value = true
+        markDirty()
         _state.update { it.copy(materialIconName = name) }
         debouncePreview()
     }
 
     fun setScale(v: Float) {
-        _isDirty.value = true
+        markDirty()
         _state.update { it.copy(redrawParams = it.redrawParams.copy(scale = v.coerceIn(RedrawParams.SCALE_MIN, RedrawParams.SCALE_MAX))) }
         debouncePreview()
     }
     fun setOffsetX(v: Float) {
-        _isDirty.value = true
+        markDirty()
         _state.update { it.copy(redrawParams = it.redrawParams.copy(offsetX = v.coerceIn(-RedrawParams.OFFSET_MAX, RedrawParams.OFFSET_MAX))) }
         debouncePreview()
     }
     fun setOffsetY(v: Float) {
-        _isDirty.value = true
+        markDirty()
         _state.update { it.copy(redrawParams = it.redrawParams.copy(offsetY = v.coerceIn(-RedrawParams.OFFSET_MAX, RedrawParams.OFFSET_MAX))) }
         debouncePreview()
     }
     fun setThreshold(v: Int) {
-        _isDirty.value = true
+        markDirty()
         _state.update { it.copy(redrawParams = it.redrawParams.copy(threshold = v.coerceIn(0, 255))) }
         debouncePreview()
     }
     fun setRadius(v: Float) {
-        _isDirty.value = true
+        markDirty()
         _state.update { it.copy(redrawParams = it.redrawParams.copy(radius = v.coerceIn(0f, RedrawParams.RADIUS_MAX))) }
         debouncePreview()
     }
@@ -385,6 +437,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
     fun saveConfig(requestLeaveAfter: Boolean = false) {
         if (_saveState.value == SaveState.Saving) return
         val s = _state.value; val pkg = s.packageName
+        val savedRevision = draftRevision.get()
         _saveState.value = SaveState.Saving
         viewModelScope.launch {
             val ctx = getApplication<Application>().applicationContext
@@ -474,14 +527,15 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
             }
 
             if (ok) {
-                _isDirty.value = false
+                // A05（F2-2）：仅当保存期间无新编辑才清 dirty——新草稿保持未保存
+                _isDirty.value = draftRevision.get() != savedRevision
                 _saveState.value = if (requestLeaveAfter) SaveState.SavedAndExit else SaveState.Saved
                 // 本次保存中已产生反馈（如清理失败）则不覆盖为"已保存"
                 if (_saveFeedback.value == feedbackBefore) {
                     _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.config_saved)
                 }
             } else {
-                _isDirty.value = true
+                markDirty()
                 _saveState.value = SaveState.Failed
             }
         }

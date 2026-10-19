@@ -60,6 +60,8 @@
     <string name="algo_source_desc">Choose which image the redraw pipeline works from</string>
     <string name="algo_source_self">App own icon</string>
     <string name="algo_source_upload">Upload image</string>
+    <string name="algo_source_self_desc">White-filter the app\'s own launcher icon</string>
+    <string name="algo_source_upload_desc">Pick an image to redraw from — decoding is verified before switching</string>
     <string name="algo_source_captured">Captured original</string>
     <string name="shade_icon_desc">Which icon the shade rows show (Android 17+)</string>
     <string name="app_section">App</string>
@@ -173,6 +175,9 @@
     <string name="save_failed">Save failed — try again. If it keeps failing, check storage permissions.</string>
     <string name="save_recovery_pending">Publish failed and auto-recovery failed too. Your previous icon is kept; a recovery record was saved and will be finalized next time the app starts.</string>
     <string name="save_disable_cleanup_failed">Custom icon is now off, but cleaning up the old file failed. This does not affect how icons work.</string>
+    <string name="save_in_progress">Saving — please wait a moment.</string>
+    <string name="upload_decode_failed">Could not read the selected image. The previous source is kept.</string>
+    <string name="color_override_write_failed">Could not write the color policy. The previous value is kept.</string>
 
     <string name="filter_all">All Apps</string>
     <string name="filter_configured">Configured</string>
