@@ -42,6 +42,11 @@ object PreferenceManager {
 
     private var prefs: SharedPreferences? = null
 
+    /** JVM 单测注入假 SharedPreferences（RepositoryLegacyTest）；生产路径禁用 */
+    internal fun initForTest(p: SharedPreferences) {
+        prefs = p
+    }
+
     fun init(context: Context) {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         modulePrefs = context.getSharedPreferences(MODULE_PREFS_NAME, Context.MODE_PRIVATE)
@@ -115,18 +120,6 @@ object PreferenceManager {
         }
     }
 
-    /** OI-11: single source of truth for the list's modification-source badge —
-     *  derived from the CURRENT strategy model (the legacy IconMethod values
-     *  drifted from what the detail screen actually saves). */
-    fun getModificationSource(pkgName: String): io.github.deserthouse.opticon.ui.state.ModificationSource {
-        if (!isMethodEnabled(pkgName)) return io.github.deserthouse.opticon.ui.state.ModificationSource.NONE
-        return when (getStrategy(pkgName)) {
-            io.github.deserthouse.opticon.ui.state.IconStrategy.FANKES -> io.github.deserthouse.opticon.ui.state.ModificationSource.ICON_LIBRARY
-            io.github.deserthouse.opticon.ui.state.IconStrategy.ALGORITHM -> io.github.deserthouse.opticon.ui.state.ModificationSource.ALGORITHM
-            io.github.deserthouse.opticon.ui.state.IconStrategy.ASSET_IMPORT -> io.github.deserthouse.opticon.ui.state.ModificationSource.CUSTOM
-        }
-    }
-
     // ━━━ 图标策略方法 (5 方案 + 智能全自动) ━━━
 
     fun getMethod(pkgName: String): IconMethod {
@@ -144,6 +137,39 @@ object PreferenceManager {
     fun setMethodEnabled(pkgName: String, enabled: Boolean) {
         prefs?.edit { putBoolean("$KEY_METHOD_ENABLED_PREFIX$pkgName", enabled) }
     }
+
+    // ━━━ F1-2: 配置批量提交（AppIconConfigRepository 单 Editor 事务） ━━
+
+    /** 单 Editor 事务写入一批键；commit()（同步）返回值即写入成败（IO 线程调用）。 */
+    fun editConfig(commit: (SharedPreferences.Editor) -> Unit): Boolean = try {
+        val p = prefs ?: return false
+        val editor = p.edit()
+        commit(editor)
+        editor.commit()
+    } catch (_: Exception) {
+        false
+    }
+
+    fun hasStrategyKey(pkgName: String): Boolean = prefs?.contains("strategy_$pkgName") == true
+
+    /** 旧版方案键（IconMethod 时代），legacy 迁移判据用 */
+    fun getLegacyMethodRaw(pkgName: String): String? = prefs?.getString("$KEY_METHOD_PREFIX$pkgName", null)
+
+    // 键名访问器：批量写入与逐键方法必须保持同一拼写
+    fun keyStrategy(pkg: String) = "strategy_$pkg"
+    fun keyMethodEnabled(pkg: String) = "$KEY_METHOD_ENABLED_PREFIX$pkg"
+    fun keyAssetSub(pkg: String) = "asset_sub_$pkg"
+    fun keyAlgoSource(pkg: String) = "algo_source_$pkg"
+    fun keyIconPack(pkg: String) = "icon_pack_$pkg"
+    fun keyPackDrawable(pkg: String) = "pack_drawable_$pkg"
+    fun keyCustomPath(pkg: String) = "$KEY_CUSTOM_PATH_PREFIX$pkg"
+    fun keyMaterialIcon(pkg: String) = "$KEY_MATERIAL_ICON_PREFIX$pkg"
+    fun keyEmojiText(pkg: String) = "$KEY_EMOJI_TEXT_PREFIX$pkg"
+    fun keyScale(pkg: String) = "$KEY_SCALE_PREFIX$pkg"
+    fun keyThreshold(pkg: String) = "$KEY_THRESHOLD_PREFIX$pkg"
+    fun keyOffsetX(pkg: String) = "$KEY_OFFSET_X_PREFIX$pkg"
+    fun keyOffsetY(pkg: String) = "$KEY_OFFSET_Y_PREFIX$pkg"
+    fun keyRadius(pkg: String) = "$KEY_RADIUS_PREFIX$pkg"
 
     // ━━━ 方案 6 子分支 ━━━
 

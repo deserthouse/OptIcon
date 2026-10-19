@@ -26,6 +26,12 @@ android {
     namespace = "io.github.deserthouse.opticon"
     compileSdk = 37
 
+    // JVM 单测不 mock android.jar：Log 等框架方法返回默认值而非抛
+    // "not mocked"（TraceLogger→Log.i 是仓库/核心测试路径的间接依赖）。
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
+
     defaultConfig {
         applicationId = "io.github.deserthouse.opticon"
         minSdk = 31  // Android 12 minimum — full Material You generation (dynamic color since API 31)

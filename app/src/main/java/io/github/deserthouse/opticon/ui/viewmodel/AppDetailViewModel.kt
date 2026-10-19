@@ -8,6 +8,7 @@ import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.deserthouse.opticon.data.AppIconConfigRepository
 import io.github.deserthouse.opticon.engine.HitSource
 import io.github.deserthouse.opticon.engine.IconEngine
 import io.github.deserthouse.opticon.engine.IconLibEngine
@@ -92,30 +93,25 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
             appBitmap?.recycle()
             appBitmap = drawableToBitmap(app.icon, OUTPUT_SIZE)
 
-            val savedStrategy = PreferenceManager.getStrategy(packageName)
             val packs = withContext(Dispatchers.IO) { IconPackEngine.listInstalledIconPacks(context) }
+            // A06（F1-2）：详情页快照经仓库单一出口——加载与保存消费同一表示，
+            // legacy method_ 键在此处自动迁移。
+            val saved = withContext(Dispatchers.IO) { AppIconConfigRepository.load(packageName) }
 
             _state.update {
                 it.copy(
                     appName = app.appName, isSystemApp = app.isSystemApp,
-                    strategy = savedStrategy,
-                    customIconPath = PreferenceManager.getCustomIconPath(packageName),
-                    materialIconName = PreferenceManager.getMaterialIconName(packageName),
-                    emojiText = PreferenceManager.getEmojiText(packageName),
+                    strategy = saved.strategy,
+                    customIconPath = saved.customIconPath,
+                    materialIconName = saved.materialIconName,
+                    emojiText = saved.emojiText,
                     emojiUnlocked = PreferenceManager.isEmojiUnlocked(),
-                    redrawParams = loadSavedParams(packageName),
+                    redrawParams = saved.params,
                     iconPacks = packs,
-                    // OI-05: restore the FULL branch selection — the old code
-                    // reset the pack and never restored sub-strategy/source, so
-                    // a re-save could silently switch the icon's origin.
-                    assetSubStrategy = PreferenceManager.getAssetSubStrategy(packageName)
-                        ?.let { v -> runCatching { AssetSubStrategy.valueOf(v) }.getOrNull() }
-                        ?: AssetSubStrategy.ADAPTIVE_DECOMPOSE,
-                    algoSource = PreferenceManager.getAlgoSource(packageName)
-                        ?.let { v -> runCatching { AlgoSource.valueOf(v) }.getOrNull() }
-                        ?: AlgoSource.SELF,
-                    selectedIconPack = PreferenceManager.getSelectedIconPack(packageName),
-                    selectedPackIconDrawable = PreferenceManager.getSelectedPackDrawable(packageName),
+                    assetSubStrategy = saved.assetSubStrategy ?: AssetSubStrategy.ADAPTIVE_DECOMPOSE,
+                    algoSource = saved.algoSource ?: AlgoSource.SELF,
+                    selectedIconPack = saved.iconPackPkg,
+                    selectedPackIconDrawable = saved.packDrawable,
                     colorOverride = io.github.deserthouse.opticon.engine.SharedIconStore.readColorOverride(packageName),
                     hasOriginalCaptured = io.github.deserthouse.opticon.engine.SharedIconStore.originalIconFile(packageName).exists()
                 )
@@ -392,73 +388,98 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         _saveState.value = SaveState.Saving
         viewModelScope.launch {
             val ctx = getApplication<Application>().applicationContext
-            var enabled = s.methodEnabled
-            var bakeResult: IconEngine.BakeResult? = null
+            val feedbackBefore = _saveFeedback.value
             var ok = true
-            if (enabled) {
-                // Guard: a strategy that cannot produce an icon (e.g. FANKES
-                // rule not covering this app) must NOT persist as "enabled" —
-                // that would desync the switch from reality. Force it off and
-                // tell the user why.
-                bakeResult = withContext(Dispatchers.IO) { bakeCurrentState(ctx, s) }
+
+            if (s.methodEnabled) {
+                // A01（F1-3）：任何已提交数据被改动前固定旧配置快照——失败回滚
+                // 的对象是磁盘上的已提交值，不是本次草稿值。
+                val old = withContext(Dispatchers.IO) { AppIconConfigRepository.load(pkg) }
+                val newConfig = io.github.deserthouse.opticon.data.AppIconConfig(
+                    pkg = pkg, enabled = true, strategy = s.strategy,
+                    assetSubStrategy = s.assetSubStrategy, algoSource = s.algoSource,
+                    iconPackPkg = s.selectedIconPack, packDrawable = s.selectedPackIconDrawable,
+                    customIconPath = s.customIconPath, materialIconName = s.materialIconName,
+                    emojiText = s.emojiText, params = s.redrawParams
+                )
+                val bakeResult = withContext(Dispatchers.IO) { bakeCurrentState(ctx, s) }
                 if (bakeResult.bitmap == null) {
-                    enabled = false
+                    // 守卫拒绝：不发布、不提交配置，诚实引导换源（M4 条件四）
                     ok = false
-                    // M4 条件四：守卫拒绝要诚实引导换源，不得暗示"再调调滑杆就能好"
                     val guardHit = bakeResult.detail?.startsWith("redraw guard") == true ||
                         bakeResult.detail?.startsWith("self-filter guard") == true
                     _saveFeedback.value = ctx.getString(
                         if (guardHit) io.github.deserthouse.opticon.R.string.save_blocked_guard
                         else io.github.deserthouse.opticon.R.string.save_blocked_no_icon
                     )
-                }
-            }
-            if (ok) {
-                PreferenceManager.setMethodEnabled(pkg, enabled)
-                PreferenceManager.setStrategy(pkg, s.strategy)
-                PreferenceManager.setCustomIconPath(pkg, s.customIconPath)
-                PreferenceManager.setMaterialIconName(pkg, s.materialIconName)
-                PreferenceManager.setEmojiText(pkg, s.emojiText)
-                PreferenceManager.setScale(pkg, s.redrawParams.scale)
-                PreferenceManager.setThreshold(pkg, s.redrawParams.threshold)
-                PreferenceManager.setOffsetX(pkg, s.redrawParams.offsetX)
-                PreferenceManager.setOffsetY(pkg, s.redrawParams.offsetY)
-                PreferenceManager.setRadius(pkg, s.redrawParams.radius)
-                // OI-05: persist the full branch identity alongside the params.
-                PreferenceManager.setAssetSubStrategy(pkg, s.assetSubStrategy.name)
-                PreferenceManager.setAlgoSource(pkg, s.algoSource.name)
-                PreferenceManager.setSelectedIconPack(pkg, s.selectedIconPack, s.selectedPackIconDrawable)
-                // OI-06: delivery result decides success — a shared-dir write
-                // failure must NOT be reported as "已保存，新通知立即生效".
-                ok = if (enabled && bakeResult != null) {
-                    // D1（阶段 4）：可恢复发布管线——准备→记录→发布→（配置由上层已提交）→完成
-                    val op = io.github.deserthouse.opticon.engine.PublishTransaction.prepare(ctx, pkg, bakeResult.bitmap!!)
-                    if (op != null && io.github.deserthouse.opticon.engine.PublishTransaction.recordIntent(ctx, op)) {
-                        val published = io.github.deserthouse.opticon.engine.PublishTransaction.publish(ctx, op)
-                        if (published) {
-                            io.github.deserthouse.opticon.engine.PublishTransaction.complete(ctx, op)
-                            // 写 .meta
-                            try { File(bakeDir(), "$pkg.meta").writeText(bakeResult.detail ?: "saved") } catch (_: Exception) {}
-                            true
-                        } else {
-                            io.github.deserthouse.opticon.engine.PublishTransaction.compensate(ctx, op)
-                            false
-                        }
-                    } else false
                 } else {
-                    deleteBaked(pkg)
+                    // 发布管线（全 IO，A08）：prepare → record → publish → 提交配置 → complete。
+                    // 配置在发布确认之后才提交；失败按阶段补偿并恢复完整旧配置。
+                    val failStage: String? = withContext(Dispatchers.IO) {
+                        val op = io.github.deserthouse.opticon.engine.PublishTransaction.prepare(
+                            ctx, pkg, bakeResult.bitmap!!, old.toJson(), newConfig.toJson()
+                        ) ?: return@withContext "prepare"
+                        if (!io.github.deserthouse.opticon.engine.PublishTransaction.recordIntent(ctx, op)) {
+                            return@withContext "record"
+                        }
+                        if (!io.github.deserthouse.opticon.engine.PublishTransaction.publish(ctx, op)) {
+                            val compensated = io.github.deserthouse.opticon.engine.PublishTransaction.compensate(ctx, op)
+                            if (compensated) {
+                                // 双保险：回写完整旧配置（本流程未先写配置，等值防御）
+                                AppIconConfigRepository.save(old)
+                                "publish"
+                            } else {
+                                "partial" // 补偿也失败 → 记录保留，重启恢复收敛
+                            }
+                        } else if (!AppIconConfigRepository.save(newConfig)) {
+                            io.github.deserthouse.opticon.engine.PublishTransaction.compensate(ctx, op)
+                            "commit"
+                        } else {
+                            io.github.deserthouse.opticon.engine.PublishTransaction.complete(ctx, op)
+                            try { File(bakeDir(), "$pkg.meta").writeText(bakeResult.detail ?: "saved") } catch (_: Exception) {}
+                            null
+                        }
+                    }
+                    if (failStage == null) {
+                        _state.update { it.copy(methodEnabled = true, hitSource = bakeResult.source) }
+                    } else {
+                        ok = false
+                        _saveFeedback.value = ctx.getString(
+                            if (failStage == "partial") io.github.deserthouse.opticon.R.string.save_recovery_pending
+                            else io.github.deserthouse.opticon.R.string.save_failed
+                        )
+                    }
                 }
-                if (!ok) {
-                    // Roll the persisted enabled state back so the user can retry.
-                    PreferenceManager.setMethodEnabled(pkg, s.methodEnabled)
+            } else {
+                // 关闭路径（A07 前置语义）：提交 enabled=false 即权威（契约§2 关闭=回落规则库）；
+                // 产物清理尽力而为，失败如实反馈但不阻止关闭。
+                val cleanupOk = withContext(Dispatchers.IO) { deleteBaked(pkg) }
+                val newConfig = io.github.deserthouse.opticon.data.AppIconConfig(
+                    pkg = pkg, enabled = false, strategy = s.strategy,
+                    assetSubStrategy = s.assetSubStrategy, algoSource = s.algoSource,
+                    iconPackPkg = s.selectedIconPack, packDrawable = s.selectedPackIconDrawable,
+                    customIconPath = s.customIconPath, materialIconName = s.materialIconName,
+                    emojiText = s.emojiText, params = s.redrawParams
+                )
+                val committed = withContext(Dispatchers.IO) { AppIconConfigRepository.save(newConfig) }
+                if (!committed) {
+                    ok = false
                     _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.save_failed)
+                } else {
+                    if (!cleanupOk) {
+                        _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.save_disable_cleanup_failed)
+                    }
+                    _state.update { it.copy(methodEnabled = false, hitSource = HitSource.DISABLED) }
                 }
             }
+
             if (ok) {
                 _isDirty.value = false
-                _state.update { it.copy(methodEnabled = enabled, hitSource = bakeResult?.source ?: HitSource.DISABLED) }
                 _saveState.value = if (requestLeaveAfter) SaveState.SavedAndExit else SaveState.Saved
-                _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.config_saved)
+                // 本次保存中已产生反馈（如清理失败）则不覆盖为"已保存"
+                if (_saveFeedback.value == feedbackBefore) {
+                    _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.config_saved)
+                }
             } else {
                 _isDirty.value = true
                 _saveState.value = SaveState.Failed
@@ -537,8 +558,6 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         val shared = io.github.deserthouse.opticon.engine.SharedIconStore.deleteIcon(getApplication(), pkg)
         return shared || (private1 && private2)
     }
-
-    private fun loadSavedParams(pkg: String) = RedrawParams(PreferenceManager.getScale(pkg), PreferenceManager.getOffsetX(pkg), PreferenceManager.getOffsetY(pkg), PreferenceManager.getThreshold(pkg), PreferenceManager.getRadius(pkg))
 
     private fun drawableToBitmap(d: Drawable, size: Int): Bitmap {
         if (d is BitmapDrawable && d.bitmap != null) return Bitmap.createScaledBitmap(d.bitmap, size, size, true)

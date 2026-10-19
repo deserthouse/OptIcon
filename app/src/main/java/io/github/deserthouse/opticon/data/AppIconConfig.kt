@@ -1,6 +1,8 @@
 package io.github.deserthouse.opticon.data
 
 import io.github.deserthouse.opticon.engine.RedrawParams
+import io.github.deserthouse.opticon.engine.publish.jsonGetString
+import io.github.deserthouse.opticon.engine.publish.jsonObj
 import io.github.deserthouse.opticon.ui.state.AlgoSource
 import io.github.deserthouse.opticon.ui.state.AssetSubStrategy
 import io.github.deserthouse.opticon.ui.state.IconStrategy
@@ -61,7 +63,59 @@ data class AppIconConfig(
         return errors
     }
 
+    /** 序列化为单行 JSON（PublishTransaction 快照与恢复的载体；手写 JsonIo，org.json 在 JVM 测试为 stub） */
+    fun toJson(): String = jsonObj(
+        "pkg" to pkg,
+        "sv" to schemaVersion.toString(),
+        "enabled" to enabled.toString(),
+        "strategy" to strategy.name,
+        "sub" to assetSubStrategy?.name,
+        "src" to algoSource?.name,
+        "pack" to iconPackPkg,
+        "drawable" to packDrawable,
+        "path" to customIconPath,
+        "mat" to materialIconName,
+        "emoji" to emojiText,
+        "scale" to params.scale.toString(),
+        "thr" to params.threshold.toString(),
+        "offx" to params.offsetX.toString(),
+        "offy" to params.offsetY.toString(),
+        "rad" to params.radius.toString()
+    )
+
     companion object {
         const val CURRENT_SCHEMA_VERSION = 1
+
+        /** 反序列化；pkg 缺失或结构非法返回 null（恢复路径按 Partial 保留记录，不猜） */
+        fun fromJson(json: String): AppIconConfig? = try {
+            val pkg = jsonGetString(json, "pkg")?.takeIf { it.isNotBlank() } ?: return null
+            val d = RedrawParams()
+            AppIconConfig(
+                pkg = pkg,
+                schemaVersion = jsonGetString(json, "sv")?.toIntOrNull() ?: CURRENT_SCHEMA_VERSION,
+                enabled = jsonGetString(json, "enabled") == "true",
+                strategy = jsonGetString(json, "strategy")
+                    ?.let { v -> runCatching { IconStrategy.valueOf(v) }.getOrNull() }
+                    ?: IconStrategy.FANKES,
+                assetSubStrategy = jsonGetString(json, "sub")
+                    ?.let { v -> runCatching { AssetSubStrategy.valueOf(v) }.getOrNull() },
+                algoSource = jsonGetString(json, "src")
+                    ?.let { v -> runCatching { AlgoSource.valueOf(v) }.getOrNull() },
+                iconPackPkg = jsonGetString(json, "pack")?.takeIf { it.isNotBlank() },
+                packDrawable = jsonGetString(json, "drawable")?.takeIf { it.isNotBlank() },
+                customIconPath = jsonGetString(json, "path")?.takeIf { it.isNotBlank() },
+                materialIconName = jsonGetString(json, "mat")?.takeIf { it.isNotBlank() },
+                emojiText = jsonGetString(json, "emoji")?.takeIf { it.isNotBlank() },
+                params = d.copy(
+                    scale = jsonGetString(json, "scale")?.toFloatOrNull() ?: d.scale,
+                    offsetX = jsonGetString(json, "offx")?.toFloatOrNull() ?: d.offsetX,
+                    offsetY = jsonGetString(json, "offy")?.toFloatOrNull() ?: d.offsetY,
+                    threshold = jsonGetString(json, "thr")?.toIntOrNull() ?: d.threshold,
+                    radius = jsonGetString(json, "rad")?.toFloatOrNull() ?: d.radius
+                )
+            )
+        } catch (_: Exception) {
+            null
+        }
     }
 }

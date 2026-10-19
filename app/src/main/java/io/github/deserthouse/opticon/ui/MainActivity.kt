@@ -23,6 +23,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -43,8 +44,19 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         PreferenceManager.init(applicationContext)
-        // D2（阶段 4）：重启恢复——扫 pending_ops 收敛未完成发布
-        io.github.deserthouse.opticon.engine.PublishTransaction.recoverOnStartup(applicationContext)
+        // D2+A08（F1-4）：重启恢复——扫 pending_ops 按证据收敛未完成发布。
+        // 进程级一次性任务，不挂 Activity 生命周期（裸线程与 PreferenceManager
+        // 引导同款）；文件/MediaStore IO 不进主线程；配置收敛经仓库提交，
+        // 与用户新保存由 PublishCore 的锁互斥。
+        Thread {
+            try {
+                io.github.deserthouse.opticon.engine.PublishTransaction.recoverOnStartup(applicationContext) { cfg ->
+                    io.github.deserthouse.opticon.data.AppIconConfigRepository.saveJson(cfg)
+                }
+            } catch (e: Exception) {
+                TraceLogger.w("OptIcon/Main", "recoverOnStartup async: ${e.message}")
+            }
+        }.start()
         TraceLogger.init(applicationContext, if (PreferenceManager.isVerboseLogging()) TraceLogger.DEBUG else TraceLogger.INFO)
         // Calibrate the theme switch from storage before the first frame so a
         // saved "off" never flashes dynamic colors at cold start.

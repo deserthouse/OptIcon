@@ -17,6 +17,7 @@ import io.github.deserthouse.opticon.ui.state.AppUiEntry
 import io.github.deserthouse.opticon.ui.state.FilterMode
 import io.github.deserthouse.opticon.ui.state.ModificationSource
 import io.github.deserthouse.opticon.util.AppInfoProvider
+import io.github.deserthouse.opticon.data.AppIconConfigRepository
 import io.github.deserthouse.opticon.util.PreferenceManager
 import io.github.deserthouse.opticon.util.PreferenceManager.IconMethod
 import io.github.deserthouse.opticon.util.TraceLogger
@@ -208,7 +209,8 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
         // OI-11: derive from the CURRENT strategy model — the legacy IconMethod
         // values drifted from what the detail screen actually saves.
         val enabled = PreferenceManager.isMethodEnabled(pkgName)
-        val modSource = PreferenceManager.getModificationSource(pkgName)
+        // A06（F1-2）：徽标派生经仓库出口（legacy 迁移同入口）
+        val modSource = AppIconConfigRepository.loadModificationSource(pkgName)
 
         return AppUiEntry(
             packageName = pkgName, appName = appName, icon = icon, isSystemApp = isSystem,
