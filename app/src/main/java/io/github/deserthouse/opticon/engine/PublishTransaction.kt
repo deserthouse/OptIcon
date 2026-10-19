@@ -2,178 +2,101 @@ package io.github.deserthouse.opticon.engine
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
+import io.github.deserthouse.opticon.engine.publish.PublishCore
+import io.github.deserthouse.opticon.engine.publish.PublishLog
+import io.github.deserthouse.opticon.engine.publish.PublishStore
 import io.github.deserthouse.opticon.util.TraceLogger
+import java.io.ByteArrayOutputStream
 import java.io.File
-import java.util.UUID
 
 /**
- * PublishTransaction — 可恢复发布（阶段 4，架构报告 §3.5 一级方案）
+ * PublishTransaction — 可恢复发布的 Android 适配层（F1-1 重写）。
  *
- * 跨偏好/私有文件/共享目录/MediaStore 没有天然事务；本类通过提交记录+补偿+
- * 重启恢复将失败可判定、可恢复。
+ * 事务逻辑全部在 [PublishCore]（JVM 纯净、常驻单测覆盖）；本类只做边界适配：
+ * Bitmap↔PNG 字节、SharedIconStore 交付（含回读校验）、TraceLogger 日志、
+ * 烘焙文件的 world-readable 位。
  *
- * 阶段序：准备→记录意图→发布→提交配置→完成。
- * 任一阶段失败：补偿（恢复旧产物）→如补偿也失败→标记 Partial 留恢复依据。
+ * 阶段序：prepare → recordIntent → publish（交付+回读→标记 PUBLISHED）→ complete；
+ * 失败 → compensate；进程中断 → recoverOnStartup 证据收敛。
+ * 配置的提交/回滚由调用方（VM）在 publish 成功后执行（F1-3 起经
+ * AppIconConfigRepository，op 内携带新旧配置快照供失败恢复）。
  */
 object PublishTransaction {
     private const val TAG = "OptIcon/PublishTx"
     private const val PENDING_DIR = "pending_ops"
+    private const val BAKED_DIR = "baked"
 
-    data class PendingOp(
-        val opId: String = UUID.randomUUID().toString(),
-        val pkg: String,
-        val timestamp: Long = System.currentTimeMillis(),
-        /** 备份的旧产物路径（私有目录），null=首次发布无旧版 */
-        val backupPath: String? = null,
-        /** 新产物路径（私有目录，待发布到共享） */
-        val newPath: String
+    private fun coreOf(context: Context): PublishCore = PublishCore(
+        store = SharedPublishStore(context),
+        opsDir = File(context.filesDir, PENDING_DIR),
+        bakedDir = File(context.filesDir, BAKED_DIR),
+        log = object : PublishLog {
+            override fun i(m: String) = TraceLogger.i(TAG, m)
+            override fun e(m: String) = TraceLogger.e(TAG, m)
+        }
     )
 
-    /** 阶段 1：准备——烘焙到私有目录+备份旧产物 */
-    fun prepare(context: Context, pkg: String, bitmap: Bitmap): PendingOp? {
-        return try {
-            val bakedDir = File(context.filesDir, "baked").apply { mkdirs() }
-            val newFile = File(bakedDir, "$pkg.png")
-            val oldFile = File(bakedDir, "$pkg.old.png")
-
-            // 备份旧产物（如有）
-            val backupPath = if (newFile.exists()) {
-                newFile.copyTo(oldFile, overwrite = true)
-                oldFile.absolutePath
-            } else null
-
-            // 写新产物
-            newFile.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
-            newFile.setReadable(true, false)
-
-            PendingOp(pkg = pkg, backupPath = backupPath, newPath = newFile.absolutePath)
-        } catch (e: Exception) {
-            TraceLogger.e(TAG, "prepare failed: ${e.message}")
-            null
+    /** 阶段 1：准备——烘焙到私有目录+备份旧产物（newFile 保持 world-readable 供 SystemUI） */
+    fun prepare(
+        context: Context,
+        pkg: String,
+        bitmap: Bitmap,
+        oldConfigJson: String? = null,
+        newConfigJson: String? = null
+    ): PublishCore.PendingOp? {
+        val pngBytes = ByteArrayOutputStream().use { out ->
+            if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)) return null
+            out.toByteArray()
         }
+        val op = coreOf(context).prepare(pkg, pngBytes, oldConfigJson, newConfigJson) ?: return null
+        try {
+            File(op.newPath).setReadable(true, false)
+        } catch (_: Exception) {
+        }
+        return op
     }
 
     /** 阶段 2：记录意图——持久化 opId（发布前必须完成） */
-    fun recordIntent(context: Context, op: PendingOp): Boolean {
-        return try {
-            val dir = File(context.filesDir, PENDING_DIR).apply { mkdirs() }
-            File(dir, "${op.opId}.json").writeText(
-                """{"opId":"${op.opId}","pkg":"${op.pkg}","ts":${op.timestamp},"backup":"${op.backupPath}","new":"${op.newPath}"}"""
-            )
-            true
+    fun recordIntent(context: Context, op: PublishCore.PendingOp): Boolean =
+        coreOf(context).record(op)
+
+    /** 阶段 3：发布——写入共享目录并回读校验（核心内完成） */
+    fun publish(context: Context, op: PublishCore.PendingOp): Boolean =
+        coreOf(context).publish(op)
+
+    /** 阶段 5：完成——清除 pending 记录与备份 */
+    fun complete(context: Context, op: PublishCore.PendingOp) =
+        coreOf(context).complete(op)
+
+    /** 补偿：发布/提交失败时恢复旧产物；false = Partial（记录保留，等待重启恢复） */
+    fun compensate(context: Context, op: PublishCore.PendingOp): Boolean =
+        coreOf(context).compensate(op)
+
+    /** 重启恢复：按交付内容证据收敛。applyConfig 在记录携带配置快照时回调。 */
+    fun recoverOnStartup(context: Context, applyConfig: ((String) -> Unit)? = null) {
+        coreOf(context).recover { cfg -> if (cfg != null) applyConfig?.invoke(cfg) }
+    }
+
+    /**
+     * 生产交付边界：SharedIconStore 写入 + iconFile 回读比对（hook 直读该
+     * canonical 路径，File 读即权威目标；审查不变量④的实装位）。
+     */
+    private class SharedPublishStore(private val context: Context) : PublishStore {
+        override fun deliver(pkg: String, bytes: ByteArray): Boolean = try {
+            if (SharedIconStore.writeIcon(context, pkg, bytes) == null) false
+            else SharedIconStore.iconFile(pkg).readBytes().contentEquals(bytes)
         } catch (e: Exception) {
-            TraceLogger.e(TAG, "recordIntent failed: ${e.message}")
+            TraceLogger.e(TAG, "deliver: ${e.message}")
             false
         }
-    }
 
-    /** 阶段 3：发布——写入共享目录并校验 */
-    fun publish(context: Context, op: PendingOp): Boolean {
-        return try {
-            val bitmap = BitmapFactory.decodeFile(op.newPath)
-                ?: return false.also { TraceLogger.e(TAG, "publish: decode new failed") }
-            val result = SharedIconStore.writeIcon(context, op.pkg,
-                op.newPath.let { File(it).readBytes() })
-            bitmap.recycle()
-            result != null
-        } catch (e: Exception) {
-            TraceLogger.e(TAG, "publish failed: ${e.message}")
-            false
+        override fun readDelivered(pkg: String): ByteArray? = try {
+            val f = SharedIconStore.iconFile(pkg)
+            if (f.exists()) f.readBytes() else null
+        } catch (_: Exception) {
+            null
         }
-    }
 
-    /** 阶段 4：提交配置——已由调用方（VM saveConfig）执行偏好写入 */
-
-    /** 阶段 5：完成——清除 pending 记录 */
-    fun complete(context: Context, op: PendingOp) {
-        try {
-            File(context.filesDir, PENDING_DIR).let { dir ->
-                File(dir, "${op.opId}.json").delete()
-                // 清理备份
-                op.backupPath?.let { File(it).delete() }
-            }
-        } catch (_: Exception) {}
-    }
-
-    /** 补偿：发布/提交失败时恢复旧产物 */
-    fun compensate(context: Context, op: PendingOp): Boolean {
-        return try {
-            if (op.backupPath != null) {
-                val backup = File(op.backupPath)
-                if (backup.exists()) {
-                    val target = File(op.newPath)
-                    backup.copyTo(target, overwrite = true)
-                    // 重新发布旧版到共享
-                    SharedIconStore.writeIcon(context, op.pkg, target.readBytes())
-                    TraceLogger.i(TAG, "compensate: restored old artifact for ${op.pkg}")
-                    true
-                } else false
-            } else {
-                // 首次发布失败——删除新产物+共享文件
-                File(op.newPath).delete()
-                SharedIconStore.deleteIcon(context, op.pkg)
-                true
-            }
-        } catch (e: Exception) {
-            TraceLogger.e(TAG, "compensate failed (Partial state): ${e.message}")
-            false  // Partial — pending record survives for restart recovery
-        }
-    }
-
-    /** 重启恢复：扫描 pending 目录，按证据收敛 */
-    fun recoverOnStartup(context: Context) {
-        try {
-            val dir = File(context.filesDir, PENDING_DIR)
-            if (!dir.isDirectory) return
-            val files = dir.listFiles { f -> f.name.endsWith(".json") } ?: return
-            if (files.isEmpty()) return
-
-            TraceLogger.i(TAG, "recoverOnStartup: ${files.size} pending ops")
-            for (f in files) {
-                try {
-                    val json = f.readText()
-                    val opId = Regex("\"opId\":\"([^\"]+)\"").find(json)?.groupValues?.get(1) ?: continue
-                    val pkg = Regex("\"pkg\":\"([^\"]+)\"").find(json)?.groupValues?.get(1) ?: continue
-                    val backup = Regex("\"backup\":\"([^\"]*?)\"").find(json)?.groupValues?.get(1)
-                    val newPath = Regex("\"new\":\"([^\"]*?)\"").find(json)?.groupValues?.get(1) ?: continue
-
-                    val newFile = File(newPath)
-                    val sharedFile = SharedIconStore.iconFile(pkg)
-
-                    when {
-                        // 新产物+共享文件都存在 → 可能已发布但配置未提交
-                        // 保守策略：重发布确保共享一致，然后视为完成
-                        newFile.exists() && sharedFile.exists() -> {
-                            TraceLogger.i(TAG, "recover $pkg: both exist — treat as complete")
-                            f.delete()
-                            backup?.let { File(it).delete() }
-                        }
-                        // 新产物存在但共享缺失 → 发布未完成 → 恢复旧版
-                        newFile.exists() && !sharedFile.exists() -> {
-                            TraceLogger.i(TAG, "recover $pkg: publish incomplete — restore backup")
-                            if (backup != null && File(backup).exists()) {
-                                File(backup).copyTo(File(newPath), overwrite = true)
-                                SharedIconStore.writeIcon(context, pkg, File(newPath).readBytes())
-                            } else {
-                                SharedIconStore.deleteIcon(context, pkg)
-                                newFile.delete()
-                            }
-                            f.delete()
-                        }
-                        // 新产物缺失 → 已被补偿或从未开始 → 清记录
-                        else -> {
-                            TraceLogger.i(TAG, "recover $pkg: no new artifact — clear record")
-                            f.delete()
-                            backup?.let { File(it).delete() }
-                        }
-                    }
-                } catch (e: Exception) {
-                    TraceLogger.w(TAG, "recover: error processing ${f.name}: ${e.message}")
-                }
-            }
-        } catch (e: Exception) {
-            TraceLogger.e(TAG, "recoverOnStartup failed: ${e.message}")
-        }
+        override fun remove(pkg: String): Boolean = SharedIconStore.deleteIcon(context, pkg)
     }
 }
