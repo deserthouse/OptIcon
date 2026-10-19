@@ -188,6 +188,7 @@ fun AppListScreen(
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = badgeFg,
+                                maxLines = 1,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
