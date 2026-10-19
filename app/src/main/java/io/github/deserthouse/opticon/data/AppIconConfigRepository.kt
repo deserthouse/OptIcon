@@ -103,8 +103,10 @@ object AppIconConfigRepository {
 
     /**
      * legacy method_ 键 → 新模型迁移（幂等：写回 strategy 键后自然短路）。
-     * REMOTE_SUB→FANKES+on / SELF_FILTER→ALGORITHM(SELF)+on /
-     * ICON_PACK→ASSET_IMPORT+on / AUTO(或其他)→FANKES+off。
+     * REMOTE_SUB→FANKES / SELF_FILTER→ALGORITHM(SELF) / ICON_PACK→ASSET_IMPORT
+     * +asset_sub=ICON_PACK（icon_pack 键留空走既有 auto-scan——保留用户来源
+     * 意图，不默认改自适应分层，C10）/ AUTO(或其他)→FANKES+off。
+     * 显式 method_enabled 键优先于映射默认（C10：不覆盖用户明确关闭）。
      * 无 strategy 键且无 method_ 键 = 全新安装，不写任何键。
      */
     private fun migrateLegacyIfNeeded(pkg: String) {
@@ -116,13 +118,18 @@ object AppIconConfigRepository {
             "ICON_PACK" -> IconStrategy.ASSET_IMPORT to true
             else -> IconStrategy.FANKES to false
         }
+        val explicitEnabled = PreferenceManager.hasExplicitEnabledKey(pkg)
+        val enabled = if (explicitEnabled) PreferenceManager.isMethodEnabled(pkg) else mapped.second
         val wrote = PreferenceManager.editConfig { e ->
             e.putString(PreferenceManager.keyStrategy(pkg), mapped.first.name)
-            e.putBoolean(PreferenceManager.keyMethodEnabled(pkg), mapped.second)
+            e.putBoolean(PreferenceManager.keyMethodEnabled(pkg), enabled)
             if (mapped.first == IconStrategy.ALGORITHM) {
                 e.putString(PreferenceManager.keyAlgoSource(pkg), AlgoSource.SELF.name)
             }
+            if (legacy == "ICON_PACK") {
+                e.putString(PreferenceManager.keyAssetSub(pkg), AssetSubStrategy.ICON_PACK.name)
+            }
         }
-        TraceLogger.i(TAG, "legacy config migrated for $pkg: $legacy → ${mapped.first} (commit=$wrote)")
+        TraceLogger.i(TAG, "legacy config migrated for $pkg: $legacy → ${mapped.first} (explicitEnabled=$explicitEnabled, commit=$wrote)")
     }
 }

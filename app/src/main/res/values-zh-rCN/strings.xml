@@ -152,6 +152,9 @@
     <string name="asset_sub_pack">图标包</string>
     <string name="asset_picp_ready">素材已就绪</string>
     <string name="asset_picp_download">获取素材</string>
+    <string name="picp_download_retry">重试获取</string>
+    <string name="picp_download_failed">获取失败——请检查订阅源/网络后重试</string>
+    <string name="packs_loading">正在加载图标包…</string>
     <string name="current_asset">当前素材</string>
 
     <string name="strategy_algo_label">兼容重绘（非自适应图标）</string>
@@ -174,6 +177,8 @@
     <string name="show_tuning_desc">关 = 三级策略全自动；开 = 策略卡内显示专家滑杆</string>
     <string name="save_blocked_guard">该图片来源无法提取出规范图形——请换一张图片（如纯色底图标）再试。</string>
     <string name="save_failed">保存失败，请重试；若持续失败请检查存储权限。</string>
+    <string name="save_partial_newer_draft">已保存上一版本；您的新改动尚未保存。</string>
+    <string name="config_saved_disabled">已保存：自定义图标已关闭，通知将回落规则库/原生图标。</string>
     <string name="save_recovery_pending">发布失败且自动恢复也未成功。旧图标仍在使用；已保留恢复记录，下次打开本应用时自动完成恢复。</string>
     <string name="save_disable_cleanup_failed">自定义图标已关闭，但旧文件清理失败；不影响图标替换功能。</string>
     <string name="save_in_progress">正在保存，请稍候。</string>
@@ -323,8 +328,8 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="unsaved_discard">放弃</string>
 
     <!-- UI redesign v0.5.0 — 首页状态大卡 -->
-    <string name="hero_active_subtitle">正在规范化 %1$d 个应用 · 替换已生效</string>
-    <string name="hero_active_generic">图标替换已生效</string>
+    <string name="hero_active_subtitle">模块连接正常 · 已配置 %1$d 个应用</string>
+    <string name="hero_active_generic">模块连接正常</string>
     <string name="hero_inactive_subtitle">点击前往设置检查 LSPosed 状态</string>
     <string name="hero_status_cd">模块运行状态，点击进入设置</string>
 

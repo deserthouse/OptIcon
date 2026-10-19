@@ -155,6 +155,9 @@ object PreferenceManager {
     /** 旧版方案键（IconMethod 时代），legacy 迁移判据用 */
     fun getLegacyMethodRaw(pkgName: String): String? = prefs?.getString("$KEY_METHOD_PREFIX$pkgName", null)
 
+    /** C10：显式 enabled 键存在性——legacy 迁移时用户明确的开关值优先于映射默认 */
+    fun hasExplicitEnabledKey(pkgName: String): Boolean = prefs?.contains("$KEY_METHOD_ENABLED_PREFIX$pkgName") == true
+
     // 键名访问器：批量写入与逐键方法必须保持同一拼写
     fun keyStrategy(pkg: String) = "strategy_$pkg"
     fun keyMethodEnabled(pkg: String) = "$KEY_METHOD_ENABLED_PREFIX$pkg"

@@ -145,18 +145,18 @@ fun PreviewCard(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (bitmap != null) {
-                            Canvas(modifier = Modifier.size(24.dp)) {
-                                drawIcon(bitmap, labelColor)
-                            }
-                        } else if (isRedrawing) {
-                            // U-A3（ME-09 尾巴）：生成中=进度指示（语义无歧义），
-                            // 弃用省略号文字占位；无素材保留 "?" 占位
+                        // C08（X4）：进度判定先于旧图——旧结果存在时也应可见"正在更新"，
+                        // 否则用户把旧参数的图当成当前结果
+                        if (isRedrawing) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(12.dp),
                                 strokeWidth = 1.5.dp,
                                 color = labelColor.copy(alpha = 0.6f)
                             )
+                        } else if (bitmap != null) {
+                            Canvas(modifier = Modifier.size(24.dp)) {
+                                drawIcon(bitmap, labelColor)
+                            }
                         } else {
                             Text(
                                 text = "?",

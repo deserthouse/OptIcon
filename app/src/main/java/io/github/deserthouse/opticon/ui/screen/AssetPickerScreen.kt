@@ -101,6 +101,7 @@ fun AssetPickerScreen(
     var draftDrawable by remember { mutableStateOf(state.selectedPackIconDrawable) }
     var draftPicp by remember { mutableStateOf(state.perfectIconsBitmap) }
     var picpLoading by remember { mutableStateOf(false) }
+    var picpFailed by remember { mutableStateOf(false) } // C11：下载失败可判读+可重试
     val scope = rememberCoroutineScope()
 
     // U-A1（ME-03 尾巴）：Apply 前草稿校验——各子策略必须有可产物的素材，
@@ -181,13 +182,15 @@ fun AssetPickerScreen(
             when (draftSub) {
                 AssetSubStrategy.ADAPTIVE_DECOMPOSE -> AdaptivePickerSection(state)
                 AssetSubStrategy.PERFECT_ICONS -> PicpPickerSection(
-                    state, draftPicp, picpLoading,
+                    state, draftPicp, picpLoading, picpFailed,
                     onDownload = {
                         if (picpLoading) return@PicpPickerSection
                         picpLoading = true
+                        picpFailed = false
                         scope.launch {
                             val bmp = withContext(Dispatchers.IO) { PicpEngine.downloadIcon(context, state.packageName) }
                             draftPicp = bmp
+                            picpFailed = bmp == null
                             picpLoading = false
                         }
                     }
@@ -241,6 +244,7 @@ private fun PicpPickerSection(
     state: AppDetailState,
     draftPicp: Bitmap?,
     loading: Boolean,
+    failed: Boolean,
     onDownload: () -> Unit
 ) {
     val context = LocalContext.current
@@ -255,7 +259,14 @@ private fun PicpPickerSection(
             }
             OutlinedButton(onClick = onDownload, enabled = !loading, modifier = Modifier.fillMaxWidth(), shape = OptShapes.medium) {
                 if (loading) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                else Text(stringResource(R.string.asset_picp_download))
+                else Text(stringResource(if (failed) R.string.picp_download_retry else R.string.asset_picp_download))
+            }
+            if (failed) {
+                Text(
+                    stringResource(R.string.picp_download_failed),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error
+                )
             }
         } else {
             Card(Modifier.fillMaxWidth(), shape = OptShapes.medium, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
@@ -286,7 +297,15 @@ private fun IconPackPickerSection(
 ) {
     val context = LocalContext.current
     if (state.iconPacks.isEmpty()) {
-        Text(stringResource(R.string.no_icon_packs_installed), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+        // C11：空清单区分加载中与确无——不把加载态当"未安装"误报
+        if (!state.iconPacksLoaded) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                Text(stringResource(R.string.packs_loading), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else {
+            Text(stringResource(R.string.no_icon_packs_installed), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+        }
         return
     }
     Column(Modifier.fillMaxWidth()) {

@@ -24,6 +24,8 @@ data class AppDetailState(
     // Strategy 1: Asset Import
     val assetSubStrategy: AssetSubStrategy = AssetSubStrategy.ADAPTIVE_DECOMPOSE,
     val iconPacks: List<IconPackInfo> = emptyList(),
+    /** C11（X8）：包清单是否已加载完成——空列表时区分"加载中"与"确无图标包" */
+    val iconPacksLoaded: Boolean = false,
     val selectedIconPack: String? = null,
     val selectedPackIconDrawable: String? = null,
     val adaptiveForeground: Bitmap? = null,

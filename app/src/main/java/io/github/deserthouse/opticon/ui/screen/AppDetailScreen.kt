@@ -227,10 +227,14 @@ fun AppDetailScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 4.dp))
                     }
 
+                    // C09（X4）：AnimatedVisibility 直接子项叠放在 top-start——
+                    // 分隔线与来源行必须由 Column 顺排，否则占同一布局起点
                     AnimatedVisibility(visible = state.methodEnabled) {
-                        HorizontalDivider(Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                        // Source summary row
-                        SourceSummaryRow(state, onShowSheet = { showSourceSheet = true })
+                        Column {
+                            HorizontalDivider(Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                            // Source summary row
+                            SourceSummaryRow(state, onShowSheet = { showSourceSheet = true })
+                        }
                     }
                 }
             }
@@ -422,8 +426,9 @@ private fun AssetImportAdjustments(
 ) {
     val context = LocalContext.current
     // Current asset thumbnail (per sub-strategy)
-    var thumb by remember(state.assetSubStrategy, state.selectedIconPack, state.selectedPackIconDrawable, state.perfectIconsBitmap) { mutableStateOf<android.graphics.Bitmap?>(null) }
-    LaunchedEffect(state.assetSubStrategy, state.selectedIconPack, state.selectedPackIconDrawable, state.perfectIconsBitmap) {
+    // C05（X4）：keys 补 adaptiveForeground——素材晚到时缩略图同步刷新
+    var thumb by remember(state.assetSubStrategy, state.selectedIconPack, state.selectedPackIconDrawable, state.perfectIconsBitmap, state.adaptiveForeground) { mutableStateOf<android.graphics.Bitmap?>(null) }
+    LaunchedEffect(state.assetSubStrategy, state.selectedIconPack, state.selectedPackIconDrawable, state.perfectIconsBitmap, state.adaptiveForeground) {
         thumb = when (state.assetSubStrategy) {
             io.github.deserthouse.opticon.ui.state.AssetSubStrategy.ICON_PACK ->
                 if (state.selectedIconPack != null && state.selectedPackIconDrawable != null)
@@ -588,16 +593,37 @@ private fun AlgoWipSheet(
             ) {
                 val preview = previewBitmap
                 when {
+                    // C08（X4）：进度优先于旧图可见性——有旧图也显示"正在更新"角标，
+                    // 用户才能知道当前所见对应旧参数
+                    isRedrawing -> Box(contentAlignment = Alignment.Center) {
+                        if (preview != null) {
+                            androidx.compose.foundation.Image(
+                                preview.asImageBitmap(), null,
+                                Modifier.height(64.dp),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                            )
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(6.dp)
+                                .background(
+                                    io.github.deserthouse.opticon.ui.component.PreviewSemanticBar.darkBg.copy(alpha = 0.7f),
+                                    OptShapes.small
+                                )
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            CircularProgressIndicator(Modifier.size(10.dp), strokeWidth = 1.5.dp, color = io.github.deserthouse.opticon.ui.component.PreviewSemanticBar.darkFg)
+                            Spacer(Modifier.width(4.dp))
+                            Text(stringResource(R.string.preview_generating), style = MaterialTheme.typography.labelSmall, color = io.github.deserthouse.opticon.ui.component.PreviewSemanticBar.darkFg)
+                        }
+                    }
                     preview != null -> androidx.compose.foundation.Image(
                         preview.asImageBitmap(), null,
                         Modifier.height(64.dp),
                         contentScale = androidx.compose.ui.layout.ContentScale.Fit
                     )
-                    isRedrawing -> Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = io.github.deserthouse.opticon.ui.component.PreviewSemanticBar.darkFg)
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.preview_generating), style = MaterialTheme.typography.labelMedium, color = io.github.deserthouse.opticon.ui.component.PreviewSemanticBar.darkFg)
-                    }
                     else -> Text(stringResource(R.string.preview_none), style = MaterialTheme.typography.labelMedium, color = io.github.deserthouse.opticon.ui.component.PreviewSemanticBar.darkFg)
                 }
             }

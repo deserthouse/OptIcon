@@ -78,8 +78,11 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
     private var appBitmap: Bitmap? = null
 
     fun loadApp(packageName: String) {
-        // 同步读取开关状态，避免异步加载期间的闪烁
-        val initialEnabled = PreferenceManager.isMethodEnabled(packageName)
+        // C07（X6）：同 pkg 已加载则跳过——Activity 重建时 LaunchedEffect 重跑
+        // 不得用持久值覆盖尚未保存的草稿
+        if (_state.value.packageName == packageName && _state.value.appName.isNotBlank()) return
+        // 同步读取开关状态（经仓库：迁移先行，消除"迁移前值"窗口——C10）
+        val initialEnabled = AppIconConfigRepository.load(packageName).enabled
         _state.update { it.copy(packageName = packageName, methodEnabled = initialEnabled) }
         viewModelScope.launch {
             val context = getApplication<Application>().applicationContext
@@ -109,6 +112,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
             _state.update {
                 it.copy(
                     appName = app.appName, isSystemApp = app.isSystemApp,
+                    iconPacksLoaded = true,
                     strategy = saved.strategy,
                     customIconPath = saved.customIconPath,
                     materialIconName = saved.materialIconName,
@@ -126,11 +130,18 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
             }
 
             // Auto-download PICP icon if available — no user tap required
+            // C05（X4）：预取不写当前来源预览——仅当用户所选来源就是 PICP 时才
+            // 联动 hitSource/previewBitmap，否则只入素材缓存待选
             if (PicpEngine.hasIcon(packageName, context)) {
                 withContext(Dispatchers.IO) {
                     val bmp = PicpEngine.downloadIcon(getApplication(), packageName)
                     if (bmp != null) {
-                        _state.update { it.copy(perfectIconsBitmap = bmp, previewBitmap = bmp, hitSource = HitSource.PICP) }
+                        val sel = _state.value
+                        if (sel.strategy == IconStrategy.ASSET_IMPORT && sel.assetSubStrategy == AssetSubStrategy.PERFECT_ICONS) {
+                            _state.update { it.copy(perfectIconsBitmap = bmp, previewBitmap = bmp, hitSource = HitSource.PICP) }
+                        } else {
+                            _state.update { it.copy(perfectIconsBitmap = bmp) }
+                        }
                     }
                 }
             }
@@ -271,7 +282,10 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
             val pkg = _state.value.packageName
             val result = withContext(Dispatchers.IO) { IconEngine.decomposeAdaptiveIcon(ctx, pkg) }
             if (result != null) {
+                // C05（X4）：素材到达必须触发重算——旧实现只写字段，先行的预览
+                // 停在 miss 直到用户再动参数
                 _state.update { it.copy(adaptiveForeground = result.first, adaptiveBackground = result.second, isAdaptiveIcon = true) }
+                debouncePreview()
             } else {
                 _state.update { it.copy(isAdaptiveIcon = false) }
             }
@@ -282,33 +296,47 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
      *  来源/素材时，晚到的旧分类结果不得回填覆盖新选择。 */
     private val algoClassGeneration = java.util.concurrent.atomic.AtomicInteger(0)
 
-    /** A04（F2-1）：上传图片=一次原子切换来源——解码成功才同写
-     *  customIconPath+LOCAL_FILE+分类/参数重置；解码失败保持旧选择并如实反馈。
-     *  （旧实现只写路径不切来源，引擎仍烘焙应用自身图标。） */
+    /** A04（F2-1）+C06（X5）：上传图片=解码校验 → 转存 App 私有稳定副本 →
+     *  原子切源。content URI 不直接进长期配置（重启/授权失效后不可读）；
+     *  私有副本以 App 属主常读，重绘随时可用原色字节。 */
     fun applyUploadedIcon(uri: String) {
         markDirty()
         val gen = algoClassGeneration.incrementAndGet()
         viewModelScope.launch {
-            val decoded: Pair<IconRedrawEngine.InputClass?, Boolean> = withContext(Dispatchers.IO) {
-                val bmp = decodeFileOrUri(getApplication(), uri)
-                if (bmp == null) null to false
-                else {
-                    val px = IntArray(bmp.width * bmp.height)
-                    bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
-                    val r = IconRedrawEngine.classifyInput(px, bmp.width)
-                    bmp.recycle()
-                    r to true
+            val result = withContext(Dispatchers.IO) {
+                val app = getApplication<Application>()
+                val bmp = decodeFileOrUri(app, uri)
+                    ?: return@withContext null // 解码失败：保持旧选择（下方反馈）
+                val px = IntArray(bmp.width * bmp.height)
+                bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
+                val classified = IconRedrawEngine.classifyInput(px, bmp.width)
+                // 转存私有副本（原色字节，不预白化——重绘需要原始色距）
+                val assetsDir = File(app.filesDir, "assets").apply { mkdirs() }
+                val pkg = _state.value.packageName.ifBlank { "unknown" }
+                val stable = File(assetsDir, "$pkg.upload.png")
+                val copied = try {
+                    app.contentResolver.openInputStream(android.net.Uri.parse(uri))?.use { input ->
+                        stable.outputStream().use { input.copyTo(it) }
+                    } ?: run {
+                        // 非 content 协议（测试注入的文件路径）：从已解码 bmp 回写
+                        stable.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+                    }
+                    true
+                } catch (_: Exception) {
+                    false
                 }
+                bmp.recycle()
+                if (copied) classified to stable.absolutePath else null
             }
             if (algoClassGeneration.get() != gen) return@launch // 过期结果丢弃
-            val (classified, ok) = decoded
-            if (!ok) {
+            if (result == null) {
                 _saveFeedback.value = getApplication<Application>().getString(
                     io.github.deserthouse.opticon.R.string.upload_decode_failed
                 )
                 return@launch
             }
-            _state.update { it.copy(customIconPath = uri, algoSource = AlgoSource.LOCAL_FILE) }
+            val (classified, stablePath) = result
+            _state.update { it.copy(customIconPath = stablePath, algoSource = AlgoSource.LOCAL_FILE) }
             _algoInputClass.value = classified
             if (classified != null) {
                 _state.update { it.copy(redrawParams = autoParamsFor(classified)) }
@@ -441,7 +469,8 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         _saveState.value = SaveState.Saving
         viewModelScope.launch {
             val ctx = getApplication<Application>().applicationContext
-            val feedbackBefore = _saveFeedback.value
+            // C11（X8）：字符串比较识别"是否已有反馈"不可靠——改显式标记
+            var feedbackSet = false
             var ok = true
 
             if (s.methodEnabled) {
@@ -461,7 +490,8 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                     ok = false
                     val guardHit = bakeResult.detail?.startsWith("redraw guard") == true ||
                         bakeResult.detail?.startsWith("self-filter guard") == true
-                    _saveFeedback.value = ctx.getString(
+                    feedbackSet = true
+                        _saveFeedback.value = ctx.getString(
                         if (guardHit) io.github.deserthouse.opticon.R.string.save_blocked_guard
                         else io.github.deserthouse.opticon.R.string.save_blocked_no_icon
                     )
@@ -493,11 +523,15 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                             null
                         }
                     }
-                    if (failStage == null) {
+                    if (failStage == null && draftRevision.get() == savedRevision) {
+                        // C01：保存期间有新编辑时不回写——草稿字段（开关/来源等）优先于已提交快照
                         _state.update { it.copy(methodEnabled = true, hitSource = bakeResult.source) }
+                    } else if (failStage == null) {
+                        _state.update { it.copy(hitSource = bakeResult.source) } // 仅更新来源显示，不动开关草稿
                     } else {
                         ok = false
-                        _saveFeedback.value = ctx.getString(
+                        feedbackSet = true
+                            _saveFeedback.value = ctx.getString(
                             if (failStage == "partial") io.github.deserthouse.opticon.R.string.save_recovery_pending
                             else io.github.deserthouse.opticon.R.string.save_failed
                         )
@@ -517,22 +551,35 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                 val committed = withContext(Dispatchers.IO) { AppIconConfigRepository.save(newConfig) }
                 if (!committed) {
                     ok = false
+                    feedbackSet = true
                     _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.save_failed)
                 } else {
                     if (!cleanupOk) {
+                        feedbackSet = true
                         _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.save_disable_cleanup_failed)
                     }
-                    _state.update { it.copy(methodEnabled = false, hitSource = HitSource.DISABLED) }
+                    if (draftRevision.get() == savedRevision) {
+                        // C01：新草稿在场时不覆盖开关草稿值
+                        _state.update { it.copy(methodEnabled = false, hitSource = HitSource.DISABLED) }
+                    }
                 }
             }
 
             if (ok) {
-                // A05（F2-2）：仅当保存期间无新编辑才清 dirty——新草稿保持未保存
-                _isDirty.value = draftRevision.get() != savedRevision
-                _saveState.value = if (requestLeaveAfter) SaveState.SavedAndExit else SaveState.Saved
-                // 本次保存中已产生反馈（如清理失败）则不覆盖为"已保存"
-                if (_saveFeedback.value == feedbackBefore) {
-                    _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.config_saved)
+                // C01（X3）：新草稿在场时——不清 dirty、不自动离开、不覆盖草稿字段
+                val newerDraft = draftRevision.get() != savedRevision
+                _isDirty.value = newerDraft
+                when {
+                    requestLeaveAfter && newerDraft -> _saveState.value = SaveState.Saved // 留在页面：旧版已提交，新编辑仍待保存
+                    requestLeaveAfter -> _saveState.value = SaveState.SavedAndExit
+                    else -> _saveState.value = SaveState.Saved
+                }
+                if (!feedbackSet) {
+                    _saveFeedback.value = ctx.getString(
+                        if (newerDraft) io.github.deserthouse.opticon.R.string.save_partial_newer_draft
+                        else if (s.methodEnabled) io.github.deserthouse.opticon.R.string.config_saved
+                        else io.github.deserthouse.opticon.R.string.config_saved_disabled
+                    )
                 }
             } else {
                 markDirty()
@@ -544,19 +591,28 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
     private fun debouncePreview() { redrawDebounceJob?.cancel(); redrawDebounceJob = viewModelScope.launch { delay(DEBOUNCE_MS); runPreview() } }
     private fun computePreviewNow() { redrawDebounceJob?.cancel(); redrawDebounceJob = viewModelScope.launch { runPreview() } }
 
+    private val previewGeneration = java.util.concurrent.atomic.AtomicInteger(0)
+
     private suspend fun runPreview() {
+        val gen = previewGeneration.incrementAndGet()
         val s = _state.value
-        if (!s.methodEnabled) { _state.update { it.copy(previewBitmap = appBitmap, isRedrawing = false, hitSource = HitSource.DISABLED) }; return }
+        // C08（X4）：关闭态不再画应用图标伪结果——契约回落=规则库/原生图标，
+        // 启动图标轮廓不代表真实回落产物；空预览+既有关闭引导文案才是诚实表达
+        if (!s.methodEnabled) { _state.update { it.copy(previewBitmap = null, isRedrawing = false, hitSource = HitSource.DISABLED) }; return }
         _state.update { it.copy(isRedrawing = true) }
         try {
             val ctx = getApplication<Application>().applicationContext
             val result = withContext(Dispatchers.IO) { bakeCurrentState(ctx, s) }
+            if (previewGeneration.get() != gen) return // C05：过期任务不回填
             _state.update { it.copy(previewBitmap = result.bitmap, hitSource = result.source) }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e // C05：取消继续传播，不清除新任务的进行中状态
         } catch (e: Exception) {
+            if (previewGeneration.get() != gen) return
             TraceLogger.w("OptIcon/AppDetailVM", "runPreview failed: ${e.message}")
             _state.update { it.copy(hitSource = HitSource.OTHER) }
         } finally {
-            _state.update { it.copy(isRedrawing = false) }
+            if (previewGeneration.get() == gen) _state.update { it.copy(isRedrawing = false) }
         }
     }
 

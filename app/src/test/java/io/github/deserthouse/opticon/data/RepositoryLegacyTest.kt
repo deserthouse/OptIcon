@@ -183,4 +183,39 @@ class RepositoryLegacyTest {
     }
 
     private fun currentCommitCount(): Int = prefs.commitCount
+
+    // ━━ C10：显式 enabled 优先 + ICON_PACK 子源保留 ━━
+
+    @Test
+    fun `explicit method_enabled false survives migration`() {
+        prefs.data["method_com.a"] = "REMOTE_SUB"
+        prefs.data["method_enabled_com.a"] = false // 用户明确关闭——映射默认 true 不得覆盖
+        val c = AppIconConfigRepository.load("com.a")
+        assertEquals(IconStrategy.FANKES, c.strategy)
+        assertFalse(c.enabled)
+    }
+
+    @Test
+    fun `explicit method_enabled true preserved when mapping default is off`() {
+        prefs.data["method_com.a"] = "AUTO"
+        prefs.data["method_enabled_com.a"] = true
+        val c = AppIconConfigRepository.load("com.a")
+        assertEquals(IconStrategy.FANKES, c.strategy)
+        assertTrue(c.enabled)
+    }
+
+    @Test
+    fun `legacy ICON_PACK migrates sub-strategy not adaptive default`() {
+        prefs.data["method_com.a"] = "ICON_PACK"
+        val c = AppIconConfigRepository.load("com.a")
+        assertEquals(IconStrategy.ASSET_IMPORT, c.strategy)
+        assertEquals(io.github.deserthouse.opticon.ui.state.AssetSubStrategy.ICON_PACK, c.assetSubStrategy)
+    }
+
+    @Test
+    fun `mapped default used when enabled key absent`() {
+        prefs.data["method_com.a"] = "AUTO"
+        val c = AppIconConfigRepository.load("com.a")
+        assertFalse(c.enabled) // 无显式键 → 映射默认 off
+    }
 }
