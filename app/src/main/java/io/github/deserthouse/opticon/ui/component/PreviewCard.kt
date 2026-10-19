@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Brightness6
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -149,10 +150,12 @@ fun PreviewCard(
                                 drawIcon(bitmap, labelColor)
                             }
                         } else if (isRedrawing) {
-                            Text(
-                                text = "...",
-                                color = labelColor.copy(alpha = 0.5f),
-                                fontSize = 12.sp
+                            // U-A3（ME-09 尾巴）：生成中=进度指示（语义无歧义），
+                            // 弃用省略号文字占位；无素材保留 "?" 占位
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(12.dp),
+                                strokeWidth = 1.5.dp,
+                                color = labelColor.copy(alpha = 0.6f)
                             )
                         } else {
                             Text(

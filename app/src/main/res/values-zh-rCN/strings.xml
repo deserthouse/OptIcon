@@ -145,6 +145,7 @@
 
     <string name="asset_picker_title">选择素材</string>
     <string name="asset_picker_apply">应用</string>
+    <string name="asset_picker_apply_blocked">请先选择可用素材（自适应图标、已获取的完美图标，或图标包中的图标）</string>
     <string name="asset_picker_close">关闭</string>
     <string name="asset_sub_adaptive">自适应拆解</string>
     <string name="asset_sub_picp">完美图标</string>

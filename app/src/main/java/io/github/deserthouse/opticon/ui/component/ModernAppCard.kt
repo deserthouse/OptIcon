@@ -164,9 +164,11 @@ private fun AppIconCircle(entry: AppUiEntry) {
                 modifier = Modifier.size(32.dp).clip(CircleShape)
             )
         } else {
+            // U-A2b（ME-05 尾巴）：字母前景随容器配对（onSurfaceVariant）——
+            // 深色模式下 Color.White 在 surfaceVariant 上对比度不可控
             Text(
                 text = entry.appName.take(1).uppercase(),
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.titleLarge
             )
@@ -200,9 +202,14 @@ private fun ModificationBadge(source: ModificationSource) {
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun AdaptiveStatusStrip(entry: AppUiEntry) {
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    // U-A2a（ME-08 尾巴）：FlowRow——窄屏/大字号下 pills 换行而非溢出截断
+    androidx.compose.foundation.layout.FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)
+    ) {
         if (entry.iconCompliant == false) {
             StatusPill(text = stringResource(io.github.deserthouse.opticon.R.string.pill_noncompliant), active = true, alert = true)
         }

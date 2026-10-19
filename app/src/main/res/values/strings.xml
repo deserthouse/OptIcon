@@ -145,6 +145,7 @@
 
     <string name="asset_picker_title">Choose asset</string>
     <string name="asset_picker_apply">Apply</string>
+    <string name="asset_picker_apply_blocked">Pick a usable asset first (adaptive icon, downloaded Perfect Icon, or a pack icon selection)</string>
     <string name="asset_picker_close">Close</string>
     <string name="asset_sub_adaptive">Adaptive layers</string>
     <string name="asset_sub_picp">Perfect Icons</string>

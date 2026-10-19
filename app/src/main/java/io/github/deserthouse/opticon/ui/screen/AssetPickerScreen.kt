@@ -103,6 +103,14 @@ fun AssetPickerScreen(
     var picpLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
+    // U-A1（ME-03 尾巴）：Apply 前草稿校验——各子策略必须有可产物的素材，
+    // 否则禁用并说明；防止"应用一个空来源"把详情带回无效配置
+    val draftValid = when (draftSub) {
+        AssetSubStrategy.ADAPTIVE_DECOMPOSE -> state.isAdaptiveIcon == true
+        AssetSubStrategy.PERFECT_ICONS -> draftPicp != null
+        AssetSubStrategy.ICON_PACK -> draftPack != null && draftDrawable != null
+    }
+
     // Pack icon list, scoped to the draft pack
     var packIcons by remember { mutableStateOf<List<IconPackEngine.PackIconEntry>>(emptyList()) }
     LaunchedEffect(draftPack) {
@@ -123,8 +131,16 @@ fun AssetPickerScreen(
                     }
                 },
                 actions = {
-                    TextButton(onClick = { onConfirm(draftSub, draftPack, draftDrawable, draftPicp) }) {
-                        Text(stringResource(R.string.asset_picker_apply), fontWeight = FontWeight.Medium)
+                    TextButton(
+                        enabled = draftValid,
+                        onClick = { onConfirm(draftSub, draftPack, draftDrawable, draftPicp) }
+                    ) {
+                        Text(
+                            stringResource(R.string.asset_picker_apply),
+                            fontWeight = FontWeight.Medium,
+                            color = if (draftValid) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
@@ -154,6 +170,14 @@ fun AssetPickerScreen(
             }
             Spacer(Modifier.height(12.dp))
 
+            if (!draftValid) {
+                Text(
+                    stringResource(R.string.asset_picker_apply_blocked),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
             when (draftSub) {
                 AssetSubStrategy.ADAPTIVE_DECOMPOSE -> AdaptivePickerSection(state)
                 AssetSubStrategy.PERFECT_ICONS -> PicpPickerSection(

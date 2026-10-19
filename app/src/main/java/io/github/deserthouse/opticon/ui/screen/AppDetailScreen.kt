@@ -82,6 +82,7 @@ import io.github.deserthouse.opticon.ui.state.AppDetailState
 import io.github.deserthouse.opticon.ui.state.IconStrategy
 import io.github.deserthouse.opticon.ui.state.hitLevelRes
 import io.github.deserthouse.opticon.ui.theme.OptShapes
+import io.github.deserthouse.opticon.ui.theme.OptSpacing
 import io.github.deserthouse.opticon.ui.viewmodel.AppDetailViewModel
 import io.github.deserthouse.opticon.ui.viewmodel.AppDetailViewModel.SaveState
 import kotlinx.coroutines.launch
@@ -199,7 +200,7 @@ fun AppDetailScreen(
 
             // ═══ ① RESULT PREVIEW ═══
             PreviewCard(state.previewBitmap, state.previewMode, state.isRedrawing, viewModel::togglePreviewMode)
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(OptSpacing.cardGap))
 
             // ═══ ② ENABLE + SOURCE SUMMARY ═══
             Card(shape = OptShapes.large, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
@@ -233,7 +234,7 @@ fun AppDetailScreen(
                     }
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(OptSpacing.cardGap))
 
             // ═══ ③ CURRENT SOURCE ADJUSTMENTS ═══
             AnimatedVisibility(visible = state.methodEnabled) {
@@ -249,7 +250,7 @@ fun AppDetailScreen(
             // ═══ ④ ADVANCED: Color override ═══
             AnimatedVisibility(visible = state.methodEnabled) {
                 Column {
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(OptSpacing.cardGap))
                     var showColorSheet by remember { mutableStateOf(false) }
                     val colorLabel = when (state.colorOverride) {
                         "mono" -> stringResource(R.string.color_override_mono)
@@ -280,7 +281,7 @@ fun AppDetailScreen(
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(OptSpacing.sectionGap))
         }
     }
 
@@ -289,7 +290,7 @@ fun AppDetailScreen(
         ModalBottomSheet(onDismissRequest = { showSourceSheet = false }, shape = OptShapes.large) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp)) {
                 Text(stringResource(R.string.source_change_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium)
-                Spacer(Modifier.height(12.dp)); HorizontalDivider(); Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(OptSpacing.cardGap)); HorizontalDivider(); Spacer(Modifier.height(8.dp))
                 Text(stringResource(R.string.source_change_desc), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(16.dp))
                 SourceOptionRow(
@@ -573,8 +574,8 @@ private fun AlgoWipSheet(
                     Text(stringResource(R.string.algo_restore_auto), style = MaterialTheme.typography.labelLarge)
                 }
             }
-            Spacer(Modifier.height(12.dp)); HorizontalDivider()
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(OptSpacing.cardGap)); HorizontalDivider()
+            Spacer(Modifier.height(OptSpacing.cardGap))
             // A11（F3-2）：固定预览头——深色语义底/前景对（与主预览同源常量），
             // 白色剪影恒可读；生成中→spinner+文案；空→明确占位而非整块消失
             Box(
@@ -600,7 +601,7 @@ private fun AlgoWipSheet(
                     else -> Text(stringResource(R.string.preview_none), style = MaterialTheme.typography.labelMedium, color = io.github.deserthouse.opticon.ui.component.PreviewSemanticBar.darkFg)
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(OptSpacing.cardGap))
             // 参数区独立滚动——预览头不随内容滚走
             Column(
                 Modifier.fillMaxWidth().weight(1f, fill = false).verticalScroll(rememberScrollState())
