@@ -74,7 +74,10 @@ object PublishTransaction {
 
     /** 重启恢复：按交付内容证据收敛。applyConfig 在记录携带配置快照时回调。 */
     fun recoverOnStartup(context: Context, applyConfig: ((String) -> Unit)? = null) {
+        val dir = File(context.filesDir, PENDING_DIR)
+        TraceLogger.i(TAG, "recoverOnStartup: enter (opsDir exists=${dir.isDirectory}, files=${dir.listFiles()?.size ?: -1})")
         coreOf(context).recover { cfg -> if (cfg != null) applyConfig?.invoke(cfg) }
+        TraceLogger.i(TAG, "recoverOnStartup: done")
     }
 
     /**
