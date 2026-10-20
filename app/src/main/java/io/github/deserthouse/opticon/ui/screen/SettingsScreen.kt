@@ -346,7 +346,11 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                             RadioOption("en", "English", null),
                             RadioOption("zh-CN", "简体中文", null)
                         ),
-                        onSelect = { applyAppLocale(context, it); showLangSheet = false },
+                        // Q19：应用失败保留 sheet 并反馈，成功才收起
+                        onSelect = {
+                            if (applyAppLocale(context, it)) showLangSheet = false
+                            else viewModel.notifyLocaleApplyFailed()
+                        },
                         onDismiss = { showLangSheet = false }
                     )
                 }
@@ -555,7 +559,8 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
         if (showAvatarDialog) {
             androidx.compose.ui.window.Dialog(onDismissRequest = { showAvatarDialog = false }) {
                 Surface(
-                    shape = RoundedCornerShape(28.dp),
+                    // Q11：容器形状回归 token 表（此前裸 28dp 违反形状纪律）
+                    shape = OptShapes.large,
                     color = MaterialTheme.colorScheme.surfaceContainerHigh,
                     onClick = { showAvatarDialog = false }
                 ) {
@@ -808,8 +813,9 @@ private fun SourceSection(
                 // + radio 48dp touch target)
                 getSourceDescription(source)?.let { fullDesc ->
                     val lines = fullDesc.split("\n")
-                    val descText = lines.dropLast(1).joinToString("\n").ifBlank { lines.first() }
                     val linkUrl = lines.lastOrNull()?.takeIf { it.startsWith("http") }
+                    // Q14：描述仅一行 URL 时不再把同一 URL 又当描述文本渲染
+                    val descText = lines.filterNot { it == linkUrl }.joinToString("\n")
                     Column(Modifier.padding(start = 68.dp, end = 16.dp)) {
                         if (descText.isNotBlank()) Text(descText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (linkUrl != null) {
@@ -1153,16 +1159,19 @@ internal fun SwitchSettingItem(
 
 /** Apply per-app locale (Android 13+). Empty tag = follow system.
  *  The system persists it and recreates the activity; localization
- *  applies to every locale-qualified resource automatically. */
-private fun applyAppLocale(context: android.content.Context, tag: String) {
-    if (android.os.Build.VERSION.SDK_INT < 33) return
-    val lm = context.getSystemService(android.app.LocaleManager::class.java) ?: return
-    try {
+ *  applies to every locale-qualified resource automatically.
+ *  Q19：返回成败——失败时调用方反馈用户并可重试，不再只写日志静默。 */
+private fun applyAppLocale(context: android.content.Context, tag: String): Boolean {
+    if (android.os.Build.VERSION.SDK_INT < 33) return false
+    val lm = context.getSystemService(android.app.LocaleManager::class.java) ?: return false
+    return try {
         if (tag.isEmpty()) lm.applicationLocales = android.os.LocaleList.getEmptyLocaleList()
         else lm.applicationLocales = android.os.LocaleList.forLanguageTags(tag)
         TraceLogger.i("OptIcon/Settings", "app locale set: ${tag.ifEmpty { "system" }}")
+        true
     } catch (e: Exception) {
         TraceLogger.w("OptIcon/Settings", "setApplicationLocales failed: ${e.message}")
+        false
     }
 }
 

@@ -91,5 +91,27 @@ class EditorSessionCoreTest {
         assertFalse(c.isLatestPreviewRound(r1))
     }
 
+    // ━━ 会话释放（Q4） ━━
+
+    @Test
+    fun `abandon session allows retry of same package`() {
+        val c = core()
+        assertTrue(c.beginSession("com.a"))
+        // 加载失败：释放登记
+        c.abandonSession("com.a")
+        // 重进同包名可重试（修复前 beginSession 返回 false 永久锁死）
+        assertTrue(c.beginSession("com.a"))
+    }
+
+    @Test
+    fun `abandon does not touch other sessions`() {
+        val c = core()
+        assertTrue(c.beginSession("com.a"))
+        c.abandonSession("com.b") // 非当前会话：无操作
+        assertFalse(c.beginSession("com.a")) // 仍是 com.a 的会话
+        c.abandonSession("com.a")
+        assertTrue(c.beginSession("com.b"))
+    }
+
     // ━━ K1 同包吸收所需的 oldSha 语义在 PublishCore 层测试（本类不涉及） ━━
 }

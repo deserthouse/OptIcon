@@ -128,7 +128,6 @@
     <string name="strategy_picp_submit_btn">前往 GitHub 提交适配申请</string>
     <string name="strategy_asset_desc">利用第三方图标包或系统原生的分层资产进行快速剥离。</string>
     <string name="strategy_asset_a_label">从第三方图标包中选取</string>
-    <string name="strategy_asset_a_wip_hint">该功能目前尚未完成，但您仍然可以查看已安装图标包内的图标。</string>
     <string name="strategy_asset_open_pack_app">跳转到图标包应用</string>
     <string name="no_icon_packs_installed">未安装任何图标包，请从 Play 商店安装。</string>
     <string name="icon_pack_search_hint">搜索图标或应用名</string>
@@ -156,6 +155,17 @@
     <string name="picp_download_retry">重试获取</string>
     <string name="picp_download_failed">获取失败——请检查订阅源/网络后重试</string>
     <string name="packs_loading">正在加载图标包…</string>
+    <string name="app_load_failed">无法加载该应用</string>
+    <string name="sync_picp_retrying">正在重试下载…</string>
+    <string name="sync_picp_extracting">正在提取图标…</string>
+    <string name="sync_picp_extracted">已同步 %1$d 个图标包</string>
+    <string name="picp_fail_download">PICP 压缩包下载失败</string>
+    <string name="picp_fail_missing">下载的 PICP 压缩包丢失</string>
+    <string name="picp_fail_invalid">PICP 压缩包无效：%1$s</string>
+    <string name="picp_fail_generic">PICP 同步失败：%1$s</string>
+    <string name="preview_rejected_hint">无法生成此素材——请更换来源</string>
+    <string name="locale_apply_failed">语言切换失败</string>
+    <string name="no_icons_in_pack">该图标包内没有可用图标</string>
     <string name="current_asset">当前素材</string>
 
     <string name="strategy_algo_label">兼容重绘（非自适应图标）</string>

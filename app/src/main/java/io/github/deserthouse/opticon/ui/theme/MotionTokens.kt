@@ -12,6 +12,10 @@ object MotionTokens {
     /** Small state changes: fades, color washes, chip transitions. */
     const val FAST = 150
 
+    /** Q11：effects 快速过渡档——比 FAST 略长的颜色/透明度 wash（预览底色），
+     *  又不及 NORMAL 的面板级时长。 */
+    const val FASTEST = 200
+
     /** Medium transitions: expand/collapse panels, shared content. */
     const val NORMAL = 300
 

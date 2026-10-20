@@ -96,40 +96,40 @@ object PicpEngine {
                 // Two attempts: transient network/storage hiccups self-heal.
                 for (attempt in 1..2) {
                     if (attempt > 1) {
-                        onProgress?.invoke("Retrying download...")
+                        onProgress?.invoke(context.getString(io.github.deserthouse.opticon.R.string.sync_picp_retrying))
                         Thread.sleep(1500)
                     }
                     if (!downloadZip()) {
-                        lastError = "Failed to download PICP zipball"
+                        lastError = context.getString(io.github.deserthouse.opticon.R.string.picp_fail_download)
                         continue
                     }
                     if (!zipFile.exists() || zipFile.length() == 0L) {
                         // Should be impossible after the atomic tmp+rename —
                         // reported as ENOENT on some devices before this guard.
                         TraceLogger.w(TAG, "PICP zip missing after download (attempt $attempt)")
-                        lastError = "Downloaded PICP zip is missing — download silently failed"
+                        lastError = context.getString(io.github.deserthouse.opticon.R.string.picp_fail_missing)
                         continue
                     }
-                    onProgress?.invoke("Extracting icons...")
+                    onProgress?.invoke(context.getString(io.github.deserthouse.opticon.R.string.sync_picp_extracting))
                     val count = try {
                         extractZip()
                     } catch (e: Exception) {
                         TraceLogger.w(TAG, "PICP extract failed: ${e}")
                         // A non-zip payload (HTML error page from a proxy, a
                         // truncated download) surfaces here — retry cleanly.
-                        lastError = "PICP archive invalid: ${e.message}"
+                        lastError = context.getString(io.github.deserthouse.opticon.R.string.picp_fail_invalid, e.message ?: "")
                         continue
                     }
                     zipFile.delete()
                     TraceLogger.i(TAG, "PICP extracted: $count icons")
-                    onProgress?.invoke("PICP synced $count icons")
+                    onProgress?.invoke(context.getString(io.github.deserthouse.opticon.R.string.sync_picp_extracted, count))
                     onResult(true, count, null)
                     return@Thread
                 }
-                onResult(false, 0, lastError ?: "PICP sync failed")
+                onResult(false, 0, lastError ?: context.getString(io.github.deserthouse.opticon.R.string.picp_fail_generic, ""))
             } catch (e: Exception) {
                 TraceLogger.w(TAG, "PICP sync error: ${e}")
-                onResult(false, 0, "PICP sync failed: ${e.message}")
+                onResult(false, 0, context.getString(io.github.deserthouse.opticon.R.string.picp_fail_generic, e.message ?: ""))
             }
         }.start()
     }

@@ -88,6 +88,7 @@ import io.github.deserthouse.opticon.ui.theme.OptSpacing
 import io.github.deserthouse.opticon.ui.viewmodel.AppDetailViewModel
 import io.github.deserthouse.opticon.ui.viewmodel.AppDetailViewModel.SaveState
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ME-01: Detail page restructured around "Result → Source → Adjust → Commit".
@@ -106,7 +107,10 @@ fun AppDetailScreen(
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
     val algoInputClass by viewModel.algoInputClass.collectAsState()
-    val tuningVisible = remember { io.github.deserthouse.opticon.util.PreferenceManager.isTuningOptionsVisible() }
+    // Q2（K11）：SharedPreferences 读移出组合——且设置页改开关后返回本页即时反映
+    val tuningVisible by androidx.compose.runtime.produceState(initialValue = false) {
+        value = io.github.deserthouse.opticon.util.PreferenceManager.isTuningOptionsVisible()
+    }
     LaunchedEffect(packageName) { viewModel.loadApp(packageName) }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -204,7 +208,10 @@ fun AppDetailScreen(
             Spacer(Modifier.height(8.dp))
 
             // ═══ ① RESULT PREVIEW ═══
-            PreviewCard(state.previewBitmap, state.previewMode, state.isRedrawing, viewModel::togglePreviewMode)
+            PreviewCard(
+                state.previewBitmap, state.previewMode, state.isRedrawing, viewModel::togglePreviewMode,
+                rejected = state.previewRejected
+            )
             Spacer(Modifier.height(OptSpacing.cardGap))
 
             // ═══ ② ENABLE + SOURCE SUMMARY ═══
@@ -402,7 +409,10 @@ private fun SourceOptionRow(label: String, desc: String, selected: Boolean, onCl
 @Composable
 private fun FankesAdjustments(state: AppDetailState) {
     val ctx = LocalContext.current
-    val fankesHasIcon = remember(state.packageName) { IconLibEngine.hasIcon(state.packageName) }
+    // Q2（K11）：规则库索引读取移出组合
+    val fankesHasIcon by androidx.compose.runtime.produceState(initialValue = false, state.packageName) {
+        value = withContext(kotlinx.coroutines.Dispatchers.IO) { IconLibEngine.hasIcon(state.packageName) }
+    }
     val fankesMeta = remember(state.packageName) { IconLibEngine.getMeta(state.packageName) }
     Card(shape = OptShapes.large, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {

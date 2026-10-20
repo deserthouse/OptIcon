@@ -49,6 +49,8 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         private const val DEBOUNCE_MS = 300L
         private const val BAKED_DIR = "baked"
         private const val OUTPUT_SIZE = 96
+        /** Q6：非 ALGORITHM 路径的 scale 有效域上界（引擎 applyAdaptiveScale coerce 口径） */
+        private const val ADAPTIVE_SCALE_MAX = 1.5f
         private const val PERFECT_ICONS_BASE =
             "https://raw.githubusercontent.com/pzcn/Perfect-Icons-Completion-Project/main/app/src/main/res/drawable-nodpi/"
     }
@@ -98,7 +100,15 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                         isSystemApp = (ai.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
                     )
                 } catch (e: Exception) { null }
-            } ?: run { return@launch }
+            } ?: run {
+                // Q4：加载失败（应用被卸载/pm 异常）释放会话登记——重进同包名可重试，
+                // 不再永久锁死在空白默认态
+                session.abandonSession(packageName)
+                _saveFeedback.value = getApplication<Application>().getString(
+                    io.github.deserthouse.opticon.R.string.app_load_failed
+                )
+                return@launch
+            }
             // H9 fix: clear previewBitmap before recycling appBitmap to prevent
             // Compose from drawing a recycled bitmap
             _state.update { it.copy(previewBitmap = null) }
@@ -133,7 +143,9 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
             // Auto-download PICP icon if available — no user tap required
             // C05（X4）：预取不写当前来源预览——仅当用户所选来源就是 PICP 时才
             // 联动 hitSource/previewBitmap，否则只入素材缓存待选
-            if (PicpEngine.hasIcon(packageName, context)) {
+            // Q2（K11）：索引文件读取移 IO
+            val hasPicp = withContext(Dispatchers.IO) { PicpEngine.hasIcon(packageName, context) }
+            if (hasPicp) {
                 withContext(Dispatchers.IO) {
                     val bmp = PicpEngine.downloadIcon(getApplication(), packageName)
                     if (bmp != null) {
@@ -152,9 +164,16 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    /** Q6：跨策略 scale 域迁移——ALGORITHM（兼容重绘）允许 0.5..2.0，其余
+     *  路径引擎侧 coerce 0.5..1.5；切换时按目标域钳制，消除滑杆显示值与
+     *  生效值不一致（A13 要消除的"显示变化但结果不变"类残余洞）。 */
+    private fun clampedScaleFor(strategy: IconStrategy, params: RedrawParams): RedrawParams =
+        if (strategy == IconStrategy.ALGORITHM) params
+        else params.copy(scale = params.scale.coerceIn(RedrawParams.SCALE_MIN, ADAPTIVE_SCALE_MAX))
+
     fun setStrategy(strategy: IconStrategy) {
         markDirty()
-        _state.update { it.copy(strategy = strategy, previewBitmap = null, hitSource = HitSource.OTHER) }
+        _state.update { it.copy(strategy = strategy, redrawParams = clampedScaleFor(strategy, it.redrawParams), previewBitmap = null, hitSource = HitSource.OTHER) }
         debouncePreview()
     }
 
@@ -171,6 +190,9 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
             val newPicp = picpBitmap ?: it.perfectIconsBitmap
             it.copy(
                 assetSubStrategy = sub,
+                // Q6：ASSET_IMPORT 全部子策略走自适应域（引擎 coerce 0.5..1.5）
+                redrawParams = if (it.strategy == IconStrategy.ALGORITHM) it.redrawParams
+                    else it.redrawParams.copy(scale = it.redrawParams.scale.coerceIn(RedrawParams.SCALE_MIN, ADAPTIVE_SCALE_MAX)),
                 selectedIconPack = iconPack,
                 selectedPackIconDrawable = drawable,
                 perfectIconsBitmap = newPicp,
@@ -299,7 +321,6 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
      *  原子切源。content URI 不直接进长期配置（重启/授权失效后不可读）；
      *  私有副本以 App 属主常读，重绘随时可用原色字节。 */
     fun applyUploadedIcon(uri: String) {
-        markDirty()
         val gen = session.bumpInput()
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
@@ -342,6 +363,9 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                 return@launch
             }
             val (classified, stablePath) = result
+            // Q3：素材确实导入成功才置脏——失败路径（含解码失败）不留假脏，
+            // 离开时不再误弹「未保存更改」
+            markDirty()
             _state.update { it.copy(customIconPath = stablePath, algoSource = AlgoSource.LOCAL_FILE) }
             _algoInputClass.value = classified
             if (classified != null) {
@@ -400,17 +424,23 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
      *  立即写共享目录（hook 侧 mtime 缓存即时感知），不随保存流程。 */
     fun setColorOverride(value: String?) {
         val ctx = getApplication<Application>()
-        // A10（F2-4）：写入/删除结果决定 UI 显示值——失败保持旧值并如实反馈，
-        // 不得出现"显示已切换但从未持久生效"。
-        val ok = if (value == null) {
-            io.github.deserthouse.opticon.engine.SharedIconStore.deleteColorOverride(ctx, _state.value.packageName)
-        } else {
-            io.github.deserthouse.opticon.engine.SharedIconStore.writeColorOverride(ctx, _state.value.packageName, value) != null
-        }
-        if (ok) {
-            _state.update { it.copy(colorOverride = value) }
-        } else {
-            _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.color_override_write_failed)
+        // Q2：共享目录写盘（含 MediaStore/迁移检查）移出主线程；「立即生效」
+        // 语义与 Coordinator 锁豁免口径不变。
+        viewModelScope.launch {
+            // A10（F2-4）：写入/删除结果决定 UI 显示值——失败保持旧值并如实反馈，
+            // 不得出现"显示已切换但从未持久生效"。
+            val ok = withContext(Dispatchers.IO) {
+                if (value == null) {
+                    io.github.deserthouse.opticon.engine.SharedIconStore.deleteColorOverride(ctx, _state.value.packageName)
+                } else {
+                    io.github.deserthouse.opticon.engine.SharedIconStore.writeColorOverride(ctx, _state.value.packageName, value) != null
+                }
+            }
+            if (ok) {
+                _state.update { it.copy(colorOverride = value) }
+            } else {
+                _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.color_override_write_failed)
+            }
         }
     }
     fun setEmojiText(text: String?) {
@@ -620,14 +650,20 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         val pkgAtStart = s.packageName // RB-3b：会话切走后过期预览不回填
         // C08（X4）：关闭态不再画应用图标伪结果——契约回落=规则库/原生图标，
         // 启动图标轮廓不代表真实回落产物；空预览+既有关闭引导文案才是诚实表达
-        if (!s.methodEnabled) { _state.update { it.copy(previewBitmap = null, isRedrawing = false, hitSource = HitSource.DISABLED) }; return }
+        if (!s.methodEnabled) { _state.update { it.copy(previewBitmap = null, isRedrawing = false, previewRejected = false, hitSource = HitSource.DISABLED) }; return }
         _state.update { it.copy(isRedrawing = true) }
         try {
             val ctx = getApplication<Application>().applicationContext
             val result = withContext(Dispatchers.IO) { bakeCurrentState(ctx, s) }
             if (!session.isLatestPreviewRound(gen)) return // C05：过期任务不回填
             if (_state.value.packageName != pkgAtStart) return // RB-3b：会话已切走
-            _state.update { it.copy(previewBitmap = result.bitmap, hitSource = result.source) }
+            // Q10（C08 残余）：守卫拒绝（不可用素材）不再与"未配置"共用"?"——
+            // 预览走拒绝态，判定口径与保存侧 guardHit 一致
+            val rejected = result.bitmap == null && (
+                result.detail?.startsWith("redraw guard") == true ||
+                result.detail?.startsWith("self-filter guard") == true
+            )
+            _state.update { it.copy(previewBitmap = result.bitmap, hitSource = result.source, previewRejected = rejected) }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e // C05：取消继续传播，不清除新任务的进行中状态
         } catch (e: Exception) {

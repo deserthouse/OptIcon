@@ -218,7 +218,8 @@ private fun AdaptiveStatusStrip(entry: AppUiEntry) {
         if (entry.aniaAdapted) StatusPill(text = stringResource(io.github.deserthouse.opticon.R.string.pill_ania), active = true)
         if (entry.picpAdapted) StatusPill(text = stringResource(io.github.deserthouse.opticon.R.string.pill_picp), active = true)
         if (entry.hasAdaptiveIcon) StatusPill(text = stringResource(io.github.deserthouse.opticon.R.string.pill_adaptive), active = true)
-        if (entry.isSystemApp) StatusPill(text = "System", active = false, dim = true)
+        // Q7b：硬编码英文 "System" 徽标死分支已删——列表扫描 includeSystemApps=false，
+        // isSystemApp 恒 false；若未来收录系统应用须先抽 stringResource。
     }
 }
 

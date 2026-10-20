@@ -33,6 +33,14 @@ class EditorSessionCore {
         return true
     }
 
+    /**
+     * Q4：加载失败的会话释放——仅当 activePkg 仍是该 pkg 时清除，重进同
+     * 包名可重试；beginSession 的幂等守卫语义不变（他者会话不受影响）。
+     */
+    fun abandonSession(pkg: String) {
+        if (activePkg == pkg) activePkg = null
+    }
+
     /** RB-3b：预览结果的内部分态建模（UI 分态在 RB-4a 落屏）。 */
     sealed interface PreviewState {
         data class Current(val sourceTag: String) : PreviewState

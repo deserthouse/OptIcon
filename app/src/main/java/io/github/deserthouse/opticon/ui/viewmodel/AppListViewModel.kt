@@ -115,7 +115,9 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
     //      ?    //                                           
 
     /** Re-evaluate ANIA/PICP/Adaptive status for all loaded apps without clearing the list.
-     *  Call this when returning from Settings after syncing sources. */
+     *  Call this when returning from Settings after syncing sources.
+     *  Q5：写回前核对列表身份——期间 scanApps 已换新表时本次刷新整体丢弃，
+     *  不再用启动前快照覆盖新列表（丢更新窗口）。 */
     fun refreshIconStatus() {
         val currentApps = _uiState.value.apps
         if (currentApps.isEmpty() || _uiState.value.isScanning) return
@@ -135,7 +137,11 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
                     )
                 }
             }
-            _uiState.update { it.copy(apps = updated) }
+            _uiState.update { s ->
+                // 快照身份已失效（scan 换了新列表实例）→ 丢弃本次刷新结果
+                if (s.apps !== currentApps) s
+                else s.copy(apps = updated)
+            }
             TraceLogger.i(TAG, "Icon status refreshed: ${updated.count { it.isUserModified }} modified")
         }
     }

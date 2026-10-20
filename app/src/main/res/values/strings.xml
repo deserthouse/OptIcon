@@ -128,7 +128,6 @@
     <string name="strategy_picp_submit_btn">Submit icon request on GitHub</string>
     <string name="strategy_asset_desc">Extract layered assets from third-party icon packs or system adaptive icons.</string>
     <string name="strategy_asset_a_label">Pick from icon pack</string>
-    <string name="strategy_asset_a_wip_hint">This feature is under development. You can still browse installed icon packs.</string>
     <string name="strategy_asset_open_pack_app">Open icon pack app</string>
     <string name="no_icon_packs_installed">No icon packs installed. Install one from Play Store.</string>
     <string name="icon_pack_search_hint">Search icons or app name</string>
@@ -156,6 +155,18 @@
     <string name="picp_download_retry">Retry fetch</string>
     <string name="picp_download_failed">Fetch failed — check the source/network and retry</string>
     <string name="packs_loading">Loading icon packs…</string>
+    <!-- Q batch: Q4 app load failure / Q7 PICP sync i18n / Q10 preview rejected / Q19 locale failure -->
+    <string name="app_load_failed">Couldn\'t load this app</string>
+    <string name="sync_picp_retrying">Retrying download…</string>
+    <string name="sync_picp_extracting">Extracting icons…</string>
+    <string name="sync_picp_extracted">Synced %1$d icon packs</string>
+    <string name="picp_fail_download">Failed to download PICP zipball</string>
+    <string name="picp_fail_missing">Downloaded PICP zip is missing</string>
+    <string name="picp_fail_invalid">PICP archive invalid: %1$s</string>
+    <string name="picp_fail_generic">PICP sync failed: %1$s</string>
+    <string name="preview_rejected_hint">Can\'t render this asset — try a different source</string>
+    <string name="locale_apply_failed">Couldn\'t apply the language</string>
+    <string name="no_icons_in_pack">No usable icons in this pack</string>
     <string name="current_asset">Current asset</string>
 
     <string name="strategy_algo_label">Compatibility Redraw</string>

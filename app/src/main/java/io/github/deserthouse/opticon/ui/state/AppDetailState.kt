@@ -55,6 +55,9 @@ data class AppDetailState(
     // Preview
     val isRedrawing: Boolean = false,
     val previewBitmap: Bitmap? = null,
+    /** Q10（C08 残余收口）：烘焙被守卫拒绝（红/白矩形等不可用素材）——
+     *  预览显示拒绝态而非"?"；"?"仅保留"未配置/无素材"语义。 */
+    val previewRejected: Boolean = false,
     val previewMode: StatusBarMode = StatusBarMode.DARK
 )
 

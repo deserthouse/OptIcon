@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Brightness6
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -52,7 +53,9 @@ fun PreviewCard(
     mode: StatusBarMode,
     isRedrawing: Boolean,
     onToggleMode: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // Q10（C08 残余）：烘焙被守卫拒绝——预览走拒绝态，"?"仅保留"未配置"语义
+    rejected: Boolean = false
 ) {
     // D1: the preview simulates the REAL status bar, whose light/dark
     // appearance is a semantic constant, not a decoration. Deriving the bar
@@ -66,7 +69,7 @@ fun PreviewCard(
     // 底色趋白回弹再稳定，AVD 录屏已观察）；改快速 tween 语义配对
     val bgColor by animateColorAsState(
         targetValue = if (mode == StatusBarMode.DARK) darkBar else lightBar,
-        animationSpec = tween(durationMillis = 200),
+        animationSpec = tween(durationMillis = io.github.deserthouse.opticon.ui.theme.MotionTokens.FASTEST),
         label = "previewBg"
     )
     // Foreground paired to the simulated bar's background, not to the theme.
@@ -157,6 +160,14 @@ fun PreviewCard(
                             Canvas(modifier = Modifier.size(24.dp)) {
                                 drawIcon(bitmap, labelColor)
                             }
+                        } else if (rejected) {
+                            // Q10：守卫拒绝——素材不可用，error 色调与"?"分态
+                            Icon(
+                                Icons.Rounded.Block,
+                                contentDescription = stringResource(io.github.deserthouse.opticon.R.string.preview_rejected_hint),
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
                         } else {
                             Text(
                                 text = "?",
@@ -168,6 +179,16 @@ fun PreviewCard(
                     }
                     Spacer(Modifier.weight(1f))
                 }
+            }
+
+            // Q10：拒绝态文案——不可用素材的诚实引导（位于模拟栏与图例之间）
+            if (rejected && !isRedrawing) {
+                Text(
+                    text = stringResource(io.github.deserthouse.opticon.R.string.preview_rejected_hint),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
+                )
             }
 
             // Bottom legend
@@ -205,6 +226,7 @@ private fun StatusBarDecorations(color: Color) {
                         .width(2.dp)
                         .height((3 + i * 2).dp)
                         .padding(end = 1.dp)
+                        // Q11 豁免：1dp 信号条微装饰形状，非容器形状，不入 token 表
                         .background(color.copy(alpha = 0.5f), RoundedCornerShape(1.dp))
                 )
             }

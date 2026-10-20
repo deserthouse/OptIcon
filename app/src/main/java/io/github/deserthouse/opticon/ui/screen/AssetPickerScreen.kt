@@ -52,6 +52,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -117,11 +118,15 @@ fun AssetPickerScreen(
 
     // Pack icon list, scoped to the draft pack
     var packIcons by remember { mutableStateOf<List<IconPackEngine.PackIconEntry>>(emptyList()) }
+    // Q9（C11 模式补全）：加载中/确无图标二分——网格区不再静默空白
+    var packLoaded by remember { mutableStateOf(false) }
     LaunchedEffect(draftPack) {
         packIcons = emptyList()
+        packLoaded = false
         draftPack?.let { pkg ->
             packIcons = withContext(Dispatchers.IO) { IconPackEngine.listAllIcons(context, pkg) }
         }
+        packLoaded = true
     }
 
     Scaffold(
@@ -199,7 +204,7 @@ fun AssetPickerScreen(
                     }
                 )
                 AssetSubStrategy.ICON_PACK -> IconPackPickerSection(
-                    state, draftPack, draftDrawable, packIcons,
+                    state, draftPack, draftDrawable, packIcons, packLoaded,
                     onPickPack = { pkg -> draftPack = pkg; draftDrawable = null },
                     onPickDrawable = { draftDrawable = it }
                 )
@@ -251,9 +256,15 @@ private fun PicpPickerSection(
     onDownload: () -> Unit
 ) {
     val context = LocalContext.current
-    val hasPicp = remember(state.packageName) { PicpEngine.hasIcon(state.packageName, context) }
+    // Q2（K11）：首次 hasIcon() 会整读 PICP 索引文件——IO 移出组合；
+    // null=索引加载中，渲染空白位而非闪现"未收录"
+    val hasPicp by produceState<Boolean?>(initialValue = null, state.packageName) {
+        value = withContext(Dispatchers.IO) { PicpEngine.hasIcon(state.packageName, context) }
+    }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (hasPicp) {
+        when (hasPicp) {
+            null -> {}
+            true -> {
             if (draftPicp != null) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Image(draftPicp.asImageBitmap(), "picp", Modifier.size(72.dp).clip(OptShapes.small))
@@ -271,7 +282,8 @@ private fun PicpPickerSection(
                     color = MaterialTheme.colorScheme.error
                 )
             }
-        } else {
+            }
+            else -> {
             Card(Modifier.fillMaxWidth(), shape = OptShapes.medium, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
                 Column(Modifier.padding(12.dp)) {
                     Text(stringResource(R.string.strategy_picp_not_downloaded), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -282,6 +294,7 @@ private fun PicpPickerSection(
                         Text(stringResource(R.string.strategy_picp_submit_btn))
                     }
                 }
+            }
             }
         }
     }
@@ -295,6 +308,7 @@ private fun IconPackPickerSection(
     draftPack: String?,
     draftDrawable: String?,
     packIcons: List<IconPackEngine.PackIconEntry>,
+    packLoaded: Boolean,
     onPickPack: (String) -> Unit,
     onPickDrawable: (String) -> Unit
 ) {
@@ -326,35 +340,62 @@ private fun IconPackPickerSection(
             }
         }
         // Open the pack's own app when launchable
-        if (draftPack != null && remember(draftPack) { IconPackEngine.hasLaunchableActivity(context, draftPack) }) {
+        // Q2（K11）：pm 查询移出组合条件分支
+        val packLaunchable by produceState(initialValue = false, draftPack) {
+            val pkg = draftPack
+            value = pkg != null &&
+                withContext(Dispatchers.IO) { IconPackEngine.hasLaunchableActivity(context, pkg) }
+        }
+        val launchablePkg = draftPack
+        if (packLaunchable && launchablePkg != null) {
             Spacer(Modifier.height(4.dp))
-            TextButton(onClick = { context.packageManager.getLaunchIntentForPackage(draftPack)?.let { context.startActivity(it) } }) {
+            TextButton(onClick = { context.packageManager.getLaunchIntentForPackage(launchablePkg)?.let { context.startActivity(it) } }) {
                 Text(stringResource(R.string.strategy_asset_open_pack_app))
             }
         }
-        // WIP semantics unchanged: browsing works, hand-picked bake is still WIP
-        Text(stringResource(R.string.strategy_asset_a_wip_hint), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-        if (packIcons.isEmpty()) return@Column
+        // Q9（C11 模式补全）：加载中/确无图标二分，网格区不再静默空白
+        if (packIcons.isEmpty()) {
+            if (draftPack != null) {
+                if (!packLoaded) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Text(stringResource(R.string.packs_loading), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else {
+                    Text(stringResource(R.string.no_icons_in_pack), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            return@Column
+        }
 
         Spacer(Modifier.height(8.dp))
-        var query by rememberSaveable(draftPack) { mutableStateOf("") }
-        OutlinedTextField(query, { query = it }, singleLine = true,
+        // Q1：过滤+排序移出主线程——48k 图标包逐击键排序会卡顿。输入防抖
+        // 200ms；重算期间保留旧结果（produceState 按键重启自动取消在飞计算）
+        var queryInput by rememberSaveable(draftPack) { mutableStateOf("") }
+        val query by produceState(initialValue = "", queryInput) {
+            kotlinx.coroutines.delay(200)
+            value = queryInput
+        }
+        OutlinedTextField(queryInput, { queryInput = it }, singleLine = true,
             placeholder = { Text(stringResource(R.string.icon_pack_search_hint)) },
             modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(4.dp))
-        val displayIcons = remember(packIcons, query, state.packageName, state.appName) {
-            IconPackEngine.sortPackIcons(packIcons, state.packageName, state.appName, query)
+        val displayIcons by produceState(
+            initialValue = packIcons, packIcons, query, state.packageName, state.appName
+        ) {
+            value = withContext(Dispatchers.Default) {
+                IconPackEngine.sortPackIcons(packIcons, state.packageName, state.appName, query)
+            }
         }
         Text("${displayIcons.size}/${packIcons.size} ${stringResource(R.string.icons_available)}",
             style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(4.dp))
 
-        // ME-03: columns follow available width (≥120dp per cell), never a fixed 4
-        val screenWidthDp = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
-        val columns = maxOf(3, screenWidthDp / 120)
+        // Q16：列数交给 Adaptive 按实际约束（含 padding/间距）计算——窄窗自动
+        // 降列数保住 120dp 每格下限，宽窗不再有整除误差导致的挤格
         LazyVerticalGrid(
-            columns = GridCells.Fixed(columns),
+            columns = GridCells.Adaptive(120.dp),
             contentPadding = PaddingValues(bottom = 24.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),

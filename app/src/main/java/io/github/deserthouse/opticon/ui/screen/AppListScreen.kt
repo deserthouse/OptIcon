@@ -162,9 +162,10 @@ fun AppListScreen(
             TopAppBar(
                 title = {
                     // Tap the title bar to jump back to the top.
+                    // Q13：触控目标补足 48dp 下限（D5 四问④）——不撑高顶栏视觉
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.clip(OptShapes.medium).clickable {
+                        modifier = Modifier.heightIn(min = 48.dp).clip(OptShapes.medium).clickable {
                             scope.launch { listState.animateScrollToItem(0) }
                         }
                     ) {
@@ -175,8 +176,10 @@ fun AppListScreen(
                             fontFamily = FontFamily.Serif
                         )
                         Spacer(Modifier.width(10.dp))
+                        // Q18：带 build 后缀的 stage（"alpha.1"）此前落 else 显示
+                        // 正式色——先按 '.' 截断再判档
                         val stage = io.github.deserthouse.opticon.BuildConfig.VERSION_NAME
-                            .substringAfter('-', "")
+                            .substringAfter('-', "").substringBefore('.', "")
                         val (badgeBg, badgeFg) = when (stage) {
                             "alpha" -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
                             "beta" -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
@@ -288,7 +291,10 @@ fun AppListScreen(
                         item(key = "empty") {
                             EmptyState(
                                 searchQuery = state.searchQuery,
-                                visibilityBlocked = state.installedCount in 1..2,
+                                // Q17：0 也可能是可见性完全阻断（而非真空空如也）——
+                                // 启发式来源=HyperOS 可见性修复遗产（q=1..2 时
+                                // system 可见数骤减），不得回退该修复
+                                visibilityBlocked = state.installedCount in 0..2,
                                 onClearSearch = { viewModel.setSearchQuery("") },
                                 modifier = Modifier.fillParentMaxWidth()
                             )
@@ -381,6 +387,9 @@ private fun HeroStatusCard(active: Boolean?, modifiedCount: Int, onClick: () -> 
             // Terminal settle uses SLOW (600ms); the 1300ms half-cycle above
             // is a deliberate un-tokened value (no matching token, half of
             // the original 2600ms round trip).
+            // Q12：终态↔终态翻转（如连接态关 master）也走完整形变——
+            // 此前 Morph 重建而 progress 已在 1f，形状瞬跳无过渡
+            morphProgress.snapTo(0f)
             morphProgress.animateTo(1f, tween(MotionTokens.SLOW, easing = FastOutSlowInEasing))
         }
     }

@@ -98,6 +98,22 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     init {
         // Run slow checks off main thread (H2 fix)
         viewModelScope.launch { recheckStatuses() }
+        // Q2c：构造期文件/MediaStore 读移 IO——订阅计数与强制单色策略位
+        // 异步回填（首页/设置首帧用默认值，毫秒级翻转不可感）
+        viewModelScope.launch {
+            val app = getApplication<Application>()
+            val counts = withContext(Dispatchers.IO) {
+                Triple(
+                    SubscriptionManager.getIconCount(app),
+                    PicpEngine.getIndexedCount(app),
+                    io.github.deserthouse.opticon.engine.SharedIconStore.readColorMode()
+                )
+            }
+            _aniaIconCount.value = counts.first
+            _picpCount.value = counts.second
+            _forceMono.value = counts.third == "force_mono"
+            _forceMonoUnknown.value = counts.third == null
+        }
     }
 
     /** 手动重检: LSPosed 活性 + Root 可用性 (状态卡刷新按钮)。
@@ -144,7 +160,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     // failure by matching English substrings inside the status text.
     private val _aniaSyncFailed = MutableStateFlow(false)
     val aniaSyncFailed: StateFlow<Boolean> = _aniaSyncFailed.asStateFlow()
-    private val _aniaIconCount = MutableStateFlow(SubscriptionManager.getIconCount(getApplication()))
+    private val _aniaIconCount = MutableStateFlow(0)
     val aniaIconCount: StateFlow<Int> = _aniaIconCount.asStateFlow()
     private val _aniaSyncing = MutableStateFlow(false)
     val aniaSyncing: StateFlow<Boolean> = _aniaSyncing.asStateFlow()
@@ -158,7 +174,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val picpSyncStatus: StateFlow<String?> = _picpSyncStatus.asStateFlow()
     private val _picpSyncFailed = MutableStateFlow(false)
     val picpSyncFailed: StateFlow<Boolean> = _picpSyncFailed.asStateFlow()
-    private val _picpCount = MutableStateFlow(PicpEngine.getIndexedCount(getApplication()))
+    private val _picpCount = MutableStateFlow(0)
     val picpCount: StateFlow<Int> = _picpCount.asStateFlow()
     private val _picpSyncing = MutableStateFlow(false)
     val picpSyncing: StateFlow<Boolean> = _picpSyncing.asStateFlow()
@@ -193,31 +209,33 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     // ━━ #13 色彩策略矩阵：全局强制单色（默认关，写共享文件供 hook 读取） ━━
-    private val _forceMono = MutableStateFlow(
-        io.github.deserthouse.opticon.engine.SharedIconStore.readColorMode() == "force_mono"
-    )
+    // Q2c：readColorMode 文件读移 init 的 IO 块异步回填（毫秒级，首帧默认关）
+    private val _forceMono = MutableStateFlow(false)
     val forceMono: StateFlow<Boolean> = _forceMono.asStateFlow()
 
     /** True when the policy file exists but could not be read (owner/EACCES):
      *  the switch then shows OFF without knowing the truth — surface that. */
-    private val _forceMonoUnknown = MutableStateFlow(
-        io.github.deserthouse.opticon.engine.SharedIconStore.readColorMode() == null
-    )
+    private val _forceMonoUnknown = MutableStateFlow(false)
     val forceMonoUnknown: StateFlow<Boolean> = _forceMonoUnknown.asStateFlow()
 
     fun setForceMono(enabled: Boolean) {
-        val written = io.github.deserthouse.opticon.engine.SharedIconStore.writeColorMode(
-            getApplication(), if (enabled) "force_mono" else "off"
-        )
-        if (written == null) {
-            // Optimistic flip would desync UI from storage — revert and tell.
-            _toastEvent.value = getApplication<Application>().getString(
-                io.github.deserthouse.opticon.R.string.sync_write_failed
-            )
-            return
+        // Q2a：共享目录写盘（含 .nomedia/迁移检查）移出主线程
+        viewModelScope.launch {
+            val written = withContext(Dispatchers.IO) {
+                io.github.deserthouse.opticon.engine.SharedIconStore.writeColorMode(
+                    getApplication(), if (enabled) "force_mono" else "off"
+                )
+            }
+            if (written == null) {
+                // Optimistic flip would desync UI from storage — revert and tell.
+                _toastEvent.value = getApplication<Application>().getString(
+                    io.github.deserthouse.opticon.R.string.sync_write_failed
+                )
+                return@launch
+            }
+            _forceMono.value = enabled
+            _forceMonoUnknown.value = false  // a successful write is self-verifying
         }
-        _forceMono.value = enabled
-        _forceMonoUnknown.value = false  // a successful write is self-verifying
     }
 
     fun setVerboseLogging(enabled: Boolean) {
@@ -394,6 +412,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun dismissInfo() { _infoMessage.value = null }
     fun consumeToast() { _toastEvent.value = null }
+
+    /** Q19：语言应用失败的用户可见反馈（此前只写 TraceLogger 静默）。 */
+    fun notifyLocaleApplyFailed() {
+        _toastEvent.value = getApplication<Application>().getString(
+            io.github.deserthouse.opticon.R.string.locale_apply_failed
+        )
+    }
 
     /** 解锁后直接展开/收起（含 UI 上的 chevron 按钮），不再走彩蛋计数流程 */
     fun toggleEasterEgg() {
