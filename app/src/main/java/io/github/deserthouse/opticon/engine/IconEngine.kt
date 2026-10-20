@@ -220,6 +220,8 @@ object IconEngine {
             val white = IconTint.toWhite(bitmap) ?: return BakeResult(null, HitSource.AUTO_MISS, "tint failed")
             if (bitmap !== white) bitmap.recycle()
             val scaled = IconTint.scaleAndTintWhite(white, params.scale.coerceIn(0.5f, 1.0f), OUTPUT_SIZE) ?: white
+            // K7（Z3）：scaleAndTintWhite 恒返回新位图——white 成孤儿即回收
+            if (scaled !== white) white.recycle()
             // V01（Y3）：成功出口返回实际产物——旧实现丢弃 scaled 返回 null，
             // 手选图标包"浏览/Apply 全对但保存必拒"（AVD 复核 V01 断路）
             BakeResult(scaled, HitSource.ICONPACK_MANUAL, "$drawableName")

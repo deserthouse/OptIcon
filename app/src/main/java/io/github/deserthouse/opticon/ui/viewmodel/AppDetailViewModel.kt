@@ -81,8 +81,8 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         // C07（X6）：同 pkg 已加载则跳过——Activity 重建时 LaunchedEffect 重跑
         // 不得用持久值覆盖尚未保存的草稿
         if (_state.value.packageName == packageName && _state.value.appName.isNotBlank()) return
-        // 同步读取开关状态（经仓库：迁移先行，消除"迁移前值"窗口——C10）
-        val initialEnabled = AppIconConfigRepository.load(packageName).enabled
+        // K9（Z3）：主线程只做纯读（无迁移写）——迁移/校验在异步块经仓库完成
+        val initialEnabled = PreferenceManager.isMethodEnabled(packageName)
         _state.update { it.copy(packageName = packageName, methodEnabled = initialEnabled) }
         viewModelScope.launch {
             val context = getApplication<Application>().applicationContext
@@ -304,26 +304,46 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         val gen = algoClassGeneration.incrementAndGet()
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
-                val app = getApplication<Application>()
-                val bmp = decodeFileOrUri(app, uri)
-                    ?: return@withContext null // 解码失败：保持旧选择（下方反馈）
-                val px = IntArray(bmp.width * bmp.height)
-                bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
-                val classified = IconRedrawEngine.classifyInput(px, bmp.width)
-                // V02（Y2）：内容寻址副本——同字节复用、不同字节永不覆写旧文件，
-                // 放弃/失败对已提交源零副作用。原色字节不预白化（重绘需要原始色距）
-                val assetsDir = File(app.filesDir, "assets").apply { mkdirs() }
-                val bytes = try {
-                    app.contentResolver.openInputStream(android.net.Uri.parse(uri))?.use { it.readBytes() }
-                        ?: bmp.toPngBytes()
-                } catch (_: Exception) {
-                    bmp.toPngBytes()
+                try {
+                    val app = getApplication<Application>()
+                    // 原始字节全量读入（内容寻址需要）——文件量级，安全
+                    val bytes: ByteArray = if (uri.startsWith("content://")) {
+                        app.contentResolver.openInputStream(android.net.Uri.parse(uri))?.use { it.readBytes() }
+                            ?: return@withContext null
+                    } else {
+                        File(android.net.Uri.parse(uri).path ?: uri).takeIf { it.exists() }?.readBytes()
+                            ?: return@withContext null
+                    }
+                    // K5（Z2）：采样解码——长边 ≤512，分类/副本/预览都不需要全分辨率
+                    val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                    var sample = 1
+                    while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 512) sample *= 2
+                    val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
+                    val bmp = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+                        ?: return@withContext null
+                    val px = IntArray(bmp.width * bmp.height)
+                    bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
+                    val classified = IconRedrawEngine.classifyInput(px, bmp.width)
+                    // K3（Z2）：内容寻址 + tmp 原子落盘——同字节复用，半写永不进正名
+                    val assetsDir = File(app.filesDir, "assets").apply { mkdirs() }
+                    val sha = io.github.deserthouse.opticon.engine.publish.PublishCore.sha256(bytes)
+                    val stable = File(assetsDir, "upload-$sha.png")
+                    if (!stable.exists() || stable.length() != bytes.size.toLong()) {
+                        val tmp = File(assetsDir, "upload-$sha.png.tmp")
+                        tmp.writeBytes(bytes)
+                        if (!tmp.renameTo(stable)) {
+                            tmp.delete()
+                            return@withContext null
+                        }
+                    }
+                    bmp.recycle()
+                    classified to stable.absolutePath
+                } catch (e: Exception) {
+                    // K4（Z2）：落盘/解码 IOException 不崩溃——保持旧选择
+                    android.util.Log.w("OptIcon/AppDetailVM", "applyUploadedIcon: ${e.message}")
+                    null
                 }
-                val sha = io.github.deserthouse.opticon.engine.publish.PublishCore.sha256(bytes)
-                val stable = File(assetsDir, "upload-$sha.png")
-                if (!stable.exists()) stable.writeBytes(bytes) // 已存在=同内容复用，绝不覆写
-                bmp.recycle()
-                classified to stable.absolutePath
             }
             if (algoClassGeneration.get() != gen) return@launch // 过期结果丢弃
             if (result == null) {
@@ -503,14 +523,19 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                             ctx, pkg, bakeResult.bitmap!!, old.toJson(), newConfig.toJson()
                         ) ?: return@withContext "prepare"
                         if (!io.github.deserthouse.opticon.engine.PublishTransaction.recordIntent(ctx, op)) {
+                            // K10（Z1a）：record 失败也走补偿——幂等清理已写的私有残留
+                            io.github.deserthouse.opticon.engine.PublishTransaction.compensate(ctx, op)
                             return@withContext "record"
                         }
                         if (!io.github.deserthouse.opticon.engine.PublishTransaction.publish(ctx, op)) {
                             val compensated = io.github.deserthouse.opticon.engine.PublishTransaction.compensate(ctx, op)
                             if (compensated) {
                                 // 双保险：回写完整旧配置（本流程未先写配置，等值防御）
-                                AppIconConfigRepository.save(old)
-                                "publish"
+                                val rolled = AppIconConfigRepository.save(old)
+                                // K1（Z1a）：补偿成功即清账——残留记录会在重启时回滚后继
+                                // 成功保存（K1 触发链）；配置回滚失败则留 Partial 待收敛
+                                if (rolled) io.github.deserthouse.opticon.engine.PublishTransaction.complete(ctx, op)
+                                if (rolled) "publish" else "partial"
                             } else {
                                 "partial" // 补偿也失败 → 记录保留，重启恢复收敛
                             }
@@ -647,36 +672,21 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         setExecutable(true, false)
         setReadable(true, false)
     }
-    /** OI-06: returns true only when the private bake AND the shared-dir
-     *  delivery both succeeded — the caller must treat false as a failed
-     *  save (rollback + retry), never report "saved". */
-    private fun writeBaked(pkg: String, bitmap: Bitmap, sourceName: String): Boolean {
-        return try {
-            val dir = bakeDir()
-            val pngFile = File(dir, "$pkg.png")
-            FileOutputStream(pngFile).use { if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) return false }
-            pngFile.setReadable(true, false) // World-readable for SystemUI
-            val metaFile = File(dir, "$pkg.meta")
-            metaFile.writeText(sourceName, Charsets.UTF_8)
-            metaFile.setReadable(true, false)
-            // Production delivery: publish to shared Downloads dir (SystemUI hook reads there)
-            io.github.deserthouse.opticon.engine.SharedIconStore.mirrorIconToShared(getApplication(), pngFile, pkg) != null
-        } catch (_: Exception) { false }
+    private fun drawableToBitmap(d: Drawable, size: Int): Bitmap {
+        if (d is BitmapDrawable && d.bitmap != null) return Bitmap.createScaledBitmap(d.bitmap, size, size, true)
+        val b = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888); d.setBounds(0, 0, size, size); d.draw(Canvas(b)); return b
     }
+
+    /** V05+K2（Z2）：终态幂等删除——hook 只读共享 canonical 文件，它不存在即
+     *  交付终态达成；私有位删除照常判定；仅实际残留报失败（假告警已修）。 */
     private fun deleteBaked(pkg: String): Boolean {
-        // V05（Y4）：按最终状态判定——目标本就不存在=幂等成功，不制造假告警；
-        // 只有实际残留（存在但删不掉/索引与文件失配）才报失败
         val png = File(bakeDir(), "$pkg.png")
         val meta = File(bakeDir(), "$pkg.meta")
         val private1 = if (png.exists()) runCatching { png.delete() }.getOrDefault(false) else true
         val private2 = if (meta.exists()) runCatching { meta.delete() }.getOrDefault(false) else true
-        val shared = io.github.deserthouse.opticon.engine.SharedIconStore.deleteIcon(getApplication(), pkg)
-        return shared || (private1 && private2)
-    }
-
-    private fun drawableToBitmap(d: Drawable, size: Int): Bitmap {
-        if (d is BitmapDrawable && d.bitmap != null) return Bitmap.createScaledBitmap(d.bitmap, size, size, true)
-        val b = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888); d.setBounds(0, 0, size, size); d.draw(Canvas(b)); return b
+        io.github.deserthouse.opticon.engine.SharedIconStore.deleteIcon(getApplication(), pkg)
+        val sharedGone = !io.github.deserthouse.opticon.engine.SharedIconStore.iconFile(pkg).exists()
+        return sharedGone && private1 && private2
     }
 
     private fun decodeFileOrUri(context: android.content.Context, path: String): Bitmap? {

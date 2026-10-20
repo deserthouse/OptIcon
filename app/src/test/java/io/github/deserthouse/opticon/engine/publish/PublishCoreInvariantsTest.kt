@@ -359,4 +359,37 @@ class PublishCoreInvariantsTest {
         assertEquals(listOf(OLD_CFG), applied)
         assertFalse(File(opsDir, "${op.opId}.json").exists())
     }
+
+    // ━━ K1：同包吸收 + 后继检测 ━━
+
+    @Test
+    fun `complete absorbs stale same-pkg records`() {
+        newCore()
+        // T1 残留（Partial 时代遗留）
+        opsDir.mkdirs()
+        File(opsDir, "stale-t1.json").writeText(
+            """{"opId":"stale-t1","pkg":"com.a","ts":1,"backup":"","new":"${tmp.root.path}/nowhere.png","sha":""}"""
+        )
+        val op = core.prepare("com.a", NEW, OLD_CFG, NEW_CFG)!!
+        assertTrue(core.record(op))
+        assertTrue(core.publish(op))
+        core.complete(op)
+        // 同包残留被吸收
+        assertFalse(File(opsDir, "stale-t1.json").exists())
+        assertFalse(File(opsDir, "${op.opId}.json").exists())
+    }
+
+    @Test
+    fun `branch3 with consumed backup clears record only`() {
+        newCore()
+        val op = core.prepare("com.a", OLD, OLD_CFG, NEW_CFG)!!
+        store.delivered["com.a"] = OLD
+        val op2 = core.prepare("com.a", NEW, OLD_CFG, NEW_CFG)!!
+        assertTrue(core.record(op2))
+        // 后继清场：备份文件被删（模拟 K1 场景——后继 complete 清了同名旧式备份）
+        assertTrue(File(op2.backupPath!!).delete())
+        // 交付位此时仍是 OLD（T1 前）→ 非本事务产物 → 只清记录
+        core.recover { true }
+        assertFalse(File(opsDir, "${op2.opId}.json").exists())
+    }
 }

@@ -58,25 +58,10 @@ data class AppDetailState(
     val previewMode: StatusBarMode = StatusBarMode.DARK
 )
 
-/** 2 offline strategies. */
-enum class IconStrategy {
-    FANKES,
-    ASSET_IMPORT,
-    ALGORITHM
-}
-
-enum class AssetSubStrategy {
-    ICON_PACK,
-    ADAPTIVE_DECOMPOSE,
-    PERFECT_ICONS
-}
-
-enum class AlgoSource {
-    SELF,
-    LOCAL_FILE,
-    MATERIAL_LIB,
-    EMOJI_TEXT
-}
+// Z4（架构前置①）：领域枚举迁至 domain 包，ui.state 保留 typealias 兼容层
+typealias IconStrategy = io.github.deserthouse.opticon.domain.IconStrategy
+typealias AssetSubStrategy = io.github.deserthouse.opticon.domain.AssetSubStrategy
+typealias AlgoSource = io.github.deserthouse.opticon.domain.AlgoSource
 
 enum class StatusBarMode(@androidx.annotation.StringRes val labelRes: Int) {
     DARK(R.string.preview_mode_dark),

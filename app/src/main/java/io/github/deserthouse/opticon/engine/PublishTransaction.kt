@@ -113,6 +113,11 @@ object PublishTransaction {
             null
         }
 
-        override fun remove(pkg: String): Boolean = SharedIconStore.deleteIcon(context, pkg)
+        override fun remove(pkg: String): Boolean = try {
+            // 终态语义（K8）：canonical 文件不存在即 true（对齐 PublishStore 契约）
+            SharedIconStore.deleteIcon(context, pkg) || !SharedIconStore.iconFile(pkg).exists()
+        } catch (_: Exception) {
+            false
+        }
     }
 }

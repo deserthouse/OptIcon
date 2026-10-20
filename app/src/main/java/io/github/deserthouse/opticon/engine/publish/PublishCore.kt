@@ -42,7 +42,9 @@ class PublishCore(
         /** 新产物字节 SHA-256（交付位一致性判据） */
         val newSha: String,
         /** 事务开始时交付位旧内容的字节快照路径；null=当时交付位为空（C04） */
-        val sharedBackupPath: String? = null
+        val sharedBackupPath: String? = null,
+        /** Z1c：事务开始时交付位旧内容的 SHA；null=当时交付位为空。恢复分支的精确判据 */
+        val oldSha: String? = null
     )
 
     // ━━ 阶段 1：准备 ━━
@@ -51,8 +53,12 @@ class PublishCore(
         synchronized(lock) {
             try {
                 bakedDir.mkdirs()
+                val opId = UUID.randomUUID().toString()
+                val opId8 = opId.take(8)
                 val newFile = File(bakedDir, "$pkg.png")
-                val oldFile = File(bakedDir, "$pkg.old.png")
+                // K1（Z1b）：备份带 opId——pkg 常量名会被后继事务的 complete 清掉，
+                // 残留记录的恢复源随之丢失（K1 分支3 永久 Partial 的根因）
+                val oldFile = File(bakedDir, "$pkg.old-$opId8.png")
                 val backupPath = if (newFile.exists()) {
                     newFile.copyTo(oldFile, overwrite = true)
                     oldFile.absolutePath
@@ -60,16 +66,19 @@ class PublishCore(
                 newFile.writeBytes(pngBytes)
                 // C04：交付位旧内容快照——私有 baked 备份不代表共享权威旧态；
                 // 首次自定义发布覆盖了规则库镜像等共享内容时，补偿的恢复源在此
-                val sharedBackupPath = store.readDelivered(pkg)?.let { oldShared ->
-                    val bak = File(bakedDir, "$pkg.shared.bak")
+                val deliveredOld = store.readDelivered(pkg)
+                val sharedBackupPath = deliveredOld?.let { oldShared ->
+                    val bak = File(bakedDir, "$pkg.shared-$opId8.bak")
                     bak.writeBytes(oldShared)
                     bak.absolutePath
                 }
                 PendingOp(
+                    opId = opId,
                     pkg = pkg, backupPath = backupPath, newPath = newFile.absolutePath,
                     oldConfigJson = oldConfigJson, newConfigJson = newConfigJson,
                     newSha = sha256(pngBytes),
-                    sharedBackupPath = sharedBackupPath
+                    sharedBackupPath = sharedBackupPath,
+                    oldSha = deliveredOld?.let { sha256(it) }
                 )
             } catch (e: Exception) {
                 log.e("prepare failed: ${e.message}")
@@ -146,6 +155,12 @@ class PublishCore(
                 File(opsDir, "${op.opId}.json").delete()
                 op.backupPath?.let { File(it).delete() }
                 op.sharedBackupPath?.let { File(it).delete() }
+                // K1（Z1）：同包吸收——本事务成功收敛后，同 pkg 的其他残留记录
+                // 全部作废（它们描述的状态已被后继覆盖，恢复只会造成回滚）
+                opsDir.listFiles { f -> f.name.endsWith(".json") }?.forEach { stale ->
+                    val stalePkg = runCatching { fromRecord(stale.readText())?.pkg }.getOrNull()
+                    if (stalePkg == op.pkg) stale.delete()
+                }
             } catch (_: Exception) {
             }
         }
@@ -185,6 +200,8 @@ class PublishCore(
                     log.e("compensate: shared-restore bytes mismatch for ${op.pkg}")
                     return false
                 }
+                // K6（Z2）：契约"三者一致"——私有 newPath 同步回写
+                File(op.newPath).writeBytes(bytes)
                 log.i("compensate: restored previous shared artifact for ${op.pkg}")
                 true
             } else if (backupPath != null) {
@@ -297,6 +314,9 @@ class PublishCore(
                                 }
                             }
                             // 发布未完成且有旧产物备份 → 恢复旧版
+                            // K1（Z1c）：备份文件已被后继事务清场（按 opId 命名后缺失
+                            // 即真缺失）且交付位非本事务产物 → 无可恢复内容，只清记录
+                            // 发布未完成且有旧产物备份 → 恢复旧版（后继已在顶部拦截）
                             op.backupPath != null -> {
                                 val backup = File(op.backupPath)
                                 val backupBytes = if (backup.exists()) backup.readBytes() else null
@@ -326,19 +346,34 @@ class PublishCore(
                                 }
                             }
                             // 首次发布且新产物未交付
+                            // K1（Z1c）：oldSha 精确三态——
+                            //   a) 交付位仍是事务前内容（SHA 相符或双方皆空）→ 回退安全
+                            //   b) 交付位是后继写入（≠oldSha≠newSha）→ 未知状态只清记录
+                            //   c) 交付位为空且 oldSha=null → 事务前后皆空，回退
                             else -> {
-                                if (delivered == null) {
-                                    store.remove(op.pkg) // 尽力清理可能残留
-                                    File(op.newPath).delete()
-                                } else {
-                                    log.i("recover ${op.pkg}: delivered content is not ours; kept")
-                                }
-                                if (applyOld()) {
+                                val wasEmptyBefore = op.oldSha == null
+                                val matchesPreState = delivered != null && op.oldSha != null &&
+                                    deliveredSha == op.oldSha
+                                if (delivered != null && !wasEmptyBefore && !matchesPreState &&
+                                    deliveredSha != op.newSha) {
+                                    // 后继写入（如后续保存已成功）→ 配置不得回滚，只清记录
+                                    log.i("recover ${op.pkg}: successor write detected — record only cleared")
                                     f.delete()
                                     op.sharedBackupPath?.let { File(it).delete() }
-                                    log.i("recover ${op.pkg}: first publish not delivered — reverted")
                                 } else {
-                                    log.e("recover ${op.pkg}: config revert failed — record kept (Partial)")
+                                    if (delivered == null) {
+                                        store.remove(op.pkg) // 尽力清理可能残留
+                                        File(op.newPath).delete()
+                                    } else {
+                                        log.i("recover ${op.pkg}: delivered content is not ours; kept")
+                                    }
+                                    if (applyOld()) {
+                                        f.delete()
+                                        op.sharedBackupPath?.let { File(it).delete() }
+                                        log.i("recover ${op.pkg}: first publish not delivered — reverted")
+                                    } else {
+                                        log.e("recover ${op.pkg}: config revert failed — record kept (Partial)")
+                                    }
                                 }
                             }
                         }
@@ -364,7 +399,8 @@ class PublishCore(
         "oldCfg" to op.oldConfigJson,
         "newCfg" to op.newConfigJson,
         "sha" to op.newSha,
-        "sharedBak" to op.sharedBackupPath
+        "sharedBak" to op.sharedBackupPath,
+        "oldSha" to op.oldSha
     )
 
     /** 兼容 v0.13/14 旧记录（无 stage/sha/config 字段）：sha=""永不与交付位相符 → 走备份/保留分支 */
@@ -383,7 +419,8 @@ class PublishCore(
         val newCfg = jsonGetString(json, "newCfg")?.takeIf { it.isNotBlank() }
         val sha = jsonGetString(json, "sha") ?: ""
         val sharedBak = jsonGetString(json, "sharedBak")?.takeIf { it.isNotBlank() }
-        return PendingOp(opId, pkg, ts, backup, newPath, stage, oldCfg, newCfg, sha, sharedBak)
+        val oldSha = jsonGetString(json, "oldSha")?.takeIf { it.isNotBlank() }
+        return PendingOp(opId, pkg, ts, backup, newPath, stage, oldCfg, newCfg, sha, sharedBak, oldSha)
     }
 
     private val lock = Any()

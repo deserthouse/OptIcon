@@ -23,4 +23,10 @@ object PublishCoordinator {
 
     /** 进程内只放行一次启动恢复；重复调用（Activity 重建）返回 false */
     fun beginRecoveryOnce(): Boolean = recoveryStarted.compareAndSet(false, true)
+
+    /** 阻塞式入口——供非协程回调（如同步库的 onResult）在后台线程调用。
+     *  仅限 IO 线程；主线程调用会卡 UI 且有 ANR 风险。 */
+    fun <T> withPipelineBlocking(block: () -> T): T = kotlinx.coroutines.runBlocking {
+        pipelineMutex.withLock { block() }
+    }
 }

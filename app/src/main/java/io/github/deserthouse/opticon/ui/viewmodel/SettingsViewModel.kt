@@ -288,10 +288,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                             // OI-02: skip apps the user has configured with a
                             // non-rules strategy — a rules update must never
                             // silently replace their authored icon.
-                            io.github.deserthouse.opticon.engine.SharedIconStore
-                                .mirrorAllFromDir(ctx, java.io.File(ctx.filesDir, "fankes_cache")) { pkg ->
-                                    PreferenceManager.isMethodEnabled(pkg) &&
-                                        PreferenceManager.getStrategy(pkg) != io.github.deserthouse.opticon.ui.state.IconStrategy.FANKES
+                            // Z4③（架构前置）：批量覆写共享产物与保存流水线互斥——
+                            // 这是 Coordinator 锁外最实际的交错写者
+                            io.github.deserthouse.opticon.engine.publish.PublishCoordinator
+                                .withPipelineBlocking {
+                                    io.github.deserthouse.opticon.engine.SharedIconStore
+                                        .mirrorAllFromDir(ctx, java.io.File(ctx.filesDir, "fankes_cache")) { pkg ->
+                                            PreferenceManager.isMethodEnabled(pkg) &&
+                                                PreferenceManager.getStrategy(pkg) != io.github.deserthouse.opticon.ui.state.IconStrategy.FANKES
+                                        }
                                 }
                         }
                         _aniaSyncing.value = false

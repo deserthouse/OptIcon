@@ -38,12 +38,8 @@ data class AppUiEntry(
     val modificationSource: ModificationSource = ModificationSource.NONE
 )
 
-enum class ModificationSource {
-    NONE,
-    ICON_LIBRARY,
-    ALGORITHM,
-    CUSTOM
-}
+// Z4（架构前置①）：定义迁 domain 包
+typealias ModificationSource = io.github.deserthouse.opticon.domain.ModificationSource
 
 enum class FilterMode(val label: String) {
     ALL("All"),
