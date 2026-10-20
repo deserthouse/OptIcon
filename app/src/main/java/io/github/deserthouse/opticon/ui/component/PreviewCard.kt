@@ -3,6 +3,7 @@ package io.github.deserthouse.opticon.ui.component
 import android.graphics.Bitmap
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -61,12 +62,11 @@ fun PreviewCard(
     // still follows the theme surface.
     val darkBar = PreviewSemanticBar.darkBg
     val lightBar = PreviewSemanticBar.lightBg
+    // D05（RB-5）：颜色/透明度属 effects——不过冲（MediumBouncy 弹簧会让
+    // 底色趋白回弹再稳定，AVD 录屏已观察）；改快速 tween 语义配对
     val bgColor by animateColorAsState(
         targetValue = if (mode == StatusBarMode.DARK) darkBar else lightBar,
-        animationSpec = spring(
-            stiffness = Spring.StiffnessMedium,
-            dampingRatio = Spring.DampingRatioMediumBouncy
-        ),
+        animationSpec = tween(durationMillis = 200),
         label = "previewBg"
     )
     // Foreground paired to the simulated bar's background, not to the theme.

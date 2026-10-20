@@ -101,6 +101,7 @@
     <string name="easter_egg_card_title">Some musings on vibe coding</string>
 
     <string name="search_apps">Search apps…</string>
+    <string name="search_clear_button">Clear search</string>
     <string name="no_apps">No apps found</string>
     <string name="scanning">Scanning</string>
     <string name="package_name_copied">Package name copied</string>

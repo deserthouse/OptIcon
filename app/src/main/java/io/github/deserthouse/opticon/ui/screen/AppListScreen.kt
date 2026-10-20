@@ -259,17 +259,21 @@ fun AppListScreen(
                                 modifiedCount = state.apps.count { it.isUserModified },
                                 onClick = onNavigateToSettings
                             )
-                            Text(
-                                text = stringResource(R.string.about_slogan),
-                                style = MaterialTheme.typography.labelLarge.copy(
-                                    fontFamily = FontFamily.Serif,
-                                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
-                                ),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp)
-                            )
+                            // D02（RB-4）：标语仅检查/异常态保留（异常才强调）；
+                            // 正常运行时让找应用成为主任务
+                            if (state.lsposedActive != true) {
+                                Text(
+                                    text = stringResource(R.string.about_slogan),
+                                    style = MaterialTheme.typography.labelLarge.copy(
+                                        fontFamily = FontFamily.Serif,
+                                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp)
+                                )
+                            }
                         }
                     }
                     if (state.isScanning) {
@@ -285,11 +289,14 @@ fun AppListScreen(
                             EmptyState(
                                 searchQuery = state.searchQuery,
                                 visibilityBlocked = state.installedCount in 1..2,
+                                onClearSearch = { viewModel.setSearchQuery("") },
                                 modifier = Modifier.fillParentMaxWidth()
                             )
                         }
                     } else {
                         grouped.forEach { (group, apps) ->
+                            // D02（RB-4）：空组不占整段标题
+                            if (apps.isEmpty()) return@forEach
                             item(key = "header_${group.name}") {
                                 GroupHeader(group = group, count = apps.size)
                             }
@@ -616,7 +623,12 @@ private fun GroupHeader(group: AppGroup, count: Int) {
 }
 
 @Composable
-private fun EmptyState(searchQuery: String, visibilityBlocked: Boolean = false, modifier: Modifier = Modifier) {
+private fun EmptyState(
+    searchQuery: String,
+    visibilityBlocked: Boolean = false,
+    onClearSearch: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
@@ -649,5 +661,18 @@ private fun EmptyState(searchQuery: String, visibilityBlocked: Boolean = false, 
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
+        // D02（RB-4）：搜索无结果给就地重置——不再只有通用说明
+        if (!searchQuery.isBlank() && onClearSearch != null) {
+            Spacer(Modifier.height(10.dp))
+            androidx.compose.material3.TextButton(
+                onClick = { onClearSearch.invoke() },
+                shape = OptShapes.medium
+            ) {
+                Text(
+                    stringResource(R.string.search_clear_button),
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
+        }
     }
 }

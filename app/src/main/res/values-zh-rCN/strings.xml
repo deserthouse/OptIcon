@@ -101,6 +101,7 @@
     <string name="easter_egg_card_title">关于 vibe coding 的一点碎碎念</string>
 
     <string name="search_apps">搜索应用\u2026</string>
+    <string name="search_clear_button">清除搜索</string>
     <string name="no_apps">未找到应用</string>
     <string name="scanning">扫描中</string>
     <string name="package_name_copied">包名已复制</string>

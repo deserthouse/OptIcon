@@ -38,6 +38,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.deserthouse.opticon.R
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -133,7 +134,10 @@ fun AppDetailScreen(
             else -> onNavigateBack()
         }
     }
-    androidx.activity.compose.BackHandler { requestLeave() }
+    // D05（RB-5）：干净页交还 NavHost 预测返回；脏/保存中才拦截
+    if (isDirty || saveState == SaveState.Saving) {
+        androidx.activity.compose.BackHandler { requestLeave() }
+    }
     LaunchedEffect(saveState) {
         if (saveState == SaveState.SavedAndExit) onNavigateBack()
     }
@@ -193,7 +197,7 @@ fun AppDetailScreen(
         }
     ) { padding ->
         Column(
-            Modifier.fillMaxSize().padding(padding)
+            Modifier.fillMaxSize().widthIn(max = 640.dp).padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
         ) {
