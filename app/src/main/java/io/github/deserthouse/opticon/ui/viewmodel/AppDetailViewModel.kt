@@ -58,9 +58,10 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
 
     /** A05（F2-2）：草稿版本号——每次编辑递增。保存完成时仅当快照版本仍为
      *  最新才清 dirty，保存期间的新编辑保持未保存状态。 */
-    private val draftRevision = java.util.concurrent.atomic.AtomicInteger(0)
+    // RB-1：三手工计数器收敛于 EditorSessionCore（revision/inputVersion/previewRound）
+    private val session = io.github.deserthouse.opticon.ui.session.EditorSessionCore()
     private fun markDirty() {
-        draftRevision.incrementAndGet()
+        session.touch()
         _isDirty.value = true
     }
 
@@ -188,7 +189,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         // must re-classify the app's own icon, otherwise "恢复自动" either
         // no-ops (null class) or reuses the previous upload's class.
         if (src == AlgoSource.SELF) {
-            val gen = algoClassGeneration.incrementAndGet()
+            val gen = session.bumpInput()
             viewModelScope.launch {
                 val pkg = _state.value.packageName
                 val cls = withContext(Dispatchers.IO) {
@@ -204,7 +205,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                         r
                     }
                 }
-                if (algoClassGeneration.get() != gen) return@launch   // 过期结果丢弃
+                if (!session.isCurrentInput(gen)) return@launch   // 过期结果丢弃
                 _algoInputClass.value = cls
                 if (cls != null) {
                     _state.update { it.copy(redrawParams = autoParamsFor(cls)) }
@@ -294,14 +295,12 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
 
     /** OI-13 补强（架构报告 §5）：分类协程的 generation 守卫——快速切换
      *  来源/素材时，晚到的旧分类结果不得回填覆盖新选择。 */
-    private val algoClassGeneration = java.util.concurrent.atomic.AtomicInteger(0)
-
     /** A04（F2-1）+C06（X5）：上传图片=解码校验 → 转存 App 私有稳定副本 →
      *  原子切源。content URI 不直接进长期配置（重启/授权失效后不可读）；
      *  私有副本以 App 属主常读，重绘随时可用原色字节。 */
     fun applyUploadedIcon(uri: String) {
         markDirty()
-        val gen = algoClassGeneration.incrementAndGet()
+        val gen = session.bumpInput()
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
                 try {
@@ -345,7 +344,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                     null
                 }
             }
-            if (algoClassGeneration.get() != gen) return@launch // 过期结果丢弃
+            if (!session.isCurrentInput(gen)) return@launch // 过期结果丢弃
             if (result == null) {
                 _saveFeedback.value = getApplication<Application>().getString(
                     io.github.deserthouse.opticon.R.string.upload_decode_failed
@@ -365,7 +364,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
     fun setCustomIconPath(path: String?) {
         markDirty()
         _state.update { it.copy(customIconPath = path) }
-        val gen = algoClassGeneration.incrementAndGet()
+        val gen = session.bumpInput()
         if (path == null) {
             _algoInputClass.value = null
             debouncePreview()
@@ -382,7 +381,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                     result
                 }
             }
-            if (algoClassGeneration.get() != gen) return@launch   // 过期结果丢弃
+            if (!session.isCurrentInput(gen)) return@launch   // 过期结果丢弃
             _algoInputClass.value = cls
             if (cls != null) {
                 _state.update { s -> s.copy(redrawParams = autoParamsFor(cls)) }
@@ -482,7 +481,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
     fun saveConfig(requestLeaveAfter: Boolean = false) {
         if (_saveState.value == SaveState.Saving) return
         val s = _state.value; val pkg = s.packageName
-        val savedRevision = draftRevision.get()
+        val savedRevision = session.saveStarted()
         _saveState.value = SaveState.Saving
         viewModelScope.launch {
             val ctx = getApplication<Application>().applicationContext
@@ -497,13 +496,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                 // A01（F1-3）：任何已提交数据被改动前固定旧配置快照——失败回滚
                 // 的对象是磁盘上的已提交值，不是本次草稿值。
                 val old = withContext(Dispatchers.IO) { AppIconConfigRepository.load(pkg) }
-                val newConfig = io.github.deserthouse.opticon.data.AppIconConfig(
-                    pkg = pkg, enabled = true, strategy = s.strategy,
-                    assetSubStrategy = s.assetSubStrategy, algoSource = s.algoSource,
-                    iconPackPkg = s.selectedIconPack, packDrawable = s.selectedPackIconDrawable,
-                    customIconPath = s.customIconPath, materialIconName = s.materialIconName,
-                    emojiText = s.emojiText, params = s.redrawParams
-                )
+                val newConfig = stateToConfig(s, enabled = true)
                 val bakeResult = withContext(Dispatchers.IO) { bakeCurrentState(ctx, s) }
                 if (bakeResult.bitmap == null) {
                     // 守卫拒绝：不发布、不提交配置，诚实引导换源（M4 条件四）
@@ -543,12 +536,12 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                             io.github.deserthouse.opticon.engine.PublishTransaction.compensate(ctx, op)
                             "commit"
                         } else {
-                            io.github.deserthouse.opticon.engine.PublishTransaction.complete(ctx, op)
-                            try { File(bakeDir(), "$pkg.meta").writeText(bakeResult.detail ?: "saved") } catch (_: Exception) {}
+                            // RB-1c：meta 归事务核管辖（baked/ 单一所有权）
+                            io.github.deserthouse.opticon.engine.PublishTransaction.complete(ctx, op, bakeResult.detail ?: "saved")
                             null
                         }
                     }
-                    if (failStage == null && draftRevision.get() == savedRevision) {
+                    if (failStage == null && session.revisionNow() == savedRevision) {
                         // C01：保存期间有新编辑时不回写——草稿字段（开关/来源等）优先于已提交快照
                         _state.update { it.copy(methodEnabled = true, hitSource = bakeResult.source) }
                     } else if (failStage == null) {
@@ -566,13 +559,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                 // 关闭路径（A07 前置语义）：提交 enabled=false 即权威（契约§2 关闭=回落规则库）；
                 // 产物清理尽力而为，失败如实反馈但不阻止关闭。
                 val cleanupOk = withContext(Dispatchers.IO) { deleteBaked(pkg) }
-                val newConfig = io.github.deserthouse.opticon.data.AppIconConfig(
-                    pkg = pkg, enabled = false, strategy = s.strategy,
-                    assetSubStrategy = s.assetSubStrategy, algoSource = s.algoSource,
-                    iconPackPkg = s.selectedIconPack, packDrawable = s.selectedPackIconDrawable,
-                    customIconPath = s.customIconPath, materialIconName = s.materialIconName,
-                    emojiText = s.emojiText, params = s.redrawParams
-                )
+                val newConfig = stateToConfig(s, enabled = false)
                 val committed = withContext(Dispatchers.IO) { AppIconConfigRepository.save(newConfig) }
                 if (!committed) {
                     ok = false
@@ -583,7 +570,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                         feedbackSet = true
                         _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.save_disable_cleanup_failed)
                     }
-                    if (draftRevision.get() == savedRevision) {
+                    if (session.revisionNow() == savedRevision) {
                         // C01：新草稿在场时不覆盖开关草稿值
                         _state.update { it.copy(methodEnabled = false, hitSource = HitSource.DISABLED) }
                     }
@@ -592,23 +579,37 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
             } // V06: PublishCoordinator.withPipeline end
 
             if (ok) {
-                // C01（X3）：新草稿在场时——不清 dirty、不自动离开、不覆盖草稿字段
-                val newerDraft = draftRevision.get() != savedRevision
-                _isDirty.value = newerDraft
-                when {
-                    requestLeaveAfter && newerDraft -> _saveState.value = SaveState.Saved // 留在页面：旧版已提交，新编辑仍待保存
-                    requestLeaveAfter -> _saveState.value = SaveState.SavedAndExit
-                    else -> _saveState.value = SaveState.Saved
-                }
-                if (!feedbackSet) {
-                    _saveFeedback.value = ctx.getString(
-                        if (newerDraft) io.github.deserthouse.opticon.R.string.save_partial_newer_draft
-                        else if (s.methodEnabled) io.github.deserthouse.opticon.R.string.config_saved
-                        else io.github.deserthouse.opticon.R.string.config_saved_disabled
-                    )
+                // C01（RB-1）：保存结算收敛于 EditorSessionCore——新草稿在场时
+                // 不清 dirty、不自动离开、不覆盖草稿字段
+                when (session.resolveSaveCompletion(savedRevision, ok = true, requestLeaveAfter = requestLeaveAfter)) {
+                    io.github.deserthouse.opticon.ui.session.EditorSessionCore.SaveOutcome.SavedStayDirty -> {
+                        _isDirty.value = true
+                        _saveState.value = SaveState.Saved
+                        if (!feedbackSet) {
+                            _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.save_partial_newer_draft)
+                        }
+                    }
+                    io.github.deserthouse.opticon.ui.session.EditorSessionCore.SaveOutcome.SavedExit -> {
+                        _isDirty.value = false
+                        _saveState.value = SaveState.SavedAndExit
+                        if (!feedbackSet) {
+                            _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.config_saved)
+                        }
+                    }
+                    else -> {
+                        _isDirty.value = false
+                        _saveState.value = SaveState.Saved
+                        if (!feedbackSet) {
+                            _saveFeedback.value = ctx.getString(
+                                if (s.methodEnabled) io.github.deserthouse.opticon.R.string.config_saved
+                                else io.github.deserthouse.opticon.R.string.config_saved_disabled
+                            )
+                        }
+                    }
                 }
             } else {
-                markDirty()
+                session.resolveSaveCompletion(savedRevision, ok = false, requestLeaveAfter = false)
+                _isDirty.value = true
                 _saveState.value = SaveState.Failed
             }
         }
@@ -617,10 +618,8 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
     private fun debouncePreview() { redrawDebounceJob?.cancel(); redrawDebounceJob = viewModelScope.launch { delay(DEBOUNCE_MS); runPreview() } }
     private fun computePreviewNow() { redrawDebounceJob?.cancel(); redrawDebounceJob = viewModelScope.launch { runPreview() } }
 
-    private val previewGeneration = java.util.concurrent.atomic.AtomicInteger(0)
-
     private suspend fun runPreview() {
-        val gen = previewGeneration.incrementAndGet()
+        val gen = session.nextPreviewRound()
         val s = _state.value
         // C08（X4）：关闭态不再画应用图标伪结果——契约回落=规则库/原生图标，
         // 启动图标轮廓不代表真实回落产物；空预览+既有关闭引导文案才是诚实表达
@@ -629,35 +628,33 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         try {
             val ctx = getApplication<Application>().applicationContext
             val result = withContext(Dispatchers.IO) { bakeCurrentState(ctx, s) }
-            if (previewGeneration.get() != gen) return // C05：过期任务不回填
+            if (!session.isLatestPreviewRound(gen)) return // C05：过期任务不回填
             _state.update { it.copy(previewBitmap = result.bitmap, hitSource = result.source) }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e // C05：取消继续传播，不清除新任务的进行中状态
         } catch (e: Exception) {
-            if (previewGeneration.get() != gen) return
+            if (!session.isLatestPreviewRound(gen)) return
             TraceLogger.w("OptIcon/AppDetailVM", "runPreview failed: ${e.message}")
             _state.update { it.copy(hitSource = HitSource.OTHER) }
         } finally {
-            if (previewGeneration.get() == gen) _state.update { it.copy(isRedrawing = false) }
+            if (session.isLatestPreviewRound(gen)) _state.update { it.copy(isRedrawing = false) }
         }
     }
+
+    /** RB-1b（架构前置⑤）：草稿 → 已提交配置的唯一构造映射（原三处重复收敛）。 */
+    private fun stateToConfig(s: AppDetailState, enabled: Boolean): io.github.deserthouse.opticon.data.AppIconConfig =
+        io.github.deserthouse.opticon.data.AppIconConfig(
+            pkg = s.packageName, enabled = enabled, strategy = s.strategy,
+            assetSubStrategy = s.assetSubStrategy, algoSource = s.algoSource,
+            iconPackPkg = s.selectedIconPack, packDrawable = s.selectedPackIconDrawable,
+            customIconPath = s.customIconPath, materialIconName = s.materialIconName,
+            emojiText = s.emojiText, params = s.redrawParams
+        )
 
     private fun bakeCurrentState(context: android.content.Context, s: AppDetailState): IconEngine.BakeResult {
         // A3（阶段 3）：统一烘焙入口——预览与保存共用同一生产路径。
         // VM 只负责从 UI 状态构造 config + inputs；引擎负责全部处理。
-        val config = io.github.deserthouse.opticon.data.AppIconConfig(
-            pkg = s.packageName,
-            enabled = s.methodEnabled,
-            strategy = s.strategy,
-            assetSubStrategy = s.assetSubStrategy,
-            algoSource = s.algoSource,
-            iconPackPkg = s.selectedIconPack,
-            packDrawable = s.selectedPackIconDrawable,
-            customIconPath = s.customIconPath,
-            materialIconName = s.materialIconName,
-            emojiText = s.emojiText,
-            params = s.redrawParams
-        )
+        val config = stateToConfig(s, enabled = s.methodEnabled)
         val inputs = io.github.deserthouse.opticon.engine.BakeInputs(
             adaptiveForeground = s.adaptiveForeground,
             perfectIconsBitmap = s.perfectIconsBitmap,

@@ -76,9 +76,9 @@ object PublishTransaction {
     fun publish(context: Context, op: PublishCore.PendingOp): Boolean =
         coreOf(context).publish(op)
 
-    /** 阶段 5：完成——清除 pending 记录与备份 */
-    fun complete(context: Context, op: PublishCore.PendingOp) =
-        coreOf(context).complete(op)
+    /** 阶段 5：完成——清除 pending 记录与备份；metaDetail 非空时落 $pkg.meta（baked/ 单一所有权，RB-1c） */
+    fun complete(context: Context, op: PublishCore.PendingOp, metaDetail: String? = null) =
+        coreOf(context).complete(op, metaDetail)
 
     /** 补偿：发布/提交失败时恢复旧产物；false = Partial（记录保留，等待重启恢复） */
     fun compensate(context: Context, op: PublishCore.PendingOp): Boolean =

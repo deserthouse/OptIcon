@@ -149,10 +149,13 @@ class PublishCore(
 
     // ━━ 阶段 5：完成 ━━
 
-    fun complete(op: PendingOp) {
+    fun complete(op: PendingOp, metaDetail: String? = null) {
         synchronized(lock) {
             try {
                 File(opsDir, "${op.opId}.json").delete()
+                if (metaDetail != null) {
+                    File(bakedDir, "${op.pkg}.meta").writeText(metaDetail)
+                }
                 op.backupPath?.let { File(it).delete() }
                 op.sharedBackupPath?.let { File(it).delete() }
                 // K1（Z1）：同包吸收——本事务成功收敛后，同 pkg 的其他残留记录
