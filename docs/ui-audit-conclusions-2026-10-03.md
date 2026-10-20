@@ -4,8 +4,8 @@
 > | 篇章 | 文档 | 内容 |
 > |---|---|---|
 > | 静态代码审计（同日） | 本目录 `ui-audit-2026-10-03.md` | O-1~O-11，file:line 证据 |
-> | AVD 真机走查（同日） | 本目录 `ui-audit-avd-2026-10-03.md` | A-1~A-5，截图证据（`Projects\android-ui-review-2026-10-03\opticon\`，14 张） |
-> | 三项目横评总报告 | `C:\Users\deser\Projects\android-ui-review-2026-10-03.md` / `...-avd.md` | 交叉对比与共性 |
+> | AVD 真机走查（同日） | 本目录 `ui-audit-avd-2026-10-03.md` | A-1~A-5，截图证据（`Projects\.archive\android-ui-review-2026-10-03\opticon\`，14 张） |
+> | 三项目横评总报告 | `C:\Users\deser\Projects\.archive\android-ui-review-2026-10-03\android-ui-review-2026-10-03.md` / `...-avd.md` | 交叉对比与共性 |
 > 走查版本：v0.9.4-beta（versionCode 57 debug 构建）；走查环境：A15_clean（API 35，无 LSPosed）——恰好覆盖"模块未激活用户"场景
 
 ## 一、总体结论

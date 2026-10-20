@@ -1,8 +1,8 @@
 # OptIcon UI 真机走查审计与修改意见（AVD 篇）
 
 > 审查日期：2026-10-03 · 方式：AVD 真机走查（A15_clean 实例，API 35，1080x2400；本仓 assembleDebug 构建 v0.9.4-beta-20261003-112724 → force-stop 后 `am start --activity-clear-task` 冷启 → 确定性坐标逐页导航 → 逐屏截图 → 读图评审；异常以 `logcat -b crash` 定性）
-> 姊妹文档：同日**静态代码审计**见本目录 `ui-audit-2026-10-03.md`（代码层问题 O-1~O-11）；三项目横评总报告见 `C:\Users\deser\Projects\android-ui-review-2026-10-03-avd.md`
-> 证据截图：`C:\Users\deser\Projects\android-ui-review-2026-10-03\opticon\`（下文以 `opticon/NN` 简称，共 14 张）
+> 姊妹文档：同日**静态代码审计**见本目录 `ui-audit-2026-10-03.md`（代码层问题 O-1~O-11）；三项目横评总报告见 `C:\Users\deser\Projects\.archive\android-ui-review-2026-10-03\android-ui-review-2026-10-03-avd.md`
+> 证据截图：`C:\Users\deser\Projects\.archive\android-ui-review-2026-10-03\opticon\`（下文以 `opticon/NN` 简称，共 14 张）
 > 环境说明：走查在**无 LSPosed 的 clean 实例**上做——这正好覆盖"模块未激活"用户的首启体验，下列 P2×2 均是该场景暴露的
 > 状态：全程零 crash；已与静态篇同批提交入库（2026-10-03）
 
