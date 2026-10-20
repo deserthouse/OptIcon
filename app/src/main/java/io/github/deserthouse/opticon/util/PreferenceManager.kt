@@ -158,6 +158,17 @@ object PreferenceManager {
     /** C10：显式 enabled 键存在性——legacy 迁移时用户明确的开关值优先于映射默认 */
     fun hasExplicitEnabledKey(pkgName: String): Boolean = prefs?.contains("$KEY_METHOD_ENABLED_PREFIX$pkgName") == true
 
+    /** RB-2：全部已提交 custom_path 值快照（AssetRepository 孤儿判定的引用集）。 */
+    fun allCustomIconPaths(): Set<String> = try {
+        val out = HashSet<String>()
+        prefs?.all?.forEach { (k, v) ->
+            if (k.startsWith(KEY_CUSTOM_PATH_PREFIX) && v is String && v.isNotBlank()) out.add(v)
+        }
+        out
+    } catch (_: Exception) {
+        emptySet()
+    }
+
     // 键名访问器：批量写入与逐键方法必须保持同一拼写
     fun keyStrategy(pkg: String) = "strategy_$pkg"
     fun keyMethodEnabled(pkg: String) = "$KEY_METHOD_ENABLED_PREFIX$pkg"

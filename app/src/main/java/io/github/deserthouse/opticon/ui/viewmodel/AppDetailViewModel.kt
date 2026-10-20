@@ -8,6 +8,7 @@ import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.deserthouse.opticon.data.AssetRepository as AppIconAssetRepository
 import io.github.deserthouse.opticon.data.AppIconConfigRepository
 import io.github.deserthouse.opticon.engine.HitSource
 import io.github.deserthouse.opticon.engine.IconEngine
@@ -324,20 +325,10 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                     val px = IntArray(bmp.width * bmp.height)
                     bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
                     val classified = IconRedrawEngine.classifyInput(px, bmp.width)
-                    // K3（Z2）：内容寻址 + tmp 原子落盘——同字节复用，半写永不进正名
-                    val assetsDir = File(app.filesDir, "assets").apply { mkdirs() }
-                    val sha = io.github.deserthouse.opticon.engine.publish.PublishCore.sha256(bytes)
-                    val stable = File(assetsDir, "upload-$sha.png")
-                    if (!stable.exists() || stable.length() != bytes.size.toLong()) {
-                        val tmp = File(assetsDir, "upload-$sha.png.tmp")
-                        tmp.writeBytes(bytes)
-                        if (!tmp.renameTo(stable)) {
-                            tmp.delete()
-                            return@withContext null
-                        }
-                    }
+                    // RB-2：资产仓统一导入（内容寻址+原子写；同字节复用）
+                    val ref = AppIconAssetRepository.importAsset(app, bytes) ?: return@withContext null
                     bmp.recycle()
-                    classified to stable.absolutePath
+                    classified to ref.path
                 } catch (e: Exception) {
                     // K4（Z2）：落盘/解码 IOException 不崩溃——保持旧选择
                     android.util.Log.w("OptIcon/AppDetailVM", "applyUploadedIcon: ${e.message}")
@@ -538,6 +529,12 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                         } else {
                             // RB-1c：meta 归事务核管辖（baked/ 单一所有权）
                             io.github.deserthouse.opticon.engine.PublishTransaction.complete(ctx, op, bakeResult.detail ?: "saved")
+                            // RB-2：旧素材不再被引用即回收（草稿仍引用则保留）
+                            val oldAsset = old.customIconPath
+                            if (oldAsset != null && oldAsset != newConfig.customIconPath &&
+                                _state.value.customIconPath != oldAsset) {
+                                AppIconAssetRepository.sweepIfUnreferenced(ctx, oldAsset)
+                            }
                             null
                         }
                     }

@@ -63,6 +63,12 @@ class MainActivity : ComponentActivity() {
             } catch (e: Exception) {
                 TraceLogger.w("OptIcon/Main", "recoverOnStartup async: ${e.message}")
             }
+            // RB-2：孤儿素材清扫（不被任何已提交配置引用 且 >24h；legacy $pkg.upload.png 同规则）
+            try {
+                io.github.deserthouse.opticon.data.AssetRepository.sweepOrphans(applicationContext)
+            } catch (e: Exception) {
+                TraceLogger.w("OptIcon/Main", "asset sweep: ${e.message}")
+            }
         }.start()
         TraceLogger.init(applicationContext, if (PreferenceManager.isVerboseLogging()) TraceLogger.DEBUG else TraceLogger.INFO)
         // Calibrate the theme switch from storage before the first frame so a
