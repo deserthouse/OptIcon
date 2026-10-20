@@ -392,7 +392,9 @@ private fun PickerIconCell(
         Box(
             Modifier.fillMaxWidth().height(72.dp)
                 .clip(OptShapes.small)
-                .background(MaterialTheme.colorScheme.surfaceVariant)
+                // V08（Y5）：素材极性与主题解耦——固定浅画布，黑色细线素材在
+                // 深色模式仍可辨（surfaceVariant 会吞掉黑色位图像素）
+                .background(androidx.compose.ui.graphics.Color(0xFFF7F5FA))
                 .then(if (selected) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, OptShapes.small) else Modifier),
             contentAlignment = Alignment.Center
         ) {

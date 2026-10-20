@@ -108,7 +108,7 @@
     <string name="enable_custom_icon">Enable custom notification icon</string>
     <string name="detail_enable_hint">Turn the switch on above to configure how this app replaces its notification icon. When off, this app falls back to the rule-library icon (or stays native if no rule covers it).</string>
     <string name="source_prefix">Source: %s</string>
-        <string name="save_blocked_no_icon">This strategy produced no compliant icon — the switch was kept off.</string>
+        <string name="save_blocked_no_icon">No compliant icon could be generated — nothing was saved. Your previous settings and icon are kept.</string>
     <string name="config_saved">Saved &amp; published — new notifications from this app will use it</string>
 
     <string name="strategy_fankes_label">Android Notification Icon Standard Adaptation</string>

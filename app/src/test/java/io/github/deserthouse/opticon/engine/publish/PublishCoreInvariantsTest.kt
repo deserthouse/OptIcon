@@ -332,4 +332,31 @@ class PublishCoreInvariantsTest {
         core.complete(op)
         assertFalse(sharedBak.exists())
     }
+
+    // ━━ V07：恢复走共享快照（无私有备份、交付位错位、补偿曾失败） ━━
+
+    @Test
+    fun `recover restores shared snapshot when private backup is absent and delivery is misplaced`() {
+        newCore()
+        // 探针顺序：shared=9、无私有旧文件 → prepare(2)（此时快照 9）→ record
+        // → 交付写错 3 且报告失败 → 同步补偿再失败 → journal 保留 → recover
+        store.delivered["com.a"] = RULES_OLD.copyOf()
+        val op = core.prepare("com.a", NEW, OLD_CFG, NEW_CFG)!!
+        assertNull(op.backupPath)
+        assertNotNull(op.sharedBackupPath)
+        assertTrue(core.record(op))
+        store.corruptBytes = true
+        assertFalse(core.publish(op)) // 交付位被写坏且报告失败
+        store.refuseDeliver = true
+        assertFalse(core.compensate(op)) // 同步补偿再失败 → Partial
+        store.refuseDeliver = false
+        store.corruptBytes = false
+
+        val applied = ArrayList<String?>()
+        core.recover { applied.add(it) }
+        // 交付位恢复为快照 9、配置回旧、记录与快照清理
+        assertArrayEquals(RULES_OLD, store.readDelivered("com.a"))
+        assertEquals(listOf(OLD_CFG), applied)
+        assertFalse(File(opsDir, "${op.opId}.json").exists())
+    }
 }

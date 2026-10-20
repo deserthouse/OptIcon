@@ -310,23 +310,20 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                 val px = IntArray(bmp.width * bmp.height)
                 bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
                 val classified = IconRedrawEngine.classifyInput(px, bmp.width)
-                // 转存私有副本（原色字节，不预白化——重绘需要原始色距）
+                // V02（Y2）：内容寻址副本——同字节复用、不同字节永不覆写旧文件，
+                // 放弃/失败对已提交源零副作用。原色字节不预白化（重绘需要原始色距）
                 val assetsDir = File(app.filesDir, "assets").apply { mkdirs() }
-                val pkg = _state.value.packageName.ifBlank { "unknown" }
-                val stable = File(assetsDir, "$pkg.upload.png")
-                val copied = try {
-                    app.contentResolver.openInputStream(android.net.Uri.parse(uri))?.use { input ->
-                        stable.outputStream().use { input.copyTo(it) }
-                    } ?: run {
-                        // 非 content 协议（测试注入的文件路径）：从已解码 bmp 回写
-                        stable.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
-                    }
-                    true
+                val bytes = try {
+                    app.contentResolver.openInputStream(android.net.Uri.parse(uri))?.use { it.readBytes() }
+                        ?: bmp.toPngBytes()
                 } catch (_: Exception) {
-                    false
+                    bmp.toPngBytes()
                 }
+                val sha = io.github.deserthouse.opticon.engine.publish.PublishCore.sha256(bytes)
+                val stable = File(assetsDir, "upload-$sha.png")
+                if (!stable.exists()) stable.writeBytes(bytes) // 已存在=同内容复用，绝不覆写
                 bmp.recycle()
-                if (copied) classified to stable.absolutePath else null
+                classified to stable.absolutePath
             }
             if (algoClassGeneration.get() != gen) return@launch // 过期结果丢弃
             if (result == null) {
@@ -473,6 +470,9 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
             var feedbackSet = false
             var ok = true
 
+            // V06（Y1a）：完整提交流水线（含旧快照读取=一致性边界）与启动恢复
+            // 经 PublishCoordinator 互斥——恢复不再能在保存阶段之间插入
+            io.github.deserthouse.opticon.engine.publish.PublishCoordinator.withPipeline {
             if (s.methodEnabled) {
                 // A01（F1-3）：任何已提交数据被改动前固定旧配置快照——失败回滚
                 // 的对象是磁盘上的已提交值，不是本次草稿值。
@@ -563,7 +563,8 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                         _state.update { it.copy(methodEnabled = false, hitSource = HitSource.DISABLED) }
                     }
                 }
-            }
+            } // if (s.methodEnabled) end
+            } // V06: PublishCoordinator.withPipeline end
 
             if (ok) {
                 // C01（X3）：新草稿在场时——不清 dirty、不自动离开、不覆盖草稿字段
@@ -663,8 +664,12 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         } catch (_: Exception) { false }
     }
     private fun deleteBaked(pkg: String): Boolean {
-        val private1 = runCatching { File(bakeDir(), "$pkg.png").delete() }.getOrDefault(false)
-        val private2 = runCatching { File(bakeDir(), "$pkg.meta").delete() }.getOrDefault(false)
+        // V05（Y4）：按最终状态判定——目标本就不存在=幂等成功，不制造假告警；
+        // 只有实际残留（存在但删不掉/索引与文件失配）才报失败
+        val png = File(bakeDir(), "$pkg.png")
+        val meta = File(bakeDir(), "$pkg.meta")
+        val private1 = if (png.exists()) runCatching { png.delete() }.getOrDefault(false) else true
+        val private2 = if (meta.exists()) runCatching { meta.delete() }.getOrDefault(false) else true
         val shared = io.github.deserthouse.opticon.engine.SharedIconStore.deleteIcon(getApplication(), pkg)
         return shared || (private1 && private2)
     }
@@ -681,4 +686,9 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     override fun onCleared() { super.onCleared(); redrawDebounceJob?.cancel() }
+
+    private fun android.graphics.Bitmap.toPngBytes(): ByteArray = java.io.ByteArrayOutputStream().use {
+        compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+        it.toByteArray()
+    }
 }

@@ -256,6 +256,9 @@ class PublishCore(
                             log.i("recover ${op.pkg}: no old config recorded — artifact-only")
                             true
                         } else applyConfig(op.oldConfigJson)
+                        // V07（Y1b）：共享快照是事务开始时交付位的真实旧态——
+                        // 私有备份缺失不得推断"没有旧交付"
+                        val sharedBakFile = op.sharedBackupPath?.let { File(it) }?.takeIf { it.exists() }
                         when {
                             // 发布已确认完成 → 幂等补提交新配置
                             deliveredSha != null && deliveredSha == op.newSha -> {
@@ -270,6 +273,27 @@ class PublishCore(
                                     log.i("recover ${op.pkg}: publish confirmed — config applied, record cleared")
                                 } else {
                                     log.e("recover ${op.pkg}: config commit failed — record kept (Partial)")
+                                }
+                            }
+                            // V07（Y1b）：发布未完成但交付位有共享快照 → 恢复快照内容
+                            sharedBakFile != null -> {
+                                val bytes = sharedBakFile.readBytes()
+                                var ok = store.deliver(op.pkg, bytes)
+                                if (!ok) ok = store.deliver(op.pkg, bytes)
+                                val confirmed = store.readDelivered(op.pkg)
+                                if (ok && confirmed != null && confirmed.contentEquals(bytes)) {
+                                    File(op.newPath).writeBytes(bytes)
+                                    val cfgOk = applyOld()
+                                    if (cfgOk) {
+                                        f.delete()
+                                        sharedBakFile.delete()
+                                        op.backupPath?.let { File(it).delete() }
+                                        log.i("recover ${op.pkg}: shared snapshot restored — old artifact recovered")
+                                    } else {
+                                        log.e("recover ${op.pkg}: config revert failed — record kept (Partial)")
+                                    }
+                                } else {
+                                    log.e("recover ${op.pkg}: shared restore failed — record kept (Partial)")
                                 }
                             }
                             // 发布未完成且有旧产物备份 → 恢复旧版
