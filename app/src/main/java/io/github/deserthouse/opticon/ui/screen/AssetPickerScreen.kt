@@ -54,6 +54,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -96,17 +97,19 @@ fun AssetPickerScreen(
     androidx.activity.compose.BackHandler { onDismiss() }
 
     // ── Draft selection (cancel-safe) ──
-    var draftSub by remember { mutableStateOf(state.assetSubStrategy) }
-    var draftPack by remember { mutableStateOf(state.selectedIconPack) }
-    var draftDrawable by remember { mutableStateOf(state.selectedPackIconDrawable) }
+    // V03（RB-3c）：可保存草稿态——旋转/回收后选择保留。
+    // Bitmap(draftPicp)与图标列表不进 Bundle（按 ID 重载），保持 remember。
+    var draftSubName by rememberSaveable { mutableStateOf(state.assetSubStrategy.name) }
+    var draftPack by rememberSaveable { mutableStateOf(state.selectedIconPack) }
+    var draftDrawable by rememberSaveable { mutableStateOf(state.selectedPackIconDrawable) }
     var draftPicp by remember { mutableStateOf(state.perfectIconsBitmap) }
     var picpLoading by remember { mutableStateOf(false) }
-    var picpFailed by remember { mutableStateOf(false) } // C11：下载失败可判读+可重试
+    var picpFailed by rememberSaveable { mutableStateOf(false) } // C11：下载失败可判读+可重试
     val scope = rememberCoroutineScope()
 
     // U-A1（ME-03 尾巴）：Apply 前草稿校验——各子策略必须有可产物的素材，
     // 否则禁用并说明；防止"应用一个空来源"把详情带回无效配置
-    val draftValid = when (draftSub) {
+    val draftValid = when (subOf(draftSubName)) {
         AssetSubStrategy.ADAPTIVE_DECOMPOSE -> state.isAdaptiveIcon == true
         AssetSubStrategy.PERFECT_ICONS -> draftPicp != null
         AssetSubStrategy.ICON_PACK -> draftPack != null && draftDrawable != null
@@ -134,7 +137,7 @@ fun AssetPickerScreen(
                 actions = {
                     TextButton(
                         enabled = draftValid,
-                        onClick = { onConfirm(draftSub, draftPack, draftDrawable, draftPicp) }
+                        onClick = { onConfirm(subOf(draftSubName), draftPack, draftDrawable, draftPicp) }
                     ) {
                         Text(
                             stringResource(R.string.asset_picker_apply),
@@ -154,18 +157,18 @@ fun AssetPickerScreen(
             // ── Sub-strategy selector ──
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 SegmentedButton(
-                    selected = draftSub == AssetSubStrategy.ADAPTIVE_DECOMPOSE,
-                    onClick = { draftSub = AssetSubStrategy.ADAPTIVE_DECOMPOSE },
+                    selected = subOf(draftSubName) == AssetSubStrategy.ADAPTIVE_DECOMPOSE,
+                    onClick = { draftSubName = AssetSubStrategy.ADAPTIVE_DECOMPOSE.name },
                     shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3)
                 ) { Text(stringResource(R.string.asset_sub_adaptive), maxLines = 1) }
                 SegmentedButton(
-                    selected = draftSub == AssetSubStrategy.PERFECT_ICONS,
-                    onClick = { draftSub = AssetSubStrategy.PERFECT_ICONS },
+                    selected = subOf(draftSubName) == AssetSubStrategy.PERFECT_ICONS,
+                    onClick = { draftSubName = AssetSubStrategy.PERFECT_ICONS.name },
                     shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3)
                 ) { Text(stringResource(R.string.asset_sub_picp), maxLines = 1) }
                 SegmentedButton(
-                    selected = draftSub == AssetSubStrategy.ICON_PACK,
-                    onClick = { draftSub = AssetSubStrategy.ICON_PACK },
+                    selected = subOf(draftSubName) == AssetSubStrategy.ICON_PACK,
+                    onClick = { draftSubName = AssetSubStrategy.ICON_PACK.name },
                     shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3)
                 ) { Text(stringResource(R.string.asset_sub_pack), maxLines = 1) }
             }
@@ -179,7 +182,7 @@ fun AssetPickerScreen(
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
-            when (draftSub) {
+            when (subOf(draftSubName)) {
                 AssetSubStrategy.ADAPTIVE_DECOMPOSE -> AdaptivePickerSection(state)
                 AssetSubStrategy.PERFECT_ICONS -> PicpPickerSection(
                     state, draftPicp, picpLoading, picpFailed,
@@ -335,7 +338,7 @@ private fun IconPackPickerSection(
         if (packIcons.isEmpty()) return@Column
 
         Spacer(Modifier.height(8.dp))
-        var query by remember(draftPack) { mutableStateOf("") }
+        var query by rememberSaveable(draftPack) { mutableStateOf("") }
         OutlinedTextField(query, { query = it }, singleLine = true,
             placeholder = { Text(stringResource(R.string.icon_pack_search_hint)) },
             modifier = Modifier.fillMaxWidth())
@@ -368,6 +371,10 @@ private fun IconPackPickerSection(
         }
     }
 }
+
+/** V03（RB-3c）：saveable 字符串 → 子策略枚举（损坏值回落默认档） */
+private fun subOf(name: String): AssetSubStrategy =
+    runCatching { AssetSubStrategy.valueOf(name) }.getOrDefault(AssetSubStrategy.ADAPTIVE_DECOMPOSE)
 
 // ━━━ Grid cell: ≥48dp touch, full name (2-line ellipsis), check + border
 //     selection marks, neutral placeholder (no decorative fallback icon) ━━━

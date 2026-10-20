@@ -22,6 +22,27 @@ import java.util.concurrent.atomic.AtomicLong
  */
 class EditorSessionCore {
 
+    /**
+     * RB-3a：会话幂等守卫——同 pkg 已激活时返回 false（Activity 重建的
+     * LaunchedEffect 重跑不得回灌持久值覆盖草稿，C07 语义内建）。
+     * 换 pkg 返回 true 并重置会话身份。
+     */
+    fun beginSession(pkg: String): Boolean {
+        if (pkg == activePkg) return false
+        activePkg = pkg
+        return true
+    }
+
+    /** RB-3b：预览结果的内部分态建模（UI 分态在 RB-4a 落屏）。 */
+    sealed interface PreviewState {
+        data class Current(val sourceTag: String) : PreviewState
+        data class Updating(val lastSourceTag: String?) : PreviewState
+        data object Missing : PreviewState
+        data class Rejected(val reason: String) : PreviewState
+    }
+
+    private var activePkg: String? = null
+
     sealed interface SaveOutcome {
         /** 保存成功且请求离开：无新草稿，可以导航 */
         data object SavedExit : SaveOutcome

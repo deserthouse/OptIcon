@@ -68,6 +68,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
@@ -163,7 +164,7 @@ fun AppDetailScreen(
     // ── Source change sheet ──
     var showSourceSheet by remember { mutableStateOf(false) }
     // ── Full-screen asset picker (ME-03/B2) ──
-    var showAssetPicker by remember { mutableStateOf(false) }
+    var showAssetPicker by rememberSaveable { mutableStateOf(false) } // V03（RB-3c）：重建不丢选择器打开态
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },

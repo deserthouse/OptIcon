@@ -80,9 +80,8 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
     private var appBitmap: Bitmap? = null
 
     fun loadApp(packageName: String) {
-        // C07（X6）：同 pkg 已加载则跳过——Activity 重建时 LaunchedEffect 重跑
-        // 不得用持久值覆盖尚未保存的草稿
-        if (_state.value.packageName == packageName && _state.value.appName.isNotBlank()) return
+        // C07（RB-3a）：幂等守卫内建于 EditorSessionCore——同 pkg 已激活即跳过
+        if (!session.beginSession(packageName)) return
         // K9（Z3）：主线程只做纯读（无迁移写）——迁移/校验在异步块经仓库完成
         val initialEnabled = PreferenceManager.isMethodEnabled(packageName)
         _state.update { it.copy(packageName = packageName, methodEnabled = initialEnabled) }
@@ -618,6 +617,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
     private suspend fun runPreview() {
         val gen = session.nextPreviewRound()
         val s = _state.value
+        val pkgAtStart = s.packageName // RB-3b：会话切走后过期预览不回填
         // C08（X4）：关闭态不再画应用图标伪结果——契约回落=规则库/原生图标，
         // 启动图标轮廓不代表真实回落产物；空预览+既有关闭引导文案才是诚实表达
         if (!s.methodEnabled) { _state.update { it.copy(previewBitmap = null, isRedrawing = false, hitSource = HitSource.DISABLED) }; return }
@@ -626,6 +626,7 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
             val ctx = getApplication<Application>().applicationContext
             val result = withContext(Dispatchers.IO) { bakeCurrentState(ctx, s) }
             if (!session.isLatestPreviewRound(gen)) return // C05：过期任务不回填
+            if (_state.value.packageName != pkgAtStart) return // RB-3b：会话已切走
             _state.update { it.copy(previewBitmap = result.bitmap, hitSource = result.source) }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e // C05：取消继续传播，不清除新任务的进行中状态
