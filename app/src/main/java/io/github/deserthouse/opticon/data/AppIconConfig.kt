@@ -44,6 +44,9 @@ data class AppIconConfig(
     fun validate(): List<String> {
         val errors = mutableListOf<String>()
         if (pkg.isBlank()) errors += "pkg is blank"
+        // R3-1(F01)：disabled 记录保留旧来源字段供重新开启，不要求本次关闭
+        // 补齐不可用来源（legacy ICON_PACK 空包/空 drawable 迁移态可关闭）
+        if (enabled) {
         if (strategy == IconStrategy.ASSET_IMPORT) {
             if (assetSubStrategy == null) errors += "ASSET_IMPORT requires assetSubStrategy"
             if (assetSubStrategy == AssetSubStrategy.ICON_PACK) {
@@ -59,6 +62,7 @@ data class AppIconConfig(
                 errors += "MATERIAL_LIB requires materialIconName"
             if (algoSource == AlgoSource.EMOJI_TEXT && emojiText.isNullOrBlank())
                 errors += "EMOJI_TEXT requires emojiText"
+        }
         }
         return errors
     }

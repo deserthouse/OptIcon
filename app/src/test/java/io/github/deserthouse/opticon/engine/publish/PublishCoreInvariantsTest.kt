@@ -28,6 +28,7 @@ class PublishCoreInvariantsTest {
 
     private class FakeStore : PublishStore {
         var refuseDeliver = false
+        var refuseRemove = false
         var corruptBytes = false
         val delivered = LinkedHashMap<String, ByteArray>()
 
@@ -41,6 +42,7 @@ class PublishCoreInvariantsTest {
         override fun readDelivered(pkg: String): ByteArray? = delivered[pkg]?.copyOf()
 
         override fun remove(pkg: String): Boolean {
+            if (refuseRemove) return false
             delivered.remove(pkg)
             return true
         }
@@ -57,6 +59,7 @@ class PublishCoreInvariantsTest {
     private val RULES_OLD = byteArrayOf(9, 9, 9, 9)
     private val OLD_CFG = """{"enabled":true,"strategy":"FANKES"}"""
     private val NEW_CFG = """{"enabled":true,"strategy":"ALGORITHM"}"""
+    private val DISABLED_CFG = """{"enabled":false,"strategy":"FANKES"}"""
 
     private lateinit var store: FakeStore
     private lateinit var log: FakeLog
@@ -391,5 +394,67 @@ class PublishCoreInvariantsTest {
         // 交付位此时仍是 OLD（T1 前）→ 非本事务产物 → 只清记录
         core.recover { true }
         assertFalse(File(opsDir, "${op2.opId}.json").exists())
+    }
+
+    // ━━ R3-1(F01)：移除事务注入矩阵 ━━
+
+    private fun removalOp(cfgNew: String?) =
+        core.prepareRemoval("com.a", OLD_CFG, cfgNew)!!.also { check(core.record(it)) }
+
+    @Test
+    fun `removal confirmed after publish applies disabled config and clears journal`() {
+        newCore()
+        store.deliver("com.a", RULES_OLD)
+        val op = removalOp(DISABLED_CFG)
+        assertTrue(core.publishRemoval(op))
+        // 模拟"移除交付成功、配置提交前进程死亡"→ 重启恢复
+        var applied: String? = null
+        core.recover { applied = it; true }
+        assertNull(store.readDelivered("com.a"))
+        assertEquals(DISABLED_CFG, applied)
+        assertFalse(File(opsDir, "${op.opId}.json").exists())
+    }
+
+    @Test
+    fun `removal not yet delivered restores previous artifact and old config`() {
+        newCore()
+        store.deliver("com.a", RULES_OLD)
+        val op = removalOp(DISABLED_CFG)
+        // 模拟"登记后、移除交付前进程死亡"→ 重启恢复=旧版完整保留
+        var applied: String? = null
+        core.recover { applied = it; true }
+        assertArrayEquals(RULES_OLD, store.readDelivered("com.a"))
+        assertEquals(OLD_CFG, applied)
+        assertFalse(File(opsDir, "${op.opId}.json").exists())
+    }
+
+    @Test
+    fun `removal with disabled config commit failure keeps partial not silent close`() {
+        newCore()
+        store.deliver("com.a", RULES_OLD)
+        val op = removalOp(DISABLED_CFG)
+        assertTrue(core.publishRemoval(op))
+        // 配置提交失败（applyConfig=false）→ 记录保留（Partial），不得静默宣告关闭
+        var applied: String? = null
+        core.recover { applied = it; false }
+        assertNull(store.readDelivered("com.a"))
+        assertEquals(DISABLED_CFG, applied)
+        assertTrue(File(opsDir, "${op.opId}.json").exists())
+    }
+
+    @Test
+    fun `compensate after failed removal publish restores old delivery`() {
+        newCore()
+        store.deliver("com.a", RULES_OLD)
+        val op = removalOp(DISABLED_CFG)
+        check(core.record(op))
+        // 移除交付被拒（remove 失败）→ 补偿=旧版完整保留
+        store.refuseRemove = true
+        assertFalse(core.publishRemoval(op))
+        assertTrue(core.compensate(op))
+        // 生产对称：补偿成功后调用方 complete 清账（VM disable 路径同构）
+        core.complete(op)
+        assertArrayEquals(RULES_OLD, store.readDelivered("com.a"))
+        assertFalse(File(opsDir, "${op.opId}.json").exists())
     }
 }

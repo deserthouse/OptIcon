@@ -81,4 +81,32 @@ class AppIconConfigValidateTest {
             emojiText = "🐾").validate()
         assertTrue(errors.isEmpty())
     }
+
+    // ━━ R3-1(F01)：disabled 记录保留旧来源字段，不要求补齐不可用来源 ━━
+
+    @Test
+    fun `disabled config with empty icon pack source passes validation`() {
+        val c = io.github.deserthouse.opticon.data.AppIconConfig(
+            pkg = "com.test",
+            enabled = false,
+            strategy = io.github.deserthouse.opticon.ui.state.IconStrategy.ASSET_IMPORT,
+            assetSubStrategy = io.github.deserthouse.opticon.ui.state.AssetSubStrategy.ICON_PACK,
+            iconPackPkg = null,
+            packDrawable = null
+        )
+        assertEquals(emptyList<String>(), c.validate())
+    }
+
+    @Test
+    fun `enabled config with empty icon pack source still rejected`() {
+        val c = io.github.deserthouse.opticon.data.AppIconConfig(
+            pkg = "com.test",
+            enabled = true,
+            strategy = io.github.deserthouse.opticon.ui.state.IconStrategy.ASSET_IMPORT,
+            assetSubStrategy = io.github.deserthouse.opticon.ui.state.AssetSubStrategy.ICON_PACK,
+            iconPackPkg = null,
+            packDrawable = null
+        )
+        assertEquals(2, c.validate().size)
+    }
 }

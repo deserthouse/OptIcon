@@ -34,7 +34,7 @@ Make adapted notification icons comply with native Android design guidelines
 |---|---|---|
 | **Notification icon adaptation** | Ready-to-use rule set covering mainstream apps | [Android Notification Icon Project](https://github.com/BetterAndroid/android-notification-icon-project) (ANIP, formerly ANIA) |
 | **Adaptive asset import** | Layered extraction from third-party icon packs or system adaptive icons | Local + [Perfect-Icons-Completion-Project](https://github.com/pzcn/Perfect-Icons-Completion-Project) (PICP) |
-| **Algorithmic redraw** | Corner-sampling self-filter algorithm — generates compliant icons even without rules; three sources (app own icon / local upload / captured original) plus slider fine-tuning | Built-in engine |
+| **Algorithmic redraw** | Corner-sampling self-filter algorithm — generates compliant icons even without rules; two sources (app own icon / local upload) plus slider fine-tuning — "captured original" is a reserve capability under development | Built-in engine |
 
 ### Runtime compliance detection
 

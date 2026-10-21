@@ -39,6 +39,7 @@ import io.github.deserthouse.opticon.R
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -201,8 +202,14 @@ fun AppDetailScreen(
             )
         }
     ) { padding ->
+        // R3-3(D01)：fillMaxSize 会把最小约束锁成父宽精确值，widthIn 在其后
+        // 无法收缩（报告 D01 探针实证）——wrapContentWidth 先放松最小约束，
+        // widthIn 才能真正把内容收到 640dp 并居中
         Column(
-            Modifier.fillMaxSize().widthIn(max = 640.dp).padding(padding)
+            Modifier.fillMaxSize()
+                .wrapContentWidth(Alignment.CenterHorizontally)
+                .widthIn(max = 640.dp)
+                .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
         ) {

@@ -150,6 +150,31 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                 )
             }
 
+            // R3-4(F03)：重进重建输入分类（元数据恢复）——微调面板按类渲染
+            // 参数域，不重建会把透明边距类当默认类显示无效 threshold；
+            // 只恢复分类，不触碰已保存参数
+            if (saved.enabled && saved.strategy == IconStrategy.ALGORITHM) {
+                val clsGen = session.bumpInput()
+                viewModelScope.launch {
+                    val cls = withContext(Dispatchers.IO) {
+                        when (saved.algoSource) {
+                            AlgoSource.SELF -> appBitmap?.let { bmp ->
+                                val px = IntArray(bmp.width * bmp.height)
+                                bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
+                                IconRedrawEngine.classifyInput(px, bmp.width)
+                            }
+                            AlgoSource.LOCAL_FILE -> decodeFileOrUri(getApplication(), saved.customIconPath ?: "")?.let { bmp ->
+                                val px = IntArray(bmp.width * bmp.height)
+                                bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
+                                IconRedrawEngine.classifyInput(px, bmp.width)
+                            }
+                            else -> null
+                        }
+                    }
+                    if (session.isCurrentInput(clsGen)) _algoInputClass.value = cls
+                }
+            }
+
             // Auto-download PICP icon if available — no user tap required
             // C05（X4）：预取不写当前来源预览——仅当用户所选来源就是 PICP 时才
             // 联动 hitSource/previewBitmap，否则只入素材缓存待选
@@ -485,7 +510,8 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                     // 守卫拒绝：不发布、不提交配置，诚实引导换源（M4 条件四）
                     ok = false
                     val guardHit = bakeResult.detail?.startsWith("redraw guard") == true ||
-                        bakeResult.detail?.startsWith("self-filter guard") == true
+                        bakeResult.detail?.startsWith("self-filter guard") == true ||
+                        bakeResult.detail?.startsWith("reserve guard") == true
                     feedbackSet = true
                         _saveFeedback.value = ctx.getString(
                         if (guardHit) io.github.deserthouse.opticon.R.string.save_blocked_guard
@@ -545,24 +571,49 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                     }
                 }
             } else {
-                // 关闭路径（A07 前置语义）：提交 enabled=false 即权威（契约§2 关闭=回落规则库）；
-                // 产物清理尽力而为，失败如实反馈但不阻止关闭。
-                val cleanupOk = withContext(Dispatchers.IO) { deleteBaked(pkg) }
+                // 关闭路径（R3-1/F01 重构）：与启用同构的可恢复移除事务——
+                // journal 先行（快照旧交付+登记 disabled 配置）→ 移除交付 →
+                // 配置提交 → 清账；任一步失败可回滚旧产物，不再"先删后败无补偿"
+                val old = AppIconConfigRepository.load(pkg)
                 val newConfig = stateToConfig(s, enabled = false)
-                val committed = withContext(Dispatchers.IO) { AppIconConfigRepository.save(newConfig) }
-                if (!committed) {
-                    ok = false
-                    feedbackSet = true
-                    _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.save_failed)
-                } else {
-                    if (!cleanupOk) {
-                        feedbackSet = true
-                        _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.save_disable_cleanup_failed)
+                var failStage: String? = null
+                io.github.deserthouse.opticon.engine.publish.PublishCoordinator.withPipeline {
+                    val op = io.github.deserthouse.opticon.engine.PublishTransaction.prepareRemoval(
+                        ctx, pkg, old.toJson(), newConfig.toJson()
+                    ) ?: run { failStage = "prepare"; return@withPipeline }
+                    if (!io.github.deserthouse.opticon.engine.PublishTransaction.recordIntent(ctx, op)) {
+                        failStage = "record"; return@withPipeline
                     }
-                    if (session.revisionNow() == savedRevision) {
-                        // C01：新草稿在场时不覆盖开关草稿值
-                        _state.update { it.copy(methodEnabled = false, hitSource = HitSource.DISABLED) }
+                    if (!io.github.deserthouse.opticon.engine.PublishTransaction.publishRemoval(ctx, op)) {
+                        val compensated = io.github.deserthouse.opticon.engine.PublishTransaction.compensate(ctx, op)
+                        if (compensated) {
+                            val rolled = AppIconConfigRepository.save(old)
+                            if (rolled) io.github.deserthouse.opticon.engine.PublishTransaction.complete(ctx, op)
+                            failStage = if (rolled) "publish" else "partial"
+                        } else failStage = "partial"
+                    } else if (!AppIconConfigRepository.save(newConfig)) {
+                        io.github.deserthouse.opticon.engine.PublishTransaction.compensate(ctx, op)
+                        failStage = "commit"
+                    } else {
+                        io.github.deserthouse.opticon.engine.PublishTransaction.complete(ctx, op)
+                        // 已确认关闭：私有 baked 产物/meta 清理（尽力而为，失败只提示
+                        // 不推翻关闭——共享位已删，运行端已回落规则库/原生）
+                        val cleanupOk = withContext(Dispatchers.IO) { deleteBaked(pkg) }
+                        if (!cleanupOk) {
+                            feedbackSet = true
+                            _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.save_disable_cleanup_failed)
+                        }
+                        if (session.revisionNow() == savedRevision) {
+                            _state.update { it.copy(methodEnabled = false, hitSource = HitSource.DISABLED) }
+                        }
                     }
+                }
+                when (failStage) {
+                    "partial" -> { ok = false; feedbackSet = true
+                        _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.save_recovery_pending) }
+                    null -> {}
+                    else -> { ok = false; feedbackSet = true
+                        _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.save_failed) }
                 }
             } // if (s.methodEnabled) end
             } // V06: PublishCoordinator.withPipeline end
@@ -624,7 +675,8 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
             // 预览走拒绝态，判定口径与保存侧 guardHit 一致
             val rejected = result.bitmap == null && (
                 result.detail?.startsWith("redraw guard") == true ||
-                result.detail?.startsWith("self-filter guard") == true
+                result.detail?.startsWith("self-filter guard") == true ||
+                result.detail?.startsWith("reserve guard") == true
             )
             val ps = when {
                 rejected -> EditorSessionCore.PreviewState.Rejected(result.detail ?: "")

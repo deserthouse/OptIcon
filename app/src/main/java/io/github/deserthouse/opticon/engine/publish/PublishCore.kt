@@ -44,7 +44,10 @@ class PublishCore(
         /** 事务开始时交付位旧内容的字节快照路径；null=当时交付位为空（C04） */
         val sharedBackupPath: String? = null,
         /** Z1c：事务开始时交付位旧内容的 SHA；null=当时交付位为空。恢复分支的精确判据 */
-        val oldSha: String? = null
+        val oldSha: String? = null,
+        /** R3-1(F01)：移除事务标志——显式字段而非 newSha 哨兵（"" 与 v0.13/14
+         *  无 sha 字段的 legacy 记录撞车，补课单测已实证）。 */
+        val removal: Boolean = false
     )
 
     // ━━ 阶段 1：准备 ━━
@@ -94,11 +97,13 @@ class PublishCore(
             val tmp = File(opsDir, "${op.opId}.json.tmp")
             tmp.writeText(toJson(op))
             val target = File(opsDir, "${op.opId}.json")
-            // Windows 的 renameTo 不能覆盖已存在目标；copyTo(overwrite) 双平台
-            // 一致。记录内容只有 PREPARED/PUBLISHED 两种合法中间态，写覆盖的
-            // 非原子窗口不影响恢复判定（copyTo 失败以抛异常表达，外层 catch）。
-            tmp.copyTo(target, overwrite = true)
-            tmp.delete()
+            // R3-2(F04)：Android 上 renameTo 为原子替换（POSIX 语义，目标存在
+            // 也可替换）——PUBLISHED 覆写被中断不再可能留下半写 JSON。Windows
+            // 测试环境 renameTo 目标存在即失败 → 回退 copyTo（仅测试路径）。
+            if (!tmp.renameTo(target)) {
+                tmp.copyTo(target, overwrite = true)
+                tmp.delete()
+            }
             true
         } catch (e: Exception) {
             log.e("record failed: ${e.message}")
@@ -138,8 +143,11 @@ class PublishCore(
         } else {
             val tmp = File(opsDir, "${op.opId}.json.tmp")
             tmp.writeText(toJson(op.copy(stage = Stage.PUBLISHED)))
-            tmp.copyTo(target, overwrite = true)
-            tmp.delete()
+            // R3-2(F04)：同 record——原子替换优先
+            if (!tmp.renameTo(target)) {
+                tmp.copyTo(target, overwrite = true)
+                tmp.delete()
+            }
             true
         }
     } catch (e: Exception) {
@@ -166,6 +174,59 @@ class PublishCore(
                 }
             } catch (_: Exception) {
             }
+        }
+    }
+
+    // ━━ 移除事务（R3-1/F01：关闭=可恢复的移除发布，与启用同构） ━━
+
+    /**
+     * 关闭路径的阶段 1：快照当前交付位（旧自定义图）+ 登记移除意图。
+     * newSha="" 为移除标志；newConfigJson 携带 disabled 配置供恢复收敛。
+     */
+    fun prepareRemoval(pkg: String, oldConfigJson: String?, newConfigJson: String?): PendingOp? =
+        synchronized(lock) {
+            try {
+                bakedDir.mkdirs()
+                val opId = UUID.randomUUID().toString()
+                val opId8 = opId.take(8)
+                val deliveredOld = store.readDelivered(pkg)
+                val sharedBackupPath = deliveredOld?.let { old ->
+                    val bak = File(bakedDir, "$pkg.shared-$opId8.bak")
+                    bak.writeBytes(old)
+                    bak.absolutePath
+                }
+                PendingOp(
+                    opId = opId, pkg = pkg, backupPath = null,
+                    newPath = File(bakedDir, "$pkg.png").absolutePath,
+                    stage = Stage.PREPARED,
+                    oldConfigJson = oldConfigJson, newConfigJson = newConfigJson,
+                    newSha = "",
+                    removal = true,
+                    sharedBackupPath = sharedBackupPath,
+                    oldSha = deliveredOld?.let { sha256(it) }
+                )
+            } catch (e: Exception) {
+                log.e("prepareRemoval failed: ${e.message}")
+                null
+            }
+        }
+
+    /** 移除发布的交付阶段：删除共享产物并回读确认（与 publish 对称，不变量④）。 */
+    fun publishRemoval(op: PendingOp): Boolean = synchronized(lock) {
+        try {
+            if (!store.remove(op.pkg)) {
+                log.e("publishRemoval: remove refused for ${op.pkg}")
+                return false
+            }
+            val confirmed = store.readDelivered(op.pkg)
+            if (confirmed != null) {
+                log.e("publishRemoval: delivered still present for ${op.pkg}")
+                return false
+            }
+            markPublishedLocked(op)
+        } catch (e: Exception) {
+            log.e("publishRemoval failed: ${e.message}")
+            false
         }
     }
 
@@ -276,6 +337,50 @@ class PublishCore(
                             log.i("recover ${op.pkg}: no old config recorded — artifact-only")
                             true
                         } else applyConfig(op.oldConfigJson)
+
+                        // R3-1(F01)：移除事务恢复（rm 字段显式标志；不用 newSha
+                        // 哨兵——与无 sha 字段的 v0.13/14 legacy 记录撞车，单测实证）——
+                        // 交付位空=移除已确认（提交 disabled 配置后清账）；
+                        // 交付位仍有内容=移除未确认（回滚快照+旧配置，Partial 保留）
+                        if (op.removal) {
+                            when {
+                                delivered == null -> {
+                                    val cfgOk = if (op.newConfigJson.isNullOrBlank()) true else applyConfig(op.newConfigJson)
+                                    if (cfgOk) {
+                                        f.delete()
+                                        op.sharedBackupPath?.let { File(it).delete() }
+                                        File(op.newPath).takeIf { it.isFile }?.delete()
+                                        log.i("recover ${op.pkg}: removal confirmed — disabled config applied, record cleared")
+                                    } else log.e("recover ${op.pkg}: disabled config commit failed — record kept (Partial)")
+                                }
+                                else -> {
+                                    val bak = op.sharedBackupPath?.let { File(it) }?.takeIf { it.exists() }
+                                    if (bak == null) {
+                                        store.remove(op.pkg)
+                                        val cfgOk = applyOld()
+                                        if (cfgOk) {
+                                            f.delete()
+                                            log.i("recover ${op.pkg}: removal rolled back (delivery was empty) — old config applied")
+                                        } else log.e("recover ${op.pkg}: removal rollback config failed — record kept (Partial)")
+                                    } else {
+                                        val bytes = bak.readBytes()
+                                        var okRestore = store.deliver(op.pkg, bytes)
+                                        if (!okRestore) okRestore = store.deliver(op.pkg, bytes)
+                                        val confirmed = store.readDelivered(op.pkg)
+                                        if (okRestore && confirmed != null && confirmed.contentEquals(bytes)) {
+                                            File(op.newPath).writeBytes(bytes)
+                                            val cfgOk = applyOld()
+                                            if (cfgOk) {
+                                                f.delete()
+                                                bak.delete()
+                                                log.i("recover ${op.pkg}: removal rolled back — previous artifact restored")
+                                            } else log.e("recover ${op.pkg}: removal rollback config failed — record kept (Partial)")
+                                        } else log.e("recover ${op.pkg}: removal rollback deliver failed — record kept (Partial)")
+                                    }
+                                }
+                            }
+                            continue
+                        }
                         // V07（Y1b）：共享快照是事务开始时交付位的真实旧态——
                         // 私有备份缺失不得推断"没有旧交付"
                         val sharedBakFile = op.sharedBackupPath?.let { File(it) }?.takeIf { it.exists() }
@@ -403,7 +508,8 @@ class PublishCore(
         "newCfg" to op.newConfigJson,
         "sha" to op.newSha,
         "sharedBak" to op.sharedBackupPath,
-        "oldSha" to op.oldSha
+        "oldSha" to op.oldSha,
+        "rm" to if (op.removal) "1" else ""
     )
 
     /** 兼容 v0.13/14 旧记录（无 stage/sha/config 字段）：sha=""永不与交付位相符 → 走备份/保留分支 */
@@ -423,7 +529,8 @@ class PublishCore(
         val sha = jsonGetString(json, "sha") ?: ""
         val sharedBak = jsonGetString(json, "sharedBak")?.takeIf { it.isNotBlank() }
         val oldSha = jsonGetString(json, "oldSha")?.takeIf { it.isNotBlank() }
-        return PendingOp(opId, pkg, ts, backup, newPath, stage, oldCfg, newCfg, sha, sharedBak, oldSha)
+        val removal = jsonGetString(json, "rm") == "1"
+        return PendingOp(opId, pkg, ts, backup, newPath, stage, oldCfg, newCfg, sha, sharedBak, oldSha, removal)
     }
 
     private val lock = Any()

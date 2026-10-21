@@ -34,6 +34,14 @@ fun bakeFromConfigEntry(
     config: AppIconConfig,
     inputs: BakeInputs
 ): IconEngine.BakeResult {
+    // R3-5：储备来源诚实守卫——Material/Emoji 渲染为占位实现且当前无 UI 入口，
+    // legacy 配置不得静默产出占位图（detail 前缀走预览拒绝态/保存侧守卫通道）
+    if (config.strategy == IconStrategy.ALGORITHM && config.algoSource == AlgoSource.MATERIAL_LIB) {
+        return IconEngine.BakeResult(null, HitSource.AUTO_MISS, "reserve guard: material icons renderer is a placeholder")
+    }
+    if (config.strategy == IconStrategy.ALGORITHM && config.algoSource == AlgoSource.EMOJI_TEXT) {
+        return IconEngine.BakeResult(null, HitSource.AUTO_MISS, "reserve guard: emoji renderer is a placeholder (UTF-16 incomplete)")
+    }
     return when (config.strategy) {
         IconStrategy.FANKES -> bakeFankes(config.pkg)
 

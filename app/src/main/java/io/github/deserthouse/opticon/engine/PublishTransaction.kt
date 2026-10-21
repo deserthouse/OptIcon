@@ -80,6 +80,15 @@ object PublishTransaction {
     fun complete(context: Context, op: PublishCore.PendingOp, metaDetail: String? = null) =
         coreOf(context).complete(op, metaDetail)
 
+    /** R3-1(F01)：关闭=移除发布的阶段 1（快照旧交付+登记移除意图） */
+    fun prepareRemoval(
+        context: Context, pkg: String, oldConfigJson: String?, newConfigJson: String?
+    ): PublishCore.PendingOp? = coreOf(context).prepareRemoval(pkg, oldConfigJson, newConfigJson)
+
+    /** R3-1(F01)：移除发布的交付阶段（删共享产物+回读确认） */
+    fun publishRemoval(context: Context, op: PublishCore.PendingOp): Boolean =
+        coreOf(context).publishRemoval(op)
+
     /** 补偿：发布/提交失败时恢复旧产物；false = Partial（记录保留，等待重启恢复） */
     fun compensate(context: Context, op: PublishCore.PendingOp): Boolean =
         coreOf(context).compensate(op)

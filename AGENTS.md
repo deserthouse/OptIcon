@@ -26,6 +26,7 @@
 - versionCode 逐版 +1 永不复用；APK 命名 `OptIcon-v$VER-YYYYMMDD-HHMMSS.apk`。
 - release keystore `~/.android/opticon-release.jks`（SHA-256 指纹记录在 MIGRATION_NOTES）；真机交付一律 assembleRelease（签名混装=INSTALL_FAILED_UPDATE_INCOMPATIBLE）。
 - gradle wrapper jar 损坏，用本地 dists 的 gradle-9.5.1 直编；main 常绿 + feat/xxx 分支模型，已合并分支及时清理；产物/apk/archive/密钥不入库。
+- **测试门禁固定 `--rerun-tasks`**（UP-TO-DATE≠重跑，外审§2 教训）；**停止条件（路线 B 刹车，2026-10-22 外审§9）**：来源选择/取消/保存失败/重建恢复的任务契约成立且实屏证明有效后，停止为更 Expressive 追加装饰、动画或框架——新方案不能在同任务下改善理解/步骤/维护成本时，保留现有布局。
 
 ## 项目专属教训
 
