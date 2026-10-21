@@ -6,8 +6,8 @@
 
 ## 事实源与文档
 
-- **待办唯一事实源 = `MIGRATION_NOTES.md` 第六节**；`project_status.md` 只留版本规则/变更史（避免双源失真）。
-- 出包前必跑 `scripts/check_doc_sync.sh`（版本号三处一致性），不绿不 tag。
+- **待办唯一事实源 = `MIGRATION_NOTES.md` 第六节**；`project_status.md` 只留版本规则/变更史（避免双源失真）。**两文件为维护者本地私有工作文件，不入公开仓**：公开 clone 中缺失属预期，`scripts/check_doc_sync.sh` 对缺失文件 SKIP；公开贡献者以 Releases 与 git 历史为准。
+- 出包前必跑 `scripts/check_doc_sync.sh`（版本号三处一致性，维护者本机），不绿不 tag。
 - 状态变更当场重写待办节；汇报以 git log / build.gradle.kts / 桌面产物为准。
 
 ## 版本与构建
