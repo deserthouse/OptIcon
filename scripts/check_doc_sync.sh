@@ -8,7 +8,8 @@ V=$(grep -oP 'MODULE_VERSION_NAME = "\K[^"]+' app/build.gradle.kts)
 C=$(grep -oP 'versionCode = \K[0-9]+' app/build.gradle.kts | head -1)
 fail=0
 check() { # $1=file $2=pattern $3=label
-  if grep -q "$2" "$1"; then echo "  OK   $3"; else echo "  FAIL $3 ($1 缺 $V/$C)"; fail=1; fi
+  # R3 教训：版本号含 []（如 0.18.0-rc.3）时 grep 正则字符类会误判——固定串匹配
+  if grep -qF -- "$2" "$1"; then echo "  OK   $3"; else echo "  FAIL $3 ($1 缺 $V/$C)"; fail=1; fi
 }
 local_check() { # 本地私有文件：缺失 SKIP（公开 clone 属预期）
   if [ ! -f "$1" ]; then echo "  SKIP $3（$1 为本地私有文件，公开 checkout 缺失属预期）"; return; fi
