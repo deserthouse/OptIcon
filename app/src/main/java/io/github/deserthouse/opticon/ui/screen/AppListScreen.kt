@@ -176,13 +176,13 @@ fun AppListScreen(
                             fontFamily = FontFamily.Serif
                         )
                         Spacer(Modifier.width(10.dp))
-                        // Q18：带 build 后缀的 stage（"alpha.1"）此前落 else 显示
-                        // 正式色——先按 '.' 截断再判档
-                        val stage = io.github.deserthouse.opticon.BuildConfig.VERSION_NAME
-                            .substringAfter('-', "").substringBefore('.', "")
+                        // Q18+补课：stage 解析收敛为可测函数；rc 与 beta 同为预发布配色
+                        // （上游§9.6 一致性：应用内配色与 tag/Release.prerelease 一致，
+                        //  rc 不得用正式色）
+                        val stage = parseVersionStage(io.github.deserthouse.opticon.BuildConfig.VERSION_NAME)
                         val (badgeBg, badgeFg) = when (stage) {
                             "alpha" -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
-                            "beta" -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
+                            "beta", "rc" -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
                             else -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
                         }
                         Surface(shape = OptShapes.small, color = badgeBg) {
@@ -294,7 +294,7 @@ fun AppListScreen(
                                 // Q17：0 也可能是可见性完全阻断（而非真空空如也）——
                                 // 启发式来源=HyperOS 可见性修复遗产（q=1..2 时
                                 // system 可见数骤减），不得回退该修复
-                                visibilityBlocked = state.installedCount in 0..2,
+                                visibilityBlocked = isVisibilityBlockedHeuristic(state.installedCount),
                                 onClearSearch = { viewModel.setSearchQuery("") },
                                 modifier = Modifier.fillParentMaxWidth()
                             )
@@ -630,6 +630,16 @@ private fun GroupHeader(group: AppGroup, count: Int) {
         }
     }
 }
+
+/** Q18（补课）：版本 stage 解析——"0.18.0-alpha.1" → "alpha"；无预发布段 → ""（正式）。 */
+internal fun parseVersionStage(versionName: String): String =
+    // 注意 substringBefore 的第二参是"未找到时的默认值"——传 "" 会把无点号的
+    // 纯后缀（beta/rc）解析成空串落正式色（补课单测抓出的 Q18 实现缺陷）
+    versionName.substringAfter('-', "").substringBefore('.')
+
+/** Q17（补课）：可见性阻断启发式（HyperOS 可见性修复遗产）——
+ *  0..2 视为疑似阻断（0=完全阻断），≥3 视为正常。改判据必须同步更新注释与 HyperOS 案例。 */
+internal fun isVisibilityBlockedHeuristic(installedCount: Int): Boolean = installedCount in 0..2
 
 @Composable
 private fun EmptyState(

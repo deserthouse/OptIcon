@@ -34,6 +34,13 @@ import kotlinx.coroutines.withContext
 //                                                   
 //
 //          IO      ? ?Main       ?//                               ?
+/**
+ * Q5（补课）：refresh 写回守卫——启动时快照与当前列表身份不一致（scan 已换新表）
+ * 时丢弃本次刷新结果，防止旧快照覆盖新列表（丢更新窗口）。返回 null=丢弃。
+ */
+internal fun <T> refreshWriteback(snapshot: List<T>, current: List<T>, updated: List<T>): List<T>? =
+    if (current !== snapshot) null else updated
+
 class AppListViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
@@ -138,9 +145,8 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
                 }
             }
             _uiState.update { s ->
-                // 快照身份已失效（scan 换了新列表实例）→ 丢弃本次刷新结果
-                if (s.apps !== currentApps) s
-                else s.copy(apps = updated)
+                // Q5（补课）：守卫逻辑收敛为可测函数——快照身份失效（scan 已换表）→ 丢弃
+                refreshWriteback(currentApps, s.apps, updated)?.let { s.copy(apps = it) } ?: s
             }
             TraceLogger.i(TAG, "Icon status refreshed: ${updated.count { it.isUserModified }} modified")
         }
