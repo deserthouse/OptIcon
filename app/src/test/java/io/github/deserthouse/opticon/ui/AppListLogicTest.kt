@@ -33,6 +33,11 @@ class AppListLogicTest {
         assertEquals("", parseVersionStage("1.0.0"))
     }
 
+    @Test
+    fun `rc dot build suffix parses for rc channel continuation`() {
+        assertEquals("rc", parseVersionStage("0.18.0-rc.2"))
+    }
+
     // ━━ Q17：可见性阻断启发式四态 ━━
 
     @Test

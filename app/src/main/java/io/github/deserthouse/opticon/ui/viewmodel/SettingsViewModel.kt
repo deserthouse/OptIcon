@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
@@ -109,10 +111,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                     io.github.deserthouse.opticon.engine.SharedIconStore.readColorMode()
                 )
             }
-            _aniaIconCount.value = counts.first
-            _picpCount.value = counts.second
-            _forceMono.value = counts.third == "force_mono"
-            _forceMonoUnknown.value = counts.third == null
+            // A3（R2-03 同源）：用户已操作（同步/切策略位）时 init 慢读数不回灌旧值
+            if (!statusSupersededByUser) {
+                _aniaIconCount.value = counts.first
+                _picpCount.value = counts.second
+                _forceMono.value = counts.third == "force_mono"
+                _forceMonoUnknown.value = counts.third == null
+            }
         }
     }
 
@@ -218,13 +223,21 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _forceMonoUnknown = MutableStateFlow(false)
     val forceMonoUnknown: StateFlow<Boolean> = _forceMonoUnknown.asStateFlow()
 
+    /** A3（R2-03）：策略位写互斥——快速连点磁盘终态=最后一次点击 */
+    private val colorWriteMutex = Mutex()
+
+    /** A3：用户操作已越过 init 慢读数（见 init 回写守卫） */
+    @Volatile private var statusSupersededByUser = false
+
     fun setForceMono(enabled: Boolean) {
         // Q2a：共享目录写盘（含 .nomedia/迁移检查）移出主线程
         viewModelScope.launch {
-            val written = withContext(Dispatchers.IO) {
-                io.github.deserthouse.opticon.engine.SharedIconStore.writeColorMode(
-                    getApplication(), if (enabled) "force_mono" else "off"
-                )
+            val written = colorWriteMutex.withLock {
+                withContext(Dispatchers.IO) {
+                    io.github.deserthouse.opticon.engine.SharedIconStore.writeColorMode(
+                        getApplication(), if (enabled) "force_mono" else "off"
+                    )
+                }
             }
             if (written == null) {
                 // Optimistic flip would desync UI from storage — revert and tell.
@@ -233,6 +246,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 )
                 return@launch
             }
+            statusSupersededByUser = true
             _forceMono.value = enabled
             _forceMonoUnknown.value = false  // a successful write is self-verifying
         }
@@ -286,6 +300,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 SubscriptionManager.sync(ctx, sourceUrl,
                     onProgress = { _aniaSyncFailed.value = false; _aniaSyncStatus.value = it },
                     onResult = { r ->
+                        // R2-04：回调体异常就地兜底——此前逃逸异常被 NetworkExecutor
+                        // 转译成"网络不可用"（失真）且 _aniaSyncing 恢复延迟
+                        runCatching {
                         _aniaSyncFailed.value = !r.success
                         _aniaSyncStatus.value = when {
                             !r.success -> r.errorMessage ?: ctx.getString(io.github.deserthouse.opticon.R.string.sync_failed)
@@ -318,6 +335,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                                 }
                         }
                         _aniaSyncing.value = false
+                        }.onFailure { e ->
+                            TraceLogger.w(TAG, "ania sync callback failed: ${e.message}")
+                            _aniaSyncFailed.value = true
+                            _aniaSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_failed)
+                            _aniaSyncing.value = false
+                        }
                     }
                 )
             }
@@ -342,6 +365,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             onProgress = { _picpSyncFailed.value = false; _picpSyncStatus.value = it },
             onResult = { ok, count, err ->
                 if (ok) {
+                    statusSupersededByUser = true
                     _picpSyncFailed.value = false
                     _picpCount.value = count
                     // After index sync, prefetch icons for installed apps

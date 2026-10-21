@@ -107,6 +107,10 @@ fun AssetPickerScreen(
     var picpLoading by remember { mutableStateOf(false) }
     var picpFailed by rememberSaveable { mutableStateOf(false) } // C11：下载失败可判读+可重试
     val scope = rememberCoroutineScope()
+    // R2-13：loadApp 的 PICP 自动预取晚于选择器打开时补灌草稿（避免重复下载）
+    LaunchedEffect(state.perfectIconsBitmap) {
+        if (draftPicp == null) draftPicp = state.perfectIconsBitmap
+    }
 
     // U-A1（ME-03 尾巴）：Apply 前草稿校验——各子策略必须有可产物的素材，
     // 否则禁用并说明；防止"应用一个空来源"把详情带回无效配置
@@ -263,7 +267,11 @@ private fun PicpPickerSection(
     }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when (hasPicp) {
-            null -> {}
+            // S5：索引加载中给占位，不渲染空白段
+            null -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                Text(stringResource(R.string.packs_loading), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             true -> {
             if (draftPicp != null) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -370,21 +378,25 @@ private fun IconPackPickerSection(
         }
 
         Spacer(Modifier.height(8.dp))
-        // Q1：过滤+排序移出主线程——48k 图标包逐击键排序会卡顿。输入防抖
-        // 200ms；重算期间保留旧结果（produceState 按键重启自动取消在飞计算）
+        // Q1+A2(R2-01)：过滤+排序移出主线程。produceState 的 key 变化会把值
+        // 重置回 initialValue（Q 批误用=每次击键闪全量网格）——改自管状态：
+        // 防抖层与排序层都不重置，重算期间保留上次结果，在飞计算随 key 取消。
         var queryInput by rememberSaveable(draftPack) { mutableStateOf("") }
-        val query by produceState(initialValue = "", queryInput) {
+        var query by remember(draftPack) { mutableStateOf("") }
+        LaunchedEffect(queryInput) {
+            if (queryInput == query) return@LaunchedEffect
             kotlinx.coroutines.delay(200)
-            value = queryInput
+            query = queryInput
         }
         OutlinedTextField(queryInput, { queryInput = it }, singleLine = true,
             placeholder = { Text(stringResource(R.string.icon_pack_search_hint)) },
             modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(4.dp))
-        val displayIcons by produceState(
-            initialValue = packIcons, packIcons, query, state.packageName, state.appName
-        ) {
-            value = withContext(Dispatchers.Default) {
+        var displayIcons by remember(packIcons, state.packageName, state.appName) {
+            mutableStateOf(packIcons)
+        }
+        LaunchedEffect(packIcons, query, state.packageName, state.appName) {
+            displayIcons = withContext(Dispatchers.Default) {
                 IconPackEngine.sortPackIcons(packIcons, state.packageName, state.appName, query)
             }
         }

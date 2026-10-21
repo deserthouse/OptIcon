@@ -81,6 +81,8 @@ class EditorSessionCore {
      */
     fun resolveSaveCompletion(savedRev: Long, ok: Boolean, requestLeaveAfter: Boolean): SaveOutcome {
         if (!ok) {
+            // R2-09 豁免注释：带 ok=false 参数的调用点不存在（全调用点 ok 恒 true），
+            // 此分支为契约防御——失败语义显式保留，勿删
             touch()
             return SaveOutcome.Failed
         }

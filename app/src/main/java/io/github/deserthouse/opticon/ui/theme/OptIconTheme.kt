@@ -76,6 +76,9 @@ private val BrandLightColors = lightColorScheme(
     surfaceContainerHighest = Color(0xFFE3E1EA),
     surface = Color(0xFFFAF8FF),
     onSurface = Color(0xFF1B1B21),
+    // R2-08：background/onBackground 一并覆写，ramp 完整（导航转场叠帧不露库默认近白）
+    background = Color(0xFFFAF8FF),
+    onBackground = Color(0xFF1B1B21),
     surfaceVariant = Color(0xFFE3E1EC),
     onSurfaceVariant = Color(0xFF46464F),
     outline = Color(0xFF777680),
@@ -108,6 +111,9 @@ private val BrandDarkColors = darkColorScheme(
     surfaceContainerHighest = Color(0xFF35343A),
     surface = Color(0xFF131318),
     onSurface = Color(0xFFE4E1EA),
+    // R2-08：background/onBackground 一并覆写（ramp 完整性）
+    background = Color(0xFF131318),
+    onBackground = Color(0xFFE4E1EA),
     surfaceVariant = Color(0xFF46464F),
     onSurfaceVariant = Color(0xFFC7C5D0),
     outline = Color(0xFF91909A),

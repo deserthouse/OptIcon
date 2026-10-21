@@ -9,7 +9,6 @@
 
     <string name="back">Back</string>
     <string name="save">Save</string>
-    <string name="filter">Filter</string>
     <string name="settings">Settings</string>
 
     <string name="lsposed_status_title">LSPosed Status</string>
@@ -34,7 +33,6 @@
     <string name="master_off_dialog_title">Turn off master switch?</string>
     <string name="master_off_dialog_text">Hooks fully disconnect after the next SystemUI restart.</string>
     <string name="action_turn_off">Turn off</string>
-    <string name="debug">Debug</string>
     <string name="verbose_logging">Verbose Logging</string>
     <string name="verbose_logging_desc">Write detailed hook-layer logs to file for diagnostics</string>
     <string name="notif_style_section">Notification Style</string>
@@ -54,15 +52,12 @@
     <string name="color_override_mono_desc">Gray out the colorful notification icon even if the global switch is off</string>
     <string name="color_override_color">Keep original color</string>
     <string name="color_override_color_desc">Keep the notification icon in its original colors</string>
-    <string name="manual_upload_image">Upload image</string>
-    <string name="use_captured_original">Use captured original</string>
     <string name="algo_source_title">Icon source</string>
     <string name="algo_source_desc">Choose which image the redraw pipeline works from</string>
     <string name="algo_source_self">App own icon</string>
     <string name="algo_source_upload">Upload image</string>
     <string name="algo_source_self_desc">White-filter the app\'s own launcher icon</string>
     <string name="algo_source_upload_desc">Pick an image to redraw from — decoding is verified before switching</string>
-    <string name="algo_source_captured">Captured original</string>
     <string name="shade_icon_desc">Which icon the shade rows show (Android 17+)</string>
     <string name="app_section">App</string>
 <string name="language_title">Language</string>
@@ -70,7 +65,6 @@
     <string name="dynamic_color_desc">Follow the wallpaper palette (Material You); off uses the brand theme</string>
     <string name="language_desc">Display language for the app itself (Android 13+)</string>
     <string name="language_system">Follow system</string>
-    <string name="language_applied">Restart to apply</string>
 <string name="predictive_back">Predictive Back Gesture</string>
     <string name="about_section">About</string>
     <string name="repo_link_label">Project home</string>
@@ -102,8 +96,6 @@
 
     <string name="search_apps">Search apps…</string>
     <string name="search_clear_button">Clear search</string>
-    <string name="no_apps">No apps found</string>
-    <string name="scanning">Scanning</string>
     <string name="package_name_copied">Package name copied</string>
 
     <string name="enable_custom_icon">Enable custom notification icon</string>
@@ -115,19 +107,13 @@
     <string name="strategy_fankes_label">Android Notification Icon Standard Adaptation</string>
     <string name="strategy_fankes_covered">This app is already covered in the adaptation library.</string>
     <string name="strategy_fankes_not_covered">Not covered by the library yet — see request option below.</string>
-    <string name="strategy_fankes_contributor">Icon contributed by %s.</string>
-    <string name="strategy_fankes_submit_hint">This app is not yet covered in the adaptation library. Submit a request on GitHub if you want it added.</string>
     <string name="strategy_fankes_submit_btn">Submit adaptation request on GitHub</string>
 
     <string name="strategy_asset_label">Adaptive Asset Import</string>
 
-    <string name="strategy_picp_label">Perfect Icons Project (PICP)</string>
     <string name="strategy_picp_not_downloaded">No PICP icon assets available locally. Check for updates?</string>
-    <string name="strategy_picp_check_update">Check for Updates</string>
     <string name="strategy_picp_submit_hint">If still not available after updating, submit an icon request to the Perfect Icons Project.</string>
     <string name="strategy_picp_submit_btn">Submit icon request on GitHub</string>
-    <string name="strategy_asset_desc">Extract layered assets from third-party icon packs or system adaptive icons.</string>
-    <string name="strategy_asset_a_label">Pick from icon pack</string>
     <string name="strategy_asset_open_pack_app">Open icon pack app</string>
     <string name="no_icon_packs_installed">No icon packs installed. Install one from Play Store.</string>
     <string name="icon_pack_search_hint">Search icons or app name</string>
@@ -138,10 +124,6 @@
     <string name="strategy_asset_b_foreground">Foreground (Logo)</string>
     <string name="strategy_asset_b_background">Background (Color)</string>
     <string name="strategy_asset_b_not_adaptive">⚠️ Note: This app\'s original icon does not support adaptive layers.</string>
-    <string name="strategy_asset_c_label">Perfect Icons Project Import</string>
-    <string name="strategy_asset_c_pull_btn_wip">Pull from Perfect Icons Project (WIP)</string>
-    <string name="strategy_asset_c_wip_hint">This feature is under development. You can still browse the project.</string>
-    <string name="strategy_asset_c_link">→ Go to Perfect Icons Project GitHub</string>
 
     <string name="asset_picker_title">Choose asset</string>
     <string name="asset_picker_apply">Apply</string>
@@ -170,8 +152,6 @@
     <string name="current_asset">Current asset</string>
 
     <string name="strategy_algo_label">Compatibility Redraw</string>
-    <string name="strategy_algo_wip">Redraw any icon into a compliant glyph — no rules or icon packs needed. Fine-tune with sliders.</string>
-    <string name="strategy_algo_auto">Redraw any icon into a compliant glyph — fully automatic; enable "Show fine-tune options" in Settings for expert sliders.</string>
     <string name="strategy_algo_open_panel_wip">Fine-tune redraw</string>
     <string name="algo_panel_title_wip">Fine-tune redraw</string>
     <string name="algo_panel_wip_body">Adjust and watch the preview update live. \"Reset to auto\" only restores this route\'s parameters — it never changes the chosen source. Changes take effect for new notifications after you save.</string>
@@ -200,17 +180,10 @@
     <string name="preview_none">No preview yet</string>
 
     <string name="filter_all">All Apps</string>
-    <string name="filter_configured">Configured</string>
     <string name="filter_ania">ANIP Adapted</string>
     <string name="filter_picp">PICP Redrawn</string>
     <string name="filter_adaptive">Adaptive</string>
 
-    <string name="chip_ania_adapted">ANIP Adapted</string>
-    <string name="chip_ania_not">ANIP Not Adapted</string>
-    <string name="chip_picp_adapted">PICP Adapted</string>
-    <string name="chip_picp_not">PICP Not Adapted</string>
-    <string name="chip_adaptive_yes">Adaptive</string>
-    <string name="chip_adaptive_no">No Adaptive</string>
 
     <string name="algo_slider_scale">Icon Scale</string>
     <string name="algo_slider_offset_x">X Offset</string>
@@ -218,13 +191,6 @@
     <string name="algo_slider_purity">Cleanliness (remove banners)</string>
 
     <!-- Live parameter panel (real sliders) -->
-    <string name="param_panel_title">Fine-Tuning</string>
-    <string name="param_scale">Icon Scale</string>
-    <string name="param_offset_x">X Offset</string>
-    <string name="param_offset_y">Y Offset</string>
-    <string name="param_threshold">Color Distance Threshold</string>
-    <string name="param_radius">Corner Radius</string>
-    <string name="param_reset">Reset to Default</string>
 
     <string name="processing">Processing…</string>
 
@@ -254,8 +220,6 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="delete_source_body">Remove \"%1$s\" from your sources? This cannot be undone.</string>
     <string name="delete_btn">Delete</string>
     <string name="na_label">N/A</string>
-    <string name="picp_icon_loaded">PICP icon loaded</string>
-    <string name="picp_pull_icon">Pull PICP icon</string>
     <string name="cd_sync">Sync subscription source</string>
     <string name="cd_edit_source">Edit source</string>
     <string name="cd_more_options">More options</string>
@@ -284,7 +248,6 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="empty_visibility_title">App list is blocked</string>
     <string name="empty_visibility_body">The system only exposed a handful of apps. In system settings, allow OptIcon to "get the app list" (MIUI/HyperOS: App info → Permissions → Get app list), then refresh.</string>
     <string name="empty_no_apps_body">Try a different keyword or filter</string>
-    <string name="empty_no_apps_clear">Clear search</string>
     <string name="preview_title">Status Bar Preview</string>
     <string name="preview_mode_dark">Dark status bar</string>
     <string name="preview_mode_light">Light status bar</string>
@@ -332,9 +295,7 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
 <string name="pill_ania">Lib</string>
     <string name="pill_picp">Perfect</string>
     <string name="pill_adaptive">Adaptive</string>
-    <string name="pill_compliant">Compliant</string>
     <string name="pill_noncompliant">Not compliant</string>
-    <string name="compliance_hint">Compliance badges appear after an app sends its first notification.</string>
     <string name="enabled_label">Enabled</string>
     <string name="unsaved_title">Unsaved changes</string>
     <string name="unsaved_body">You changed this app icon settings but have not saved. Save before leaving?</string>

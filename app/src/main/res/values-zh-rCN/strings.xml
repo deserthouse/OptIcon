@@ -9,7 +9,6 @@
 
     <string name="back">返回</string>
     <string name="save">保存</string>
-    <string name="filter">过滤</string>
     <string name="settings">设置</string>
 
     <string name="lsposed_status_title">LSPosed 状态</string>
@@ -34,7 +33,6 @@
     <string name="master_off_dialog_title">关闭总开关？</string>
     <string name="master_off_dialog_text">下次重启 SystemUI 后 Hook 完全断开。</string>
     <string name="action_turn_off">关闭</string>
-    <string name="debug">调试</string>
     <string name="verbose_logging">详细日志记录</string>
     <string name="verbose_logging_desc">将 Hook 层详细日志写入文件，用于问题诊断</string>
     <string name="notif_style_section">通知图标样式</string>
@@ -54,15 +52,12 @@
     <string name="color_override_mono_desc">即使全局开关关闭，也将此应用的彩色通知图标置灰</string>
     <string name="color_override_color">保持原色</string>
     <string name="color_override_color_desc">保留此应用通知图标的原始色彩</string>
-    <string name="manual_upload_image">上传图片</string>
-    <string name="use_captured_original">使用抓取的原始图标</string>
     <string name="algo_source_title">图标来源</string>
     <string name="algo_source_desc">选择重绘管线所使用的图形来源</string>
     <string name="algo_source_self">应用自身图标</string>
     <string name="algo_source_upload">上传图片</string>
     <string name="algo_source_self_desc">对应用自身的启动图标做白色剪影重绘</string>
     <string name="algo_source_upload_desc">选择一张图片作为重绘来源——解码校验通过后才切换</string>
-    <string name="algo_source_captured">抓取的原始图标</string>
     <string name="shade_icon_desc">通知列表左侧显示的图标类型（Android 17+）</string>
     <string name="app_section">应用</string>
 <string name="language_title">语言</string>
@@ -70,7 +65,6 @@
     <string name="dynamic_color_desc">跟随系统壁纸配色（Material You）；关闭则使用品牌配色</string>
     <string name="language_desc">应用内的显示语言（Android 13+）</string>
     <string name="language_system">跟随系统</string>
-    <string name="language_applied">重启应用后生效</string>
 <string name="predictive_back">预测性返回手势动画</string>
     <string name="about_section">关于</string>
     <string name="repo_link_label">项目地址</string>
@@ -102,8 +96,6 @@
 
     <string name="search_apps">搜索应用\u2026</string>
     <string name="search_clear_button">清除搜索</string>
-    <string name="no_apps">未找到应用</string>
-    <string name="scanning">扫描中</string>
     <string name="package_name_copied">包名已复制</string>
 
     <string name="enable_custom_icon">开启自定义通知图标</string>
@@ -115,19 +107,13 @@
     <string name="strategy_fankes_label">通知图标适配</string>
     <string name="strategy_fankes_covered">该应用已在通知图标适配规则库中，可直接使用。</string>
     <string name="strategy_fankes_not_covered">尚未被规则库收录，可在下方提交适配申请。</string>
-    <string name="strategy_fankes_contributor">该图标由 %s 贡献。</string>
-    <string name="strategy_fankes_submit_hint">该应用目前在适配规则库中尚未收录，如果希望此应用被适配，可前往 GitHub 提交适配申请。</string>
     <string name="strategy_fankes_submit_btn">前往 GitHub 提交适配申请</string>
 
     <string name="strategy_asset_label">自适应资产导入提取</string>
 
-    <string name="strategy_picp_label">完美图标</string>
     <string name="strategy_picp_not_downloaded">本地暂无完美图标资产，检查更新？</string>
-    <string name="strategy_picp_check_update">检查更新</string>
     <string name="strategy_picp_submit_hint">如果更新后依然没有，你可以给完美图标计划项目提交该应用的图标申请。</string>
     <string name="strategy_picp_submit_btn">前往 GitHub 提交适配申请</string>
-    <string name="strategy_asset_desc">利用第三方图标包或系统原生的分层资产进行快速剥离。</string>
-    <string name="strategy_asset_a_label">从第三方图标包中选取</string>
     <string name="strategy_asset_open_pack_app">跳转到图标包应用</string>
     <string name="no_icon_packs_installed">未安装任何图标包，请从 Play 商店安装。</string>
     <string name="icon_pack_search_hint">搜索图标或应用名</string>
@@ -138,10 +124,6 @@
     <string name="strategy_asset_b_foreground">前景层 (Logo)</string>
     <string name="strategy_asset_b_background">背景层 (底色)</string>
     <string name="strategy_asset_b_not_adaptive">\u26a0\ufe0f 提示：该应用原厂图标不支持自适应分层。</string>
-    <string name="strategy_asset_c_label">完美图标计划导入</string>
-    <string name="strategy_asset_c_pull_btn_wip">从完美图标计划拉取（施工中）</string>
-    <string name="strategy_asset_c_wip_hint">该功能目前尚未完成，但您仍然可以查看完美图标计划。</string>
-    <string name="strategy_asset_c_link">\u2192 前往完美图标计划 GitHub 页面</string>
 
     <string name="asset_picker_title">选择素材</string>
     <string name="asset_picker_apply">应用</string>
@@ -169,8 +151,6 @@
     <string name="current_asset">当前素材</string>
 
     <string name="strategy_algo_label">兼容重绘（非自适应图标）</string>
-    <string name="strategy_algo_wip">无需规则与图标包，任意图标重绘为合规剪影，滑杆微调</string>
-    <string name="strategy_algo_auto">无需规则与图标包，任意图标自动重绘为合规剪影；如需专家滑杆，请在设置中开启「显示微调选项」。</string>
     <string name="strategy_algo_open_panel_wip">微调参数</string>
     <string name="algo_panel_title_wip">重绘微调</string>
     <string name="algo_panel_wip_body">拖动滑杆实时预览；「恢复自动」仅重置本路线参数，不改变所选来源；保存后对新通知生效。</string>
@@ -199,17 +179,10 @@
     <string name="preview_none">暂无预览</string>
 
     <string name="filter_all">全部应用</string>
-    <string name="filter_configured">已修改</string>
     <string name="filter_ania">ANIP 适配</string>
     <string name="filter_picp">PICP 重绘</string>
     <string name="filter_adaptive">自适应</string>
 
-    <string name="chip_ania_adapted">ANIP 适配</string>
-    <string name="chip_ania_not">ANIP 未适配</string>
-    <string name="chip_picp_adapted">完美图标</string>
-    <string name="chip_picp_not">无完美图标</string>
-    <string name="chip_adaptive_yes">自适应</string>
-    <string name="chip_adaptive_no">无自适应</string>
 
     <string name="algo_slider_scale">图标整体大小</string>
     <string name="algo_slider_offset_x">位置 X 轴微调</string>
@@ -217,13 +190,6 @@
     <string name="algo_slider_purity">去除营销横幅 / 纯净化度</string>
 
     <!-- 实时参数面板 -->
-    <string name="param_panel_title">算法微调</string>
-    <string name="param_scale">缩放比例</string>
-    <string name="param_offset_x">X 轴偏移</string>
-    <string name="param_offset_y">Y 轴偏移</string>
-    <string name="param_threshold">色距过滤阈值</string>
-    <string name="param_radius">圆角半径</string>
-    <string name="param_reset">恢复默认</string>
 
     <string name="processing">处理中\u2026</string>
 
@@ -253,8 +219,6 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="delete_source_body">将从订阅源列表移除「%1$s」，此操作不可撤销。</string>
     <string name="delete_btn">删除</string>
     <string name="na_label">不适用</string>
-    <string name="picp_icon_loaded">PICP 图标已加载</string>
-    <string name="picp_pull_icon">拉取 PICP 图标</string>
     <string name="cd_sync">同步订阅源</string>
     <string name="cd_edit_source">编辑订阅源</string>
     <string name="cd_more_options">更多选项</string>
@@ -277,7 +241,6 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="empty_visibility_title">应用列表被系统拦截</string>
     <string name="empty_visibility_body">系统只暴露了极少数应用。请在系统设置中允许 OptIcon「获取应用列表」（MIUI/HyperOS：应用信息 → 权限 → 获取应用列表），然后刷新。</string>
     <string name="empty_no_apps_body">换个关键词或筛选条件试试</string>
-    <string name="empty_no_apps_clear">清除搜索</string>
     <string name="preview_title">状态栏预览</string>
     <string name="preview_mode_dark">深色状态栏</string>
     <string name="preview_mode_light">浅色状态栏</string>
@@ -326,9 +289,7 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
 <string name="pill_ania">ANIP 适配</string>
     <string name="pill_picp">PICP 重绘</string>
     <string name="pill_adaptive">自适应</string>
-    <string name="pill_compliant">符合规范</string>
     <string name="pill_noncompliant">不符合规范</string>
-    <string name="compliance_hint">应用发送通知后才会显示合规状态</string>
     <string name="enabled_label">已启用</string>
     <string name="predictive_back_desc">原生返回手势预览，始终启用（Android 13+ 系统生效）——为什么要关？</string>
     <string name="predictive_back_dialog_title">预测性返回手势</string>

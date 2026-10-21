@@ -15,9 +15,7 @@ data class AppListUiState(
     val installedCount: Int = 0,
     val scanProgress: Pair<Int, Int> = 0 to 0,
     val searchQuery: String = "",
-    val filterMode: FilterMode = FilterMode.ALL,
-    val modifiedGroupExpanded: Boolean = true,
-    val unmodifiedGroupExpanded: Boolean = true
+    val filterMode: FilterMode = FilterMode.ALL
 )
 
 data class AppUiEntry(
@@ -31,7 +29,6 @@ data class AppUiEntry(
     val picpAdapted: Boolean = false,
     /** 是否有自适应图标 */
     val hasAdaptiveIcon: Boolean = false,
-    val lsposedActive: Boolean = false,
     /** 运行时检测: 原生通知图标是否合规 (null=尚未观测到该 App 的通知) */
     val iconCompliant: Boolean? = null,
     val isUserModified: Boolean = false,
@@ -41,15 +38,10 @@ data class AppUiEntry(
 // Z4（架构前置①）：定义迁 domain 包
 typealias ModificationSource = io.github.deserthouse.opticon.domain.ModificationSource
 
-enum class FilterMode(val label: String) {
-    ALL("All"),
-    ANIA_ADAPTED("ANIA"),
-    PICP_ADAPTED("PICP"),
-    HAS_ADAPTIVE("Adaptive"),
-    MODIFIED("Modified")
+enum class FilterMode {
+    ALL, ANIA_ADAPTED, PICP_ADAPTED, HAS_ADAPTIVE, MODIFIED
 }
 
-enum class AppGroup(val label: String) {
-    MODIFIED("Modified"),
-    UNMODIFIED("Unmodified")
+enum class AppGroup {
+    MODIFIED, UNMODIFIED
 }

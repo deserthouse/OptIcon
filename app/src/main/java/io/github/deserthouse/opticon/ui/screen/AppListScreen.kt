@@ -387,9 +387,9 @@ private fun HeroStatusCard(active: Boolean?, modifiedCount: Int, onClick: () -> 
             // Terminal settle uses SLOW (600ms); the 1300ms half-cycle above
             // is a deliberate un-tokened value (no matching token, half of
             // the original 2600ms round trip).
-            // Q12：终态↔终态翻转（如连接态关 master）也走完整形变——
-            // 此前 Morph 重建而 progress 已在 1f，形状瞬跳无过渡
-            morphProgress.snapTo(0f)
+            // Q12+S2(R2 自审)：仅终态→终态翻转重走形变；ping-pong 中途落
+            // 结论时 progress<1，保持原位收敛（无条件 snapTo 反而打断平滑收敛）
+            if (morphProgress.value >= 1f) morphProgress.snapTo(0f)
             morphProgress.animateTo(1f, tween(MotionTokens.SLOW, easing = FastOutSlowInEasing))
         }
     }

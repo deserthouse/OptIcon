@@ -21,6 +21,7 @@ import io.github.deserthouse.opticon.engine.IconTint
 import io.github.deserthouse.opticon.engine.MaterialIconRenderer
 import io.github.deserthouse.opticon.engine.RedrawParams
 import io.github.deserthouse.opticon.network.NetworkExecutor
+import io.github.deserthouse.opticon.ui.session.EditorSessionCore
 import io.github.deserthouse.opticon.ui.state.AlgoSource
 import io.github.deserthouse.opticon.ui.state.AppDetailState
 import io.github.deserthouse.opticon.ui.state.AssetSubStrategy
@@ -38,6 +39,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
@@ -51,8 +54,6 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         private const val OUTPUT_SIZE = 96
         /** Q6：非 ALGORITHM 路径的 scale 有效域上界（引擎 applyAdaptiveScale coerce 口径） */
         private const val ADAPTIVE_SCALE_MAX = 1.5f
-        private const val PERFECT_ICONS_BASE =
-            "https://raw.githubusercontent.com/pzcn/Perfect-Icons-Completion-Project/main/app/src/main/res/drawable-nodpi/"
     }
 
     private val _state = MutableStateFlow(AppDetailState())
@@ -85,8 +86,17 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         // C07（RB-3a）：幂等守卫内建于 EditorSessionCore——同 pkg 已激活即跳过
         if (!session.beginSession(packageName)) return
         // K9（Z3）：主线程只做纯读（无迁移写）——迁移/校验在异步块经仓库完成
-        val initialEnabled = PreferenceManager.isMethodEnabled(packageName)
-        _state.update { it.copy(packageName = packageName, methodEnabled = initialEnabled) }
+        // R2-12：新会话统一重置位图族字段——防未来 detail→detail 导航时 B 应用
+        // 继承 A 的 PICP/自适应位图参与预览烘焙（当前导航模型不可达，防御性）
+        _state.update {
+            it.copy(
+                packageName = packageName,
+                methodEnabled = PreferenceManager.isMethodEnabled(packageName),
+                perfectIconsBitmap = null, adaptiveForeground = null, adaptiveBackground = null,
+                isAdaptiveIcon = null, previewBitmap = null,
+                previewState = EditorSessionCore.PreviewState.Missing, hitSource = HitSource.OTHER
+            )
+        }
         viewModelScope.launch {
             val context = getApplication<Application>().applicationContext
             val app = withContext(Dispatchers.IO) {
@@ -243,61 +253,6 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         debouncePreview()
     }
 
-    fun pullFromPerfectIcons() {
-        _state.update { it.copy(perfectIconsLoading = true) }
-        viewModelScope.launch {
-            val pkg = _state.value.packageName
-            try {
-                val bitmap = withContext(Dispatchers.IO) { fetchPerfectIcon(pkg) }
-                if (bitmap != null) {
-                    val white = withContext(Dispatchers.IO) { IconTint.toWhite(bitmap) }
-                    _state.update { it.copy(previewBitmap = white, hitSource = HitSource.PICP, perfectIconsLoading = false) }
-                } else {
-                    fallbackToLocalBuiltin()
-                }
-            } catch (_: Exception) {
-                fallbackToLocalBuiltin()
-            }
-        }
-    }
-
-    fun downloadPicpIcon() {
-        val pkg = _state.value.packageName.ifBlank { return }
-        _state.update { it.copy(perfectIconsLoading = true) }
-        viewModelScope.launch(Dispatchers.IO) {
-            val bitmap = PicpEngine.downloadIcon(getApplication(), pkg)
-            _state.update {
-                if (bitmap != null) it.copy(perfectIconsBitmap = bitmap, previewBitmap = bitmap, hitSource = HitSource.PICP, perfectIconsLoading = false)
-                else it.copy(perfectIconsLoading = false, hitSource = HitSource.PICP_FAILED)
-            }
-            if (bitmap != null) computePreviewNow()
-        }
-    }
-
-    private suspend fun fetchPerfectIcon(pkg: String): Bitmap? {
-        val name = pkg.replace('.', '_')
-        val suffixes = listOf("$name.png", "${name}_icon.png", "ic_launcher_$name.png")
-        for (suffix in suffixes) {
-            val bytes = NetworkExecutor.fetchBytesSync("$PERFECT_ICONS_BASE$suffix")
-            if (bytes != null) {
-                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                if (bitmap != null) return bitmap
-            }
-        }
-        return null
-    }
-
-    private suspend fun fallbackToLocalBuiltin() {
-        val pkg = _state.value.packageName
-        withContext(Dispatchers.IO) {
-            val libIcon = IconLibEngine.lookup(pkg)
-            if (libIcon != null) {
-                _state.update { it.copy(previewBitmap = libIcon, hitSource = HitSource.ICONLIB, perfectIconsLoading = false) }
-            } else {
-                _state.update { it.copy(previewBitmap = null, hitSource = HitSource.NETWORK_FAIL, perfectIconsLoading = false) }
-            }
-        }
-    }
 
     private fun decomposeAdaptiveIcon() {
         viewModelScope.launch {
@@ -422,18 +377,25 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
 
     /** #13 每应用色彩覆盖：null=继承全局, "mono"=强制单色, "color"=保持原色。
      *  立即写共享目录（hook 侧 mtime 缓存即时感知），不随保存流程。 */
+    /** A3（R2-03）：色彩策略写互斥——快速连续切换时磁盘终态=最后一次点击，
+     *  杜绝"UI 取最后完成者、磁盘取最后执行者"的顺序分离。 */
+    private val colorWriteMutex = Mutex()
+
     fun setColorOverride(value: String?) {
         val ctx = getApplication<Application>()
+        val pkg = _state.value.packageName
         // Q2：共享目录写盘（含 MediaStore/迁移检查）移出主线程；「立即生效」
         // 语义与 Coordinator 锁豁免口径不变。
         viewModelScope.launch {
             // A10（F2-4）：写入/删除结果决定 UI 显示值——失败保持旧值并如实反馈，
             // 不得出现"显示已切换但从未持久生效"。
-            val ok = withContext(Dispatchers.IO) {
-                if (value == null) {
-                    io.github.deserthouse.opticon.engine.SharedIconStore.deleteColorOverride(ctx, _state.value.packageName)
-                } else {
-                    io.github.deserthouse.opticon.engine.SharedIconStore.writeColorOverride(ctx, _state.value.packageName, value) != null
+            val ok = colorWriteMutex.withLock {
+                withContext(Dispatchers.IO) {
+                    if (value == null) {
+                        io.github.deserthouse.opticon.engine.SharedIconStore.deleteColorOverride(ctx, pkg)
+                    } else {
+                        io.github.deserthouse.opticon.engine.SharedIconStore.writeColorOverride(ctx, pkg, value) != null
+                    }
                 }
             }
             if (ok) {
@@ -471,7 +433,8 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
     }
     fun setThreshold(v: Int) {
         markDirty()
-        _state.update { it.copy(redrawParams = it.redrawParams.copy(threshold = v.coerceIn(0, 255))) }
+        // R2-02：与滑杆/引擎同域（10..150）
+        _state.update { it.copy(redrawParams = it.redrawParams.copy(threshold = v.coerceIn(io.github.deserthouse.opticon.engine.RedrawParams.THRESHOLD_MIN, io.github.deserthouse.opticon.engine.RedrawParams.THRESHOLD_MAX))) }
         debouncePreview()
     }
     fun setRadius(v: Float) {
@@ -650,8 +613,8 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
         val pkgAtStart = s.packageName // RB-3b：会话切走后过期预览不回填
         // C08（X4）：关闭态不再画应用图标伪结果——契约回落=规则库/原生图标，
         // 启动图标轮廓不代表真实回落产物；空预览+既有关闭引导文案才是诚实表达
-        if (!s.methodEnabled) { _state.update { it.copy(previewBitmap = null, isRedrawing = false, previewRejected = false, hitSource = HitSource.DISABLED) }; return }
-        _state.update { it.copy(isRedrawing = true) }
+        if (!s.methodEnabled) { _state.update { it.copy(previewBitmap = null, previewState = EditorSessionCore.PreviewState.Missing, hitSource = HitSource.DISABLED) }; return }
+        _state.update { it.copy(previewState = EditorSessionCore.PreviewState.Updating(lastSourceTag = s.hitSource.name)) }
         try {
             val ctx = getApplication<Application>().applicationContext
             val result = withContext(Dispatchers.IO) { bakeCurrentState(ctx, s) }
@@ -663,15 +626,21 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                 result.detail?.startsWith("redraw guard") == true ||
                 result.detail?.startsWith("self-filter guard") == true
             )
-            _state.update { it.copy(previewBitmap = result.bitmap, hitSource = result.source, previewRejected = rejected) }
+            val ps = when {
+                rejected -> EditorSessionCore.PreviewState.Rejected(result.detail ?: "")
+                result.bitmap != null -> EditorSessionCore.PreviewState.Current(result.source.name)
+                else -> EditorSessionCore.PreviewState.Missing
+            }
+            _state.update { it.copy(previewBitmap = result.bitmap, hitSource = result.source, previewState = ps) }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e // C05：取消继续传播，不清除新任务的进行中状态
         } catch (e: Exception) {
             if (!session.isLatestPreviewRound(gen)) return
             TraceLogger.w("OptIcon/AppDetailVM", "runPreview failed: ${e.message}")
-            _state.update { it.copy(hitSource = HitSource.OTHER) }
-        } finally {
-            if (session.isLatestPreviewRound(gen)) _state.update { it.copy(isRedrawing = false) }
+            // A5.2：异常也必须落终态，否则 Updating 态卡死 spinner
+            val ps = if (_state.value.previewBitmap != null) EditorSessionCore.PreviewState.Current(HitSource.OTHER.name)
+                     else EditorSessionCore.PreviewState.Missing
+            _state.update { it.copy(hitSource = HitSource.OTHER, previewState = ps) }
         }
     }
 
@@ -728,8 +697,4 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
 
     override fun onCleared() { super.onCleared(); redrawDebounceJob?.cancel() }
 
-    private fun android.graphics.Bitmap.toPngBytes(): ByteArray = java.io.ByteArrayOutputStream().use {
-        compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
-        it.toByteArray()
-    }
 }

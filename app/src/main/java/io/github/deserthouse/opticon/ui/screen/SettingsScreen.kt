@@ -979,6 +979,8 @@ private suspend fun restartSystemUi(): RestartResult = kotlinx.coroutines.withCo
     }
 }
 
+private enum class StatusIconKind { LSPOSED, ROOT }
+
 @Composable
 private fun StatusRow(
     title: String,
@@ -989,12 +991,14 @@ private fun StatusRow(
     hint: String? = null,
     // E7: root-unavailable is expected on non-rooted devices — a neutral
     // note, not an error-red alarm (LSPosed-inactive keeps the error color).
-    inactiveIsNeutral: Boolean = false
+    inactiveIsNeutral: Boolean = false,
+    // R2-10：显式语义参数取代 title.contains("LSPosed") 子串选图标（翻译耦合）
+    iconKind: StatusIconKind = StatusIconKind.ROOT
 ) {
     Column {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(
-                if (title.contains("LSPosed")) Icons.Rounded.Extension else Icons.Rounded.Key,
+                if (iconKind == StatusIconKind.LSPOSED) Icons.Rounded.Extension else Icons.Rounded.Key,
                 null, Modifier.padding(end = 12.dp),
                 tint = if (checking) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                        else MaterialTheme.colorScheme.onSurfaceVariant
@@ -1041,6 +1045,7 @@ private fun RuntimeStatusCard(
 ) {
     SettingsCard {
         StatusRow(
+            iconKind = StatusIconKind.LSPOSED,
             title = stringResource(R.string.lsposed_status_title),
             statusText = when {
                 rechecking && lsposedActive == null -> stringResource(R.string.status_checking)
@@ -1057,6 +1062,7 @@ private fun RuntimeStatusCard(
         // card on this screen — the full-bleed divider was the lone outlier.
         HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
         StatusRow(
+            iconKind = StatusIconKind.ROOT,
             title = stringResource(R.string.root_status_title),
             statusText = when {
                 rechecking && rootAvailable == null -> stringResource(R.string.root_status_checking)

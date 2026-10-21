@@ -85,6 +85,7 @@ import io.github.deserthouse.opticon.ui.state.IconStrategy
 import io.github.deserthouse.opticon.ui.state.hitLevelRes
 import io.github.deserthouse.opticon.ui.theme.OptShapes
 import io.github.deserthouse.opticon.ui.theme.OptSpacing
+import io.github.deserthouse.opticon.ui.session.EditorSessionCore
 import io.github.deserthouse.opticon.ui.viewmodel.AppDetailViewModel
 import io.github.deserthouse.opticon.ui.viewmodel.AppDetailViewModel.SaveState
 import kotlinx.coroutines.launch
@@ -209,8 +210,7 @@ fun AppDetailScreen(
 
             // ═══ ① RESULT PREVIEW ═══
             PreviewCard(
-                state.previewBitmap, state.previewMode, state.isRedrawing, viewModel::togglePreviewMode,
-                rejected = state.previewRejected
+                state.previewBitmap, state.previewMode, state.previewState, viewModel::togglePreviewMode
             )
             Spacer(Modifier.height(OptSpacing.cardGap))
 
@@ -341,7 +341,7 @@ fun AppDetailScreen(
             threshold = state.redrawParams.threshold.toFloat(),
             inputClass = algoInputClass,
             previewBitmap = state.previewBitmap,
-            isRedrawing = state.isRedrawing,
+            isRedrawing = state.previewState is io.github.deserthouse.opticon.ui.session.EditorSessionCore.PreviewState.Updating,
             onScaleChange = viewModel::setScale,
             onOffsetXChange = viewModel::setOffsetX,
             onOffsetYChange = viewModel::setOffsetY,
@@ -657,7 +657,9 @@ private fun AlgoWipSheet(
                 Slider(value = offsetY, onValueChange = onOffsetYChange, valueRange = -50f..50f, modifier = Modifier.fillMaxWidth())
                 if (inputClass != io.github.deserthouse.opticon.engine.IconRedrawEngine.InputClass.TRANSPARENT_MARGIN) {
                     SliderLabel(stringResource(R.string.algo_slider_purity), "%.0f".format(threshold))
-                    Slider(value = threshold, onValueChange = { onThresholdChange(it.toInt()) }, valueRange = 0f..255f, modifier = Modifier.fillMaxWidth())
+                    // R2-02：滑杆域统一到引擎生效域（RedrawParams.clamped 的 10..150）——此前 0-9/151-255
+                    // 段拖动显示变化而产物不变（A13 同型洞）
+                    Slider(value = threshold, onValueChange = { onThresholdChange(it.toInt()) }, valueRange = io.github.deserthouse.opticon.engine.RedrawParams.THRESHOLD_MIN.toFloat()..io.github.deserthouse.opticon.engine.RedrawParams.THRESHOLD_MAX.toFloat(), modifier = Modifier.fillMaxWidth())
                 } else {
                     Text(stringResource(R.string.algo_auto_alpha_note), style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))

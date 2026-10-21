@@ -130,9 +130,20 @@ object SharedIconStore {
      *  scoped storage for MediaStore-owned rows — the override file survived
      *  while the UI showed "inherit". Delete through MediaStore too. */
     fun deleteColorOverride(context: Context, pkg: String): Boolean = try {
-        val fileGone = colorOverrideFile(pkg).delete()
-        val rowGone = deleteByName(context, "$pkg$EXTENSION", normalizedRelPath("color_override"))
-        fileGone || rowGone
+        // A3(R2-05)：幂等删除——文件与 MediaStore 行均已不存在=目标态达成=true
+        //（此前"本就不存在"返回 false，重选"继承"时 UI 误报写入失败）
+        val file = colorOverrideFile(pkg)
+        val fileGone = !file.exists() || file.delete()
+        val rel = normalizedRelPath("color_override")
+        val rowGone = deleteByName(context, "$pkg$EXTENSION", rel) || !existsByName(context, "$pkg$EXTENSION", rel)
+        fileGone && rowGone
+    } catch (_: Exception) { false }
+
+    private fun existsByName(context: Context, fileName: String, relativePath: String): Boolean = try {
+        val resolver = context.contentResolver
+        val selection = "${MediaStore.Downloads.DISPLAY_NAME} = ? AND ${MediaStore.Downloads.RELATIVE_PATH} = ?"
+        resolver.query(collection(), arrayOf(MediaStore.Downloads._ID), selection, arrayOf(fileName, relativePath), null)
+            ?.use { it.moveToFirst() } ?: false
     } catch (_: Exception) { false }
 
     fun readColorOverride(pkg: String): String? = try {

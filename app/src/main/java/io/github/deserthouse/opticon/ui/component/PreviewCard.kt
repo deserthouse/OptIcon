@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.deserthouse.opticon.ui.session.EditorSessionCore
 import io.github.deserthouse.opticon.ui.state.StatusBarMode
 import kotlin.math.roundToInt
 import io.github.deserthouse.opticon.ui.theme.OptShapes
@@ -51,12 +52,13 @@ import io.github.deserthouse.opticon.ui.theme.OptShapes
 fun PreviewCard(
     bitmap: Bitmap?,
     mode: StatusBarMode,
-    isRedrawing: Boolean,
+    preview: EditorSessionCore.PreviewState,
     onToggleMode: () -> Unit,
-    modifier: Modifier = Modifier,
-    // Q10（C08 残余）：烘焙被守卫拒绝——预览走拒绝态，"?"仅保留"未配置"语义
-    rejected: Boolean = false
+    modifier: Modifier = Modifier
 ) {
+    // A5.2（R2-06）：分态单源派生（此前 isRedrawing/rejected 双布尔散布）
+    val isRedrawing = preview is EditorSessionCore.PreviewState.Updating
+    val rejected = preview is EditorSessionCore.PreviewState.Rejected
     // D1: the preview simulates the REAL status bar, whose light/dark
     // appearance is a semantic constant, not a decoration. Deriving the bar
     // tones from the theme's surface ramp inverts in dark mode (the "dark
@@ -69,7 +71,7 @@ fun PreviewCard(
     // 底色趋白回弹再稳定，AVD 录屏已观察）；改快速 tween 语义配对
     val bgColor by animateColorAsState(
         targetValue = if (mode == StatusBarMode.DARK) darkBar else lightBar,
-        animationSpec = tween(durationMillis = io.github.deserthouse.opticon.ui.theme.MotionTokens.FASTEST),
+        animationSpec = tween(durationMillis = io.github.deserthouse.opticon.ui.theme.MotionTokens.WASH),
         label = "previewBg"
     )
     // Foreground paired to the simulated bar's background, not to the theme.

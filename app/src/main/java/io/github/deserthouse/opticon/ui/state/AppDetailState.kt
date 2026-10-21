@@ -53,11 +53,11 @@ data class AppDetailState(
     val sheetVisible: Boolean = false,
 
     // Preview
-    val isRedrawing: Boolean = false,
     val previewBitmap: Bitmap? = null,
-    /** Q10（C08 残余收口）：烘焙被守卫拒绝（红/白矩形等不可用素材）——
-     *  预览显示拒绝态而非"?"；"?"仅保留"未配置/无素材"语义。 */
-    val previewRejected: Boolean = false,
+    /** A5.2（R2-06）：预览分态单源——Current/Updating/Missing/Rejected 收敛到
+     *  EditorSessionCore.PreviewState（此前布尔双参散布+sealed 声明零消费双轨）。 */
+    val previewState: io.github.deserthouse.opticon.ui.session.EditorSessionCore.PreviewState =
+        io.github.deserthouse.opticon.ui.session.EditorSessionCore.PreviewState.Missing,
     val previewMode: StatusBarMode = StatusBarMode.DARK
 )
 

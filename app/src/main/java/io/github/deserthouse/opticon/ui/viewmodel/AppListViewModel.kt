@@ -160,15 +160,6 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
         _uiState.update { it.copy(filterMode = mode) }
     }
 
-    fun toggleGroupExpanded(group: AppGroup) {
-        _uiState.update { state ->
-            when (group) {
-                AppGroup.MODIFIED -> state.copy(modifiedGroupExpanded = !state.modifiedGroupExpanded)
-                AppGroup.UNMODIFIED -> state.copy(unmodifiedGroupExpanded = !state.unmodifiedGroupExpanded)
-            }
-        }
-    }
-
     //                                           
     //    /        ?    //                                           
 
@@ -233,15 +224,6 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
         )
     }
 
-    private fun drawableToBitmap(drawable: Drawable, size: Int, targetSize: Int): Bitmap {
-        drawable.setBounds(0, 0, size, size)
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        drawable.draw(canvas)
-        val scaled = Bitmap.createScaledBitmap(bitmap, targetSize, targetSize, true)
-        if (scaled !== bitmap) bitmap.recycle()
-        return scaled
-    }
 
     /** 从下载的规则文件初始化图标库（需用户先同步） */
     private fun initializeIconLibEngine() {
