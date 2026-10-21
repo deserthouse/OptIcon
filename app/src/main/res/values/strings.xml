@@ -147,6 +147,7 @@
     <string name="picp_fail_missing">Downloaded PICP zip is missing</string>
     <string name="picp_fail_invalid">PICP archive invalid: %1$s</string>
     <string name="picp_fail_generic">PICP sync failed: %1$s</string>
+    <string name="preview_missing_hint">Open the switch and select a source to see a preview</string>
     <string name="preview_rejected_hint">Can\'t render this asset — try a different source</string>
     <string name="locale_apply_failed">Couldn\'t apply the language</string>
     <string name="no_icons_in_pack">No usable icons in this pack</string>

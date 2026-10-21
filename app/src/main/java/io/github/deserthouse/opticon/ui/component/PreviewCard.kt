@@ -177,12 +177,21 @@ fun PreviewCard(
                                 tint = MaterialTheme.colorScheme.error
                             )
                         } else {
-                            Text(
-                                text = "?",
-                                color = labelColor.copy(alpha = 0.3f),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            // D02：Missing 态——"?"保留但加引导文案（不再只是裸问号）
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "?",
+                                    color = labelColor.copy(alpha = 0.3f),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = stringResource(io.github.deserthouse.opticon.R.string.preview_missing_hint),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = labelColor.copy(alpha = 0.4f),
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                            }
                         }
                     }
                     Spacer(Modifier.weight(1f))

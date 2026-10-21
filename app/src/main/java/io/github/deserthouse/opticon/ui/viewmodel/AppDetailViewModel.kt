@@ -45,7 +45,10 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 
-class AppDetailViewModel(application: Application) : AndroidViewModel(application) {
+class AppDetailViewModel(
+    application: Application,
+    private val savedStateHandle: androidx.lifecycle.SavedStateHandle
+) : AndroidViewModel(application) {
 
     companion object {
         private const val TAG = "OptIcon/AppDetailVM"
@@ -67,7 +70,44 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
     private fun markDirty() {
         session.touch()
         _isDirty.value = true
+        persistDraft()
     }
+
+    /**
+     * F02：草稿持久化到 SavedStateHandle——进程回收后重启可恢复未保存编辑。
+     * 只存 ID/参数等小值（Bitmap 不入 Bundle，按引用重建）。
+     * 保存成功或放弃时清除。
+     */
+    private fun persistDraft() {
+        val s = _state.value
+        savedStateHandle["draft_${s.packageName}"] = buildString {
+            append("v${session.revisionNow()}")
+            append("|${s.methodEnabled}")
+            append("|${s.strategy.name}")
+            append("|${s.assetSubStrategy?.name ?: ""}")
+            append("|${s.algoSource?.name ?: ""}")
+            append("|${s.selectedIconPack ?: ""}")
+            append("|${s.selectedPackIconDrawable ?: ""}")
+            append("|${s.customIconPath ?: ""}")
+            append("|${s.materialIconName ?: ""}")
+            append("|${s.emojiText ?: ""}")
+            append("|${s.redrawParams.scale}")
+            append("|${s.redrawParams.threshold}")
+            append("|${s.redrawParams.offsetX}")
+            append("|${s.redrawParams.offsetY}")
+            append("|${s.redrawParams.radius}")
+        }
+    }
+
+    /** F02：草稿清除（保存成功或用户放弃） */
+    private fun clearDraft() {
+        val pkg = _state.value.packageName
+        if (pkg.isNotBlank()) savedStateHandle.remove<Any>("draft_$pkg")
+    }
+
+    /** F02：从 SavedStateHandle 恢复草稿——返回 null=无草稿 */
+    private fun restoreDraft(pkg: String): String? =
+        savedStateHandle.get<String>("draft_$pkg")
 
     /** M4：当前 algo 来源图的输入分类（换图时自动分类+参数重置） */
     private val _algoInputClass = MutableStateFlow<IconRedrawEngine.InputClass?>(null)
@@ -148,6 +188,38 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                     colorOverride = io.github.deserthouse.opticon.engine.SharedIconStore.readColorOverride(packageName),
                     hasOriginalCaptured = io.github.deserthouse.opticon.engine.SharedIconStore.originalIconFile(packageName).exists()
                 )
+            }
+
+            // F02：进程回收后从 SavedStateHandle 恢复未保存草稿——
+            // 有草稿则覆盖 committed 值并置 dirty（用户看到与进程死亡前一致的编辑态）
+            val draftStr = restoreDraft(packageName)
+            if (draftStr != null) {
+                val parts = draftStr.split("|")
+                if (parts.size >= 15 && parts[0].startsWith("v")) {
+                    try {
+                        _state.update {
+                            it.copy(
+                                methodEnabled = parts[1].toBoolean(),
+                                strategy = runCatching { io.github.deserthouse.opticon.domain.IconStrategy.valueOf(parts[2]) }.getOrDefault(IconStrategy.FANKES),
+                                assetSubStrategy = runCatching { io.github.deserthouse.opticon.domain.AssetSubStrategy.valueOf(parts[3]) }.getOrDefault(AssetSubStrategy.ADAPTIVE_DECOMPOSE),
+                                algoSource = runCatching { io.github.deserthouse.opticon.domain.AlgoSource.valueOf(parts[4]) }.getOrDefault(AlgoSource.SELF),
+                                selectedIconPack = parts[5].ifBlank { null },
+                                selectedPackIconDrawable = parts[6].ifBlank { null },
+                                customIconPath = parts[7].ifBlank { null },
+                                materialIconName = parts[8].ifBlank { null },
+                                emojiText = parts[9].ifBlank { null },
+                                redrawParams = it.redrawParams.copy(
+                                    scale = parts[10].toFloat(),
+                                    threshold = parts[11].toInt(),
+                                    offsetX = parts[12].toFloat(),
+                                    offsetY = parts[13].toFloat(),
+                                    radius = parts[14].toFloat()
+                                )
+                            )
+                        }
+                        markDirty()
+                    } catch (_: Exception) { /* 恢复失败=当无草稿处理 */ }
+                }
             }
 
             // R3-4(F03)：重进重建输入分类（元数据恢复）——微调面板按类渲染
@@ -559,8 +631,10 @@ class AppDetailViewModel(application: Application) : AndroidViewModel(applicatio
                     if (failStage == null && session.revisionNow() == savedRevision) {
                         // C01：保存期间有新编辑时不回写——草稿字段（开关/来源等）优先于已提交快照
                         _state.update { it.copy(methodEnabled = true, hitSource = bakeResult.source) }
+                        clearDraft()
                     } else if (failStage == null) {
                         _state.update { it.copy(hitSource = bakeResult.source) } // 仅更新来源显示，不动开关草稿
+                        clearDraft()
                     } else {
                         ok = false
                         feedbackSet = true

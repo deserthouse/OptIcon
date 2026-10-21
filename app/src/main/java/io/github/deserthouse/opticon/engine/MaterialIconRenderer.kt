@@ -103,6 +103,9 @@ object MaterialIconRenderer {
 
     /**
      * Render the specified ImageVector to a pure white 96px bitmap.
+     * T-A3：当前为占位白方块（ImageVector 是 Compose 类，engine 层无 Compose
+     * 依赖无法真渲染——真渲染需 UI 层桥接，见 R3-06 储备终局 C 裁决）。
+     * bake 侧已有 reserve guard（R3-5），不会静默产出此占位图。
      */
     fun renderToWhiteBitmap(icon: ImageVector, size: Int = OUTPUT_SIZE): Bitmap? {
         return createBlankWhite()

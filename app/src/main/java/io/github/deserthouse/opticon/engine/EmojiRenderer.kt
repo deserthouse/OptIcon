@@ -26,7 +26,11 @@ object EmojiRenderer {
      * @return 纯白剪影位图
      */
     fun renderToWhiteBitmap(text: String, size: Int = OUTPUT_SIZE): Bitmap? {
-        val ch = text.firstOrNull()?.toString() ?: return null
+        // T-A3(R2 报告§6)：码点级取首字符——firstOrNull() 取 UTF-16 单元会
+        // 截断非 BMP Emoji（如 😀 = 两个 surrogate）；codePointAt 正确处理
+        if (text.isEmpty()) return null
+        val codePoint = text.codePointAt(0)
+        val ch = String(Character.toChars(codePoint))
 
         val canvas = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val c = Canvas(canvas)

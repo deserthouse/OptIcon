@@ -146,6 +146,7 @@
     <string name="picp_fail_missing">下载的 PICP 压缩包丢失</string>
     <string name="picp_fail_invalid">PICP 压缩包无效：%1$s</string>
     <string name="picp_fail_generic">PICP 同步失败：%1$s</string>
+    <string name="preview_missing_hint">打开上方开关并选择来源以预览</string>
     <string name="preview_rejected_hint">无法生成此素材——请更换来源</string>
     <string name="locale_apply_failed">语言切换失败</string>
     <string name="no_icons_in_pack">该图标包内没有可用图标</string>
