@@ -485,7 +485,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                             stringResource(R.string.easter_egg_vibe_line),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            lineHeight = 18.sp
+                            lineHeight = io.github.deserthouse.opticon.ui.theme.OptTypeAdjustments.bodyLineTall
                         )
                         Spacer(Modifier.height(8.dp))
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier
@@ -512,7 +512,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                                 stringResource(R.string.easter_egg_ai_note),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                lineHeight = 18.sp
+                                lineHeight = io.github.deserthouse.opticon.ui.theme.OptTypeAdjustments.bodyLineTall
                             )
                             AnimatedVisibility(
                                 visible = rambleExtraShown,
@@ -524,7 +524,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                                     style = MaterialTheme.typography.bodySmall,
                                     fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.primary,
-                                    lineHeight = 18.sp,
+                                    lineHeight = io.github.deserthouse.opticon.ui.theme.OptTypeAdjustments.bodyLineTall,
                                     modifier = Modifier.padding(top = 10.dp)
                                 )
                             }
@@ -943,7 +943,7 @@ private fun RestartFeedbackRow(text: String, isError: Boolean) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Rounded.ErrorOutline, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
         Spacer(Modifier.width(6.dp))
-        Text(text, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, lineHeight = 14.sp)
+        Text(text, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, lineHeight = io.github.deserthouse.opticon.ui.theme.OptTypeAdjustments.hintLine)
     }
 }
 
@@ -1017,7 +1017,7 @@ private fun StatusRow(
                 )
                 Text(statusText, style = MaterialTheme.typography.bodySmall, color = statusColor)
                 if (hint != null && !checking) Text(hint, style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), lineHeight = 14.sp)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), lineHeight = io.github.deserthouse.opticon.ui.theme.OptTypeAdjustments.hintLine)
             }
             if (checking) {
                 // Same 48dp footprint as the recheck IconButton — prevents
@@ -1119,7 +1119,7 @@ private fun RuntimeStatusCard(
             Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (supportingHint != null) {
-                Text(supportingHint, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, lineHeight = 14.sp)
+                Text(supportingHint, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, lineHeight = io.github.deserthouse.opticon.ui.theme.OptTypeAdjustments.hintLine)
             }
         }
         if (action != null) {
@@ -1153,7 +1153,7 @@ internal fun SwitchSettingItem(
             Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (supportingHint != null) {
-                Text(supportingHint, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, lineHeight = 14.sp)
+                Text(supportingHint, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, lineHeight = io.github.deserthouse.opticon.ui.theme.OptTypeAdjustments.hintLine)
             }
         }
         Spacer(Modifier.width(8.dp))

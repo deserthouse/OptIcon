@@ -376,7 +376,7 @@ private fun SourceSummaryRow(state: AppDetailState, onShowSheet: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(icon, null, Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(io.github.deserthouse.opticon.ui.theme.OptSpacing.inlineGap))
         Column(Modifier.weight(1f)) {
             Text(stringResource(R.string.current_source), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
@@ -424,7 +424,7 @@ private fun FankesAdjustments(state: AppDetailState) {
                 Spacer(Modifier.height(8.dp))
                 OutlinedButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://betterandroid.github.io/android-notification-icon-project/en/contribute/request"))) },
                     modifier = Modifier.fillMaxWidth(), shape = OptShapes.medium) {
-                    Text(stringResource(R.string.strategy_fankes_submit_btn), fontSize = 13.sp)
+                    Text(stringResource(R.string.strategy_fankes_submit_btn), fontSize = io.github.deserthouse.opticon.ui.theme.OptTypeAdjustments.compactButton)
                 }
             }
         }
@@ -475,7 +475,7 @@ private fun AssetImportAdjustments(
                 ) {
                     if (thumb != null) Image(thumb!!.asImageBitmap(), null, Modifier.size(40.dp))
                 }
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(io.github.deserthouse.opticon.ui.theme.OptSpacing.inlineGap))
                 Column(Modifier.weight(1f)) {
                     Text(stringResource(R.string.current_asset), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(selectionLabel, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)

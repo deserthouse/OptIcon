@@ -2,6 +2,7 @@ package io.github.deserthouse.opticon.ui.theme
 
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.github.deserthouse.opticon.ui.theme.OptShapes
 
 /**
@@ -25,4 +26,20 @@ object OptSpacing {
     val cardGap = 12.dp
     val sectionGap = 24.dp
     val rowInner = 4.dp
+    /** 行内 icon↔文本 间距（值同 cardGap，语义独立防误用）。 */
+    val inlineGap = 12.dp
+}
+
+/**
+ * 字阶微调常量（R2-11 后续/sp 散点收编，2026-10-21）——这些是刻意的视觉微调
+ * 值（M3 字阶无对应档），收编进本文件统一管理；渲染值与收编前逐处相同，
+ * 改值须过双主题视觉轮。
+ */
+object OptTypeAdjustments {
+    /** 按钮内文案压小一档（默认 labelLarge 14 → 13，东亚按钮密度）。 */
+    val compactButton = 13.sp
+    /** bodySmall 长文本行高（关于卡描述，中文可读性）。 */
+    val bodyLineTall = 18.sp
+    /** labelSmall 提示行行高（错误行/supporting hint）。 */
+    val hintLine = 14.sp
 }
