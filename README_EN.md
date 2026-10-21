@@ -11,7 +11,7 @@
 
 **Notification icon normalizer for Android — covering the full Material You generation**
 
-Make every notification icon comply with native Android design guidelines
+Make adapted notification icons comply with native Android design guidelines
 
 [![License](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Android%2012%2B-green.svg)](#-compatibility)
@@ -42,11 +42,11 @@ Whenever an app posts a notification, OptIcon automatically evaluates whether it
 
 ### More
 
-- 🔴 **Full heads-up coverage** — replacement across the shade list, heads-up banners, and lock screen
+- 🔴 **Heads-up, three paths** — replacement across the shade list, heads-up banners, and lock screen (coverage as verified per release)
 - 🎨 **Material You dynamic color** — light & dark themes following the system wallpaper palette
 - ⚡ **Hot reload** — icon changes apply without restarting; monitored by FileObserver
 - 🌐 **Multilingual ready** — Chinese/English out of the box, extensible to any language
-- 🔒 **Zero network dependency (optional)** — rule sets are downloaded on demand; no subscription, no telemetry
+- 🔒 **Optional networking** — rule sets are downloaded on demand only; no subscription, no telemetry, nothing uploaded
 
 ## 📸 Screenshots
 
@@ -102,7 +102,7 @@ A: Because I want to.
 |---|---|
 | Minimum | Android 12 (API 31) |
 | Target | Android 17 (API 37) |
-| Verified | API 36 end-to-end (AOSP emulator + LSPosed v2.2.0); Android 17 (OOS real device) |
+| Verified | API 36 end-to-end (AOSP emulator + LSPosed v2.2.0); Android 17 (OOS real device): in verification |
 | Custom ROMs | AOSP as the mainline; OOS (OnePlus 15) as the primary real-device environment — others theoretically work, untested |
 
 ## 🛠️ How it works
@@ -118,9 +118,9 @@ A: Because I want to.
 └────────────┘   (heads-up / shade / lock screen)
 ```
 
-- **Path A**: the app writes to a shared public directory via MediaStore; the SystemUI hook reads it directly (the mass-deployment pattern proven by [Iconify](https://github.com/MohamedRejworkshop/Iconify))
-- **Path B**: the SystemUI process downloads the rule set by itself (ANIP architecture, zero cross-process traffic)
-- **Compliance detection**: piggybacks on the existing createIcons hook, measuring the original icon's monochromaticity at near-zero cost
+- **In-app write path**: the app writes to a shared public directory via MediaStore; the SystemUI hook reads it directly (the mass-deployment pattern proven by [Iconify](https://github.com/MohamedRejworkshop/Iconify))
+- **In-SystemUI path**: the SystemUI process downloads the rule set by itself (ANIP architecture, zero cross-process traffic)
+- **Compliance detection**: piggybacks on the existing createIcons hook (no extra call sites), measuring the original icon's monochromaticity at low cost
 
 ## 🤝 Credits
 

@@ -11,7 +11,7 @@
 
 **Android 通知图标规范化工具 —— 覆盖完整 Material You 世代**
 
-让每一个通知图标都符合原生 Android 设计规范
+让适配范围内的通知图标符合原生 Android 设计规范
 
 [![License](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Android%2012%2B-green.svg)](#-兼容性)
@@ -42,11 +42,11 @@
 
 ### 其他特性
 
-- 🔴 **Heads-up 全覆盖** —— 悬浮横幅、下拉列表、锁屏图标全路径替换
+- 🔴 **Heads-up 三路径** —— 悬浮横幅、下拉列表、锁屏图标替换（覆盖以各版本已验证路径为准）
 - 🎨 **Material You 动态取色** —— 深浅色双主题，跟随系统壁纸配色
 - ⚡ **热生效** —— 修改图标无需重启，FileObserver 实时监听
 - 🌐 **多语言就绪** —— 中文/英文，架构支持任意语言扩展
-- 🔒 **零网络依赖（可选）** —— 规则库按需下载，无订阅、无遥测
+- 🔒 **可选联网** —— 仅规则库按需下载；无订阅、无遥测、不上传数据
 
 ## 📸 界面预览
 
@@ -118,9 +118,9 @@ A：我乐意。
 └────────────┘   (含 heads-up/列表/锁屏全路径)
 ```
 
-- **方案 A**：App 端 MediaStore 写入公共目录，SystemUI hook 端直读（[Iconify](https://github.com/MohamedRejworkshop/Iconify) 量产验证模式）
-- **方案 B**：SystemUI 进程内自下载规则库（ANIP 架构，零跨进程）
-- **合规检测**：寄生在已有的 createIcons hook 中，评估原始图标单色性，几乎零开销
+- **App 端写入方案**：App 端 MediaStore 写入公共目录，SystemUI hook 端直读（[Iconify](https://github.com/MohamedRejworkshop/Iconify) 量产验证模式）
+- **SystemUI 进程内方案**：SystemUI 进程内自下载规则库（ANIP 架构，零跨进程）
+- **合规检测**：寄生在已有的 createIcons hook 中（无额外调用点），评估原始图标单色性，开销低
 
 ## 🤝 致谢
 
