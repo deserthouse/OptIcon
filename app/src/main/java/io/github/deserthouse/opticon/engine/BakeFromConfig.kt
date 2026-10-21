@@ -123,7 +123,14 @@ private fun bakeLocalFile(context: Context, config: AppIconConfig, inputs: BakeI
     // OI-04: hand the ORIGINAL bitmap to the redraw engine — pre-whitening
     // destroys the bg/fg color distance the keying depends on.
     val src = try {
-        android.graphics.BitmapFactory.decodeFile(config.customIconPath)
+        // T5：解码预算——bake 路径与分类路径统一 inSampleSize（长边≤512），
+        // 大图导入不再全尺寸解码（12MP≈48MB 位图→≤1MB）
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeFile(config.customIconPath, bounds)
+        var sample = 1
+        while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 512) sample *= 2
+        val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
+        android.graphics.BitmapFactory.decodeFile(config.customIconPath, opts)
             ?: decodeUri(context, config.customIconPath!!)
     } catch (_: Exception) { null }
     if (src == null) return IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: file decode failed")

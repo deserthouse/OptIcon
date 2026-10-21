@@ -296,6 +296,10 @@ private fun PicpPickerSection(
                 Column(Modifier.padding(12.dp)) {
                     Text(stringResource(R.string.strategy_picp_not_downloaded), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(4.dp))
+                    // T0：未同步死端引导——告诉用户去设置同步（此前只提"去项目提交"，
+                    // 用户第一次进来会撞死端）
+                    Text(stringResource(R.string.picp_go_to_settings), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.height(4.dp))
                     Text(stringResource(R.string.strategy_picp_submit_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(4.dp))
                     OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PicpEngine.FEEDBACK_URL))) }, modifier = Modifier.fillMaxWidth(), shape = OptShapes.small) {

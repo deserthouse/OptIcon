@@ -75,7 +75,13 @@ fun PreviewCard(
         label = "previewBg"
     )
     // Foreground paired to the simulated bar's background, not to the theme.
-    val labelColor = if (mode == StatusBarMode.DARK) PreviewSemanticBar.darkFg else PreviewSemanticBar.lightFg
+    // §7.3(R2 风险3)：前景与底色共同进度过渡（此前前景瞬跳、底色过渡，
+    // 过渡窗口内短暂低可辨）
+    val labelColor by animateColorAsState(
+        targetValue = if (mode == StatusBarMode.DARK) PreviewSemanticBar.darkFg else PreviewSemanticBar.lightFg,
+        animationSpec = tween(durationMillis = io.github.deserthouse.opticon.ui.theme.MotionTokens.WASH),
+        label = "previewFg"
+    )
 
     Surface(
         // ME-06: no page-level horizontal indent inside reusable components —

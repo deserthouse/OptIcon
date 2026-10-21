@@ -111,6 +111,7 @@
 
     <string name="strategy_asset_label">自适应资产导入提取</string>
 
+    <string name="picp_go_to_settings">前往 设置 → 应用图标订阅源 同步下载</string>
     <string name="strategy_picp_not_downloaded">本地暂无完美图标资产，检查更新？</string>
     <string name="strategy_picp_submit_hint">如果更新后依然没有，你可以给完美图标计划项目提交该应用的图标申请。</string>
     <string name="strategy_picp_submit_btn">前往 GitHub 提交适配申请</string>
