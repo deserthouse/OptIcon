@@ -7,8 +7,17 @@
 ## 事实源与文档
 
 - **待办唯一事实源 = `MIGRATION_NOTES.md` 第六节**；`project_status.md` 只留版本规则/变更史（避免双源失真）。**两文件为维护者本地私有工作文件，不入公开仓**：公开 clone 中缺失属预期，`scripts/check_doc_sync.sh` 对缺失文件 SKIP；公开贡献者以 Releases 与 git 历史为准。
-- 出包前必跑 `scripts/check_doc_sync.sh`（版本号三处一致性，维护者本机），不绿不 tag。
+- **`CHANGELOG.md`（公开仓）= 发布说明唯一事实源**：版本 bump 即建对应条目（KEEP 格式，Unreleased 留给发布后的新变化）；Release 正文从同条目提取，不另行现写（上游§9.7）。`check_doc_sync.sh` 校验其含当前版本号。
+- 出包前必跑 `scripts/check_doc_sync.sh`（版本号四处一致性，维护者本机），不绿不 tag。
 - 状态变更当场重写待办节；汇报以 git log / build.gradle.kts / 桌面产物为准。
+
+## 流程对齐（2026-10-21 用户指令：对齐上游 `Projects/AGENTS.md`，后续严格遵循）
+
+- **审查/修复/发布流程以上游 `C:/Users/deser/Projects/AGENTS.md`（经全局规范第十一节每会话注入）为准**；本文件只写项目专属补充。优先级：用户最新指令 > 项目既有契约（keystore/命名/真机禁令等）> 上游通用条款；发现冲突记录具体冲突项再议，不擅自改写项目契约。
+- **验收条件纪律**：WORKPLAN 每项的验收条件 = 关闭条件。未执行的验收必须列入当轮报告的「未验证项」（含原因与补验条件），「代码完成」不得表述为「验收通过」，不许把局部通过相加成完整验收（上游§六/§七）。
+- **版本出包五步（先门禁后提交，先提交后构建）**：① 改版本号（build.gradle.kts 唯一事实源）→ ② check_doc_sync PASS + 测试/lint 绿 → ③ **提交版本 bump** → ④ 从该提交 SHA `assembleRelease`（`--no-configuration-cache`）→ ⑤ 将来 tag 指向该 SHA。构建后任何代码变化 = 新构建：发布前重建直接顶替并记录哈希更替；**发布后**禁止同名覆盖，一律新版本/build。tag/push/Release 永远等用户放行。
+- **预发布一致性**：alpha/beta/rc 的应用内徽章配色、tag、Release.prerelease、文案四者一致——rc 与 beta 同用预发布配色（secondary），不得用正式色（上游§9.6）。
+- **真机走查挂账项**（rc→正式前）：见 MIGRATION_NOTES 六节维护，含 Q3 上传失败不置脏（SAF 注入通道不足，只能真机）等。
 
 ## 版本与构建
 
