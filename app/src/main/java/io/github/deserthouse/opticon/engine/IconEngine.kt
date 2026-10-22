@@ -162,11 +162,9 @@ object IconEngine {
                 BakeResult(white, HitSource.MANUAL, "local upload")
             }
             ManualBranch.MATERIAL_LIB -> {
-                if (materialIconName.isNullOrBlank()) return BakeResult(null, HitSource.AUTO_MISS, "no icon selected")
-                val icon = MaterialIconRenderer.findByName(materialIconName)
-                    ?: return BakeResult(null, HitSource.AUTO_MISS, "material icon not found")
-                val bmp = MaterialIconRenderer.renderToWhiteBitmap(icon)
-                BakeResult(bmp, HitSource.MANUAL, "material icon library")
+                // T4-A：此死分支随统一烘焙入口废弃——bakeFromConfigEntry 的
+                // bakeMaterialLib 读持久化资产位图。保留枚举分支防意外调用。
+                BakeResult(null, HitSource.AUTO_MISS, "material: use bakeFromConfigEntry")
             }
             ManualBranch.EMOJI_TEXT -> {
                 if (emojiText.isNullOrBlank()) return BakeResult(null, HitSource.AUTO_MISS, "no text entered")

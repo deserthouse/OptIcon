@@ -523,6 +523,8 @@ private fun AlgorithmAdjustments(
             }
             // A04（F2-1）：显式来源选择——点击行为不再随当前来源隐式翻转
             var showAlgoSourceSheet by remember { mutableStateOf(false) }
+            var showMaterialPicker by remember { mutableStateOf(false) }
+            var showEmojiInput by remember { mutableStateOf(false) }
             SettingItem(
                 Icons.Rounded.Tune,
                 stringResource(R.string.algo_source_title),
@@ -543,26 +545,61 @@ private fun AlgorithmAdjustments(
                     Text(stringResource(R.string.algo_source_captured_original), style = MaterialTheme.typography.labelMedium)
                 }
             }
+            if (showMaterialPicker) {
+                MaterialIconPickerSheet(
+                    onDismiss = { showMaterialPicker = false },
+                    onPick = { name, bmp ->
+                        viewModel.applyMaterialIcon(name, bmp)
+                        showMaterialPicker = false
+                    }
+                )
+            }
+            if (showEmojiInput) {
+                EmojiInputDialog(
+                    initial = state.emojiText ?: "",
+                    onConfirm = { text ->
+                        viewModel.setEmojiText(text.ifBlank { null })
+                        if (text.isNotBlank()) viewModel.setAlgoSource(io.github.deserthouse.opticon.ui.state.AlgoSource.EMOJI_TEXT)
+                        showEmojiInput = false
+                    },
+                    onDismiss = { showEmojiInput = false }
+                )
+            }
             if (showAlgoSourceSheet) {
                 RadioSheet(
                     title = stringResource(R.string.algo_source_title),
                     selected = state.algoSource?.name ?: "",
-                    options = listOf(
-                        RadioOption(
+                    options = buildList {
+                        add(RadioOption(
                             io.github.deserthouse.opticon.ui.state.AlgoSource.SELF.name,
                             stringResource(R.string.algo_source_self),
                             stringResource(R.string.algo_source_self_desc)
-                        ),
-                        RadioOption(
+                        ))
+                        add(RadioOption(
                             io.github.deserthouse.opticon.ui.state.AlgoSource.LOCAL_FILE.name,
                             stringResource(R.string.algo_source_upload),
                             stringResource(R.string.algo_source_upload_desc)
-                        )
-                    ),
+                        ))
+                        add(RadioOption(
+                            "material_picker",
+                            stringResource(R.string.algo_source_material),
+                            stringResource(R.string.algo_source_material_desc)
+                        ))
+                        if (state.emojiUnlocked) {
+                            add(RadioOption(
+                                io.github.deserthouse.opticon.ui.state.AlgoSource.EMOJI_TEXT.name,
+                                stringResource(R.string.algo_source_emoji),
+                                stringResource(R.string.algo_source_emoji_desc)
+                            ))
+                        }
+                    },
                     onSelect = { picked ->
                         showAlgoSourceSheet = false
-                        when (io.github.deserthouse.opticon.ui.state.AlgoSource.valueOf(picked)) {
-                            io.github.deserthouse.opticon.ui.state.AlgoSource.SELF ->
+                        when (picked) {
+                            "material_picker" -> showMaterialPicker = true
+                            io.github.deserthouse.opticon.ui.state.AlgoSource.EMOJI_TEXT.name ->
+                                showEmojiInput = true
+                            io.github.deserthouse.opticon.ui.state.AlgoSource.SELF.name ->
                                 viewModel.setAlgoSource(io.github.deserthouse.opticon.ui.state.AlgoSource.SELF)
                             else -> pickLauncher.launch("image/*") // 取消选择器不改变任何状态
                         }

@@ -102,14 +102,12 @@ object MaterialIconRenderer {
     }
 
     /**
-     * Render the specified ImageVector to a pure white 96px bitmap.
-     * T-A3：当前为占位白方块（ImageVector 是 Compose 类，engine 层无 Compose
-     * 依赖无法真渲染——真渲染需 UI 层桥接，见 R3-06 储备终局 C 裁决）。
-     * bake 侧已有 reserve guard（R3-5），不会静默产出此占位图。
+     * T4-A：Material 图标的持久化资产路径——UI 在选择时把 ImageVector 渲染成
+     * 位图（ui/component/VectorCapture）并存到此文件；bake 路径读文件重绘，
+     * 进程重启后重烘焙无需再次组合。文件缺失=诚实 miss（不产白方块）。
      */
-    fun renderToWhiteBitmap(icon: ImageVector, size: Int = OUTPUT_SIZE): Bitmap? {
-        return createBlankWhite()
-    }
+    fun materialAssetPath(context: android.content.Context, name: String): java.io.File =
+        java.io.File(java.io.File(context.filesDir, "assets"), "material-$name.png")
 
     fun findByName(name: String): ImageVector? {
         for ((_, entries) in categories) {

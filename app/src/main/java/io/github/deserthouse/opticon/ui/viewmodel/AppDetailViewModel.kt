@@ -554,10 +554,29 @@ class AppDetailViewModel(
         _state.update { it.copy(emojiText = text) }
         debouncePreview()
     }
-    fun selectMaterialIcon(name: String) {
-        markDirty()
-        _state.update { it.copy(materialIconName = name) }
-        debouncePreview()
+    /**
+     * T4-A：选择 Material 图标——UI 侧已把 ImageVector 渲染为 Bitmap（Compose
+     * 依赖在选择点解决），此处持久化为资产文件 + 切源；bake 读文件重绘。
+     */
+    fun applyMaterialIcon(name: String, rendered: android.graphics.Bitmap) {
+        viewModelScope.launch {
+            val ctx = getApplication<Application>()
+            val ok = withContext(Dispatchers.IO) {
+                runCatching {
+                    val dir = java.io.File(ctx.filesDir, "assets").apply { mkdirs() }
+                    val f = io.github.deserthouse.opticon.engine.MaterialIconRenderer.materialAssetPath(ctx, name)
+                    f.outputStream().use { out -> rendered.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out) }
+                    f.isFile
+                }.getOrDefault(false)
+            }
+            if (!ok) {
+                _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.save_failed)
+                return@launch
+            }
+            markDirty()
+            _state.update { it.copy(materialIconName = name, algoSource = AlgoSource.MATERIAL_LIB) }
+            debouncePreview()
+        }
     }
 
     fun setScale(v: Float) {

@@ -2,6 +2,7 @@ package io.github.deserthouse.opticon.engine
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import io.github.deserthouse.opticon.data.AppIconConfig
 import io.github.deserthouse.opticon.ui.state.AlgoSource
 import io.github.deserthouse.opticon.ui.state.AssetSubStrategy
@@ -34,14 +35,7 @@ fun bakeFromConfigEntry(
     config: AppIconConfig,
     inputs: BakeInputs
 ): IconEngine.BakeResult {
-    // R3-5：储备来源诚实守卫——Material/Emoji 渲染为占位实现且当前无 UI 入口，
-    // legacy 配置不得静默产出占位图（detail 前缀走预览拒绝态/保存侧守卫通道）
-    if (config.strategy == IconStrategy.ALGORITHM && config.algoSource == AlgoSource.MATERIAL_LIB) {
-        return IconEngine.BakeResult(null, HitSource.AUTO_MISS, "reserve guard: material icons renderer is a placeholder")
-    }
-    if (config.strategy == IconStrategy.ALGORITHM && config.algoSource == AlgoSource.EMOJI_TEXT) {
-        return IconEngine.BakeResult(null, HitSource.AUTO_MISS, "reserve guard: emoji renderer is a placeholder (UTF-16 incomplete)")
-    }
+    // T4-A：Material/Emoji 转正式功能（守卫移除）——Material 读持久化资产位图
     return when (config.strategy) {
         IconStrategy.FANKES -> bakeFankes(config.pkg)
 
@@ -60,7 +54,7 @@ fun bakeFromConfigEntry(
             AlgoSource.LOCAL_FILE ->
                 bakeLocalFile(context, config, inputs)
             AlgoSource.MATERIAL_LIB ->
-                bakeMaterialLib(config)
+                bakeMaterialLib(context, config)
             AlgoSource.EMOJI_TEXT ->
                 bakeEmojiText(config)
             null -> IconEngine.BakeResult(null, HitSource.AUTO_MISS, "ALGORITHM requires algoSource")
@@ -153,14 +147,22 @@ private fun decodeUri(context: Context, path: String): Bitmap? = try {
     }
 } catch (_: Exception) { null }
 
-private fun bakeMaterialLib(config: AppIconConfig): IconEngine.BakeResult {
+private fun bakeMaterialLib(context: Context, config: AppIconConfig): IconEngine.BakeResult {
     if (config.materialIconName.isNullOrBlank()) {
         return IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: no material icon")
     }
-    val icon = MaterialIconRenderer.findByName(config.materialIconName)
-        ?: return IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: material icon not found")
-    val bmp = MaterialIconRenderer.renderToWhiteBitmap(icon)
-        ?: return IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: material render failed")
+    // T4-A：读选择时持久化的资产位图（缺失=未在此设备选择过或资产被清——诚实 miss）
+    val assetFile = MaterialIconRenderer.materialAssetPath(context, config.materialIconName)
+    if (!assetFile.isFile) {
+        return IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: material asset missing (re-select the icon)")
+    }
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(assetFile.absolutePath, bounds)
+    var sample = 1
+    while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 512) sample *= 2
+    val bmp = BitmapFactory.decodeFile(assetFile.absolutePath,
+        BitmapFactory.Options().apply { inSampleSize = sample })
+        ?: return IconEngine.BakeResult(null, HitSource.AUTO_MISS, "algo: material asset decode failed")
     return when (val outcome = IconRedrawEngine.redraw(bmp, config.params)) {
         is IconRedrawEngine.RedrawOutcome.Ok -> {
             bmp.recycle()

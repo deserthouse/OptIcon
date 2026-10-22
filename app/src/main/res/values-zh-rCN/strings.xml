@@ -111,6 +111,11 @@
 
     <string name="strategy_asset_label">自适应资产导入提取</string>
 
+    <string name="algo_source_material">Material 图标库</string>
+    <string name="algo_source_material_desc">从分类 Material 图标中选择</string>
+    <string name="algo_source_emoji">Emoji / 文字</string>
+    <string name="algo_source_emoji_desc">用 Emoji 或字符生成图标</string>
+    <string name="algo_source_emoji_hint">Emoji 或单个字符</string>
     <string name="algo_source_captured_original">使用抓取原图</string>
     <string name="picp_go_to_settings">前往 设置 → 应用图标订阅源 同步下载</string>
     <string name="strategy_picp_not_downloaded">本地暂无完美图标资产，检查更新？</string>
