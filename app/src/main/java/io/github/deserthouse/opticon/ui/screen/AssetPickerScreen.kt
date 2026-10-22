@@ -60,6 +60,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -456,9 +459,21 @@ private fun PickerIconCell(
         Box(
             Modifier.fillMaxWidth().height(72.dp)
                 .clip(OptShapes.small)
-                // V08（Y5）：素材极性与主题解耦——固定浅画布，黑色细线素材在
-                // 深色模式仍可辨（surfaceVariant 会吞掉黑色位图像素）
+                // V08（Y5）+T-B2①：素材极性与主题解耦——固定浅画布上叠加
+                // 微弱棋盘格纹理，白色/浅色素材的透明区域与画布底可辨
                 .background(androidx.compose.ui.graphics.Color(0xFFF7F5FA))
+                .drawBehind {
+                    // 8px 棋盘格（与 AOSP 透明指示一致）；alpha 极低只提供纹理提示
+                    val sq = 8.dp.toPx()
+                    val light = androidx.compose.ui.graphics.Color(0xFFE8E6EF)
+                    for (row in 0 until (size.height / sq).toInt() + 1) {
+                        for (col in 0 until (size.width / sq).toInt() + 1) {
+                            if ((row + col) % 2 == 0) {
+                                drawRect(light, topLeft = Offset(col * sq, row * sq), size = Size(sq, sq))
+                            }
+                        }
+                    }
+                }
                 .then(if (selected) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, OptShapes.small) else Modifier),
             contentAlignment = Alignment.Center
         ) {

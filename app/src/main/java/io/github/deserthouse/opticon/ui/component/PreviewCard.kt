@@ -54,7 +54,9 @@ fun PreviewCard(
     mode: StatusBarMode,
     preview: EditorSessionCore.PreviewState,
     onToggleMode: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // D02：当前结果来源归属标签（空=不显示）
+    sourceTag: String = ""
 ) {
     // A5.2（R2-06）：分态单源派生（此前 isRedrawing/rejected 双布尔散布）
     val isRedrawing = preview is EditorSessionCore.PreviewState.Updating
@@ -198,6 +200,15 @@ fun PreviewCard(
                 }
             }
 
+            // D02 补全：当前结果来源归属行
+            if (!isRedrawing && bitmap != null && sourceTag.isNotBlank()) {
+                Text(
+                    text = stringResource(io.github.deserthouse.opticon.R.string.preview_source_tag, sourceTag),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp)
+                )
+            }
             // Q10：拒绝态文案——不可用素材的诚实引导（位于模拟栏与图例之间）
             if (rejected && !isRedrawing) {
                 Text(

@@ -217,7 +217,8 @@ fun AppDetailScreen(
 
             // ═══ ① RESULT PREVIEW ═══
             PreviewCard(
-                state.previewBitmap, state.previewMode, state.previewState, viewModel::togglePreviewMode
+                state.previewBitmap, state.previewMode, state.previewState, viewModel::togglePreviewMode,
+                sourceTag = state.hitSource.name
             )
             Spacer(Modifier.height(OptSpacing.cardGap))
 
