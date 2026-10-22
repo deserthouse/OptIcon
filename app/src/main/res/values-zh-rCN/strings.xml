@@ -162,6 +162,8 @@
     <string name="source_change_title">更换图标来源</string>
     <string name="source_change_desc">选择此应用的通知图标来源</string>
     <string name="strategy_fankes_label_short">规则库（ANIP）</string>
+    <string name="strategy_fankes_desc">图标来自社区维护的 ANIP 规则库</string>
+    <string name="strategy_algo_desc">对应用自身图标或上传图片重绘白色剪影</string>
     <string name="strategy_asset_label_short">资产导入</string>
     <string name="strategy_algo_desc_short">兼容重绘</string>
     <string name="strategy_asset_desc_short">从图标包或自适应图标提取</string>

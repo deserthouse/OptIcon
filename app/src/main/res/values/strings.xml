@@ -163,6 +163,8 @@
     <string name="source_change_title">Change icon source</string>
     <string name="source_change_desc">Choose which source provides the icon for this app</string>
     <string name="strategy_fankes_label_short">Rule library (ANIP)</string>
+    <string name="strategy_fankes_desc">Icons come from the community-maintained ANIP rule library</string>
+    <string name="strategy_algo_desc">Redraws the app's own icon or an uploaded picture into a white silhouette</string>
     <string name="strategy_asset_label_short">Asset import</string>
     <string name="strategy_algo_desc_short">Compatibility redraw</string>
     <string name="strategy_asset_desc_short">Extract from icon packs or adaptive icons</string>

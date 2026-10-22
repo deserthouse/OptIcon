@@ -318,7 +318,7 @@ fun AppDetailScreen(
                 Spacer(Modifier.height(16.dp))
                 SourceOptionRow(
                     label = stringResource(R.string.strategy_fankes_label),
-                    desc = stringResource(R.string.strategy_fankes_label_short),
+                    desc = stringResource(R.string.strategy_fankes_desc),
                     selected = state.strategy == IconStrategy.FANKES,
                     onClick = { viewModel.setStrategy(IconStrategy.FANKES); showSourceSheet = false }
                 )
@@ -330,7 +330,7 @@ fun AppDetailScreen(
                 )
                 SourceOptionRow(
                     label = stringResource(R.string.strategy_algo_label),
-                    desc = stringResource(R.string.strategy_algo_desc_short),
+                    desc = stringResource(R.string.strategy_algo_desc),
                     selected = state.strategy == IconStrategy.ALGORITHM,
                     onClick = { viewModel.setStrategy(IconStrategy.ALGORITHM); showSourceSheet = false }
                 )
