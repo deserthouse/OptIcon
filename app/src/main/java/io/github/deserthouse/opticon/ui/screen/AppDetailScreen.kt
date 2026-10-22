@@ -530,6 +530,18 @@ private fun AlgorithmAdjustments(
             ) {
                 Text(sourceLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             }
+            // F05：使用抓取原图（仅当 hasOriginalCaptured 时显示）——
+            // 转存到资产仓获取稳定引用，走 LOCAL_FILE 路径
+            if (state.hasOriginalCaptured && state.algoSource != io.github.deserthouse.opticon.ui.state.AlgoSource.LOCAL_FILE) {
+                TextButton(
+                    onClick = { viewModel.useCapturedOriginal() },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Rounded.ImageSearch, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.algo_source_captured_original), style = MaterialTheme.typography.labelMedium)
+                }
+            }
             if (showAlgoSourceSheet) {
                 RadioSheet(
                     title = stringResource(R.string.algo_source_title),

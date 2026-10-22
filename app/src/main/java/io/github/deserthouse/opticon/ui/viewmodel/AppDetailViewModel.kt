@@ -427,6 +427,53 @@ class AppDetailViewModel(
         }
     }
 
+    /**
+     * F05：使用抓取的原始通知图标作为重绘来源——转存到资产仓获取稳定引用，
+     * 再走标准 LOCAL_FILE 路径（与上传同管道）。
+     */
+    fun useCapturedOriginal() {
+        val pkg = _state.value.packageName
+        val originalFile = io.github.deserthouse.opticon.engine.SharedIconStore.originalIconFile(pkg)
+        if (!originalFile.exists()) {
+            _saveFeedback.value = getApplication<Application>().getString(
+                io.github.deserthouse.opticon.R.string.save_failed
+            )
+            return
+        }
+        viewModelScope.launch {
+            val bytes = withContext(Dispatchers.IO) { originalFile.readBytes() }
+            val ref = AppIconAssetRepository.importAsset(getApplication(), bytes)
+            if (ref == null) {
+                _saveFeedback.value = getApplication<Application>().getString(
+                    io.github.deserthouse.opticon.R.string.upload_decode_failed
+                )
+                return@launch
+            }
+            applyUploadedIconFromPath(ref.path)
+        }
+    }
+
+    private fun applyUploadedIconFromPath(path: String) {
+        markDirty()
+        val gen = session.bumpInput()
+        viewModelScope.launch {
+            val classified = withContext(Dispatchers.IO) {
+                decodeFileOrUri(getApplication(), path)?.let { bmp ->
+                    val px = IntArray(bmp.width * bmp.height)
+                    bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
+                    IconRedrawEngine.classifyInput(px, bmp.width)
+                }
+            }
+            if (!session.isCurrentInput(gen)) return@launch
+            _state.update { it.copy(customIconPath = path, algoSource = AlgoSource.LOCAL_FILE) }
+            _algoInputClass.value = classified
+            if (classified != null) {
+                _state.update { it.copy(redrawParams = autoParamsFor(classified)) }
+            }
+            debouncePreview()
+        }
+    }
+
     fun setCustomIconPath(path: String?) {
         markDirty()
         _state.update { it.copy(customIconPath = path) }

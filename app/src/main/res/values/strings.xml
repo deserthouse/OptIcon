@@ -111,6 +111,7 @@
 
     <string name="strategy_asset_label">Adaptive Asset Import</string>
 
+    <string name="algo_source_captured_original">Use captured original icon</string>
     <string name="picp_go_to_settings">Go to Settings → App icon sources to download</string>
     <string name="strategy_picp_not_downloaded">No PICP icon assets available locally. Check for updates?</string>
     <string name="strategy_picp_submit_hint">If still not available after updating, submit an icon request to the Perfect Icons Project.</string>
