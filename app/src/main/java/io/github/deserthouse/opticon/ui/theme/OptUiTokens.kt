@@ -9,6 +9,10 @@ import io.github.deserthouse.opticon.ui.theme.OptShapes
  * M3 Expressive token set — the ONLY place hand-written dp/shape constants
  * are allowed to live. Screens reference these; grep for stray
  * RoundedCornerShape(x.dp) outside this file must stay zero.
+ *
+ * 已知例外（Q11 豁免，调用点带注释）：PreviewCard 模拟系统栏的微装饰
+ * （信号条 1dp、时间/图例 9/10sp）为像素画式刻度，不进 token 表——
+ * 它们是装饰性绘制值而非布局/字阶语义（OI-05 注释同步，2026-10-24）。
  */
 object OptShapes {
     /** Chips, small badges, inline accents. */
