@@ -18,6 +18,15 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
+/** Result of `su -c kill $(pidof com.android.systemui)` — surfaced inline, no toast.
+ *  Q20：由 VM 持有（此前 remember 在旋转/重建时丢失 Running 与结果）。 */
+internal sealed interface RestartResult {
+    data object Running : RestartResult
+    data object Ok : RestartResult
+    data class Failed(val exitCode: Int, val stderr: String) : RestartResult
+    data class Error(val message: String) : RestartResult
+}
+
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
@@ -140,6 +149,57 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             }
             _rootAvailable.value = root
             _rechecking.value = false
+        }
+    }
+
+    // ━━━ SystemUI 重启（Q20 自 UI remember 下沉） ━━━
+
+    private val _restartState = MutableStateFlow<RestartResult?>(null)
+    internal val restartState: StateFlow<RestartResult?> = _restartState.asStateFlow()
+
+    /** 确认对话框点击后触发；Running 期间重入被忽略。成功行静默 6s 自清。 */
+    fun restartSystemUi() {
+        if (_restartState.value is RestartResult.Running) return
+        viewModelScope.launch {
+            _restartState.value = RestartResult.Running
+            val r = doRestartSystemUi()
+            _restartState.value = r
+            if (r is RestartResult.Ok) {
+                kotlinx.coroutines.delay(6000)
+                if (_restartState.value === r) _restartState.value = null
+            }
+        }
+    }
+
+    /**
+     * Runs the restart on IO. Reads the real su exit code —
+     * a missing/forbidden su or a failed kill no longer shows a fake success toast.
+     */
+    private suspend fun doRestartSystemUi(): RestartResult = withContext(Dispatchers.IO) {
+        try {
+            // pidof = exact package match. pkill -f is a FULL-CMDLINE SUBSTRING
+            // match and would collateral-kill any process whose cmdline merely
+            // contains the string (e.g. OOS wallpaper engine on A17 → wallpaper
+            // + Monet palette reset, reported by the tester).
+            val proc = ProcessBuilder("su", "-c", "kill \$(pidof com.android.systemui)")
+                .redirectErrorStream(true)
+                .start()
+            // OI-16: drain output off-thread so waitFor's 5s deadline actually
+            // bounds the whole call even when su never closes its stdout.
+            val outputRef = java.util.concurrent.atomic.AtomicReference<String>("")
+            val drained = Thread { try { outputRef.set(proc.inputStream.bufferedReader().readText().trim()) } catch (_: Exception) {} }
+            drained.start()
+            val exited = proc.waitFor(5, TimeUnit.SECONDS)
+            if (!exited) {
+                proc.destroy()
+                RestartResult.Failed(-1, "timeout")
+            } else if (proc.exitValue() == 0) {
+                RestartResult.Ok
+            } else {
+                RestartResult.Failed(proc.exitValue(), outputRef.get())
+            }
+        } catch (e: Exception) {
+            RestartResult.Error(e.message ?: e.javaClass.simpleName)
         }
     }
 

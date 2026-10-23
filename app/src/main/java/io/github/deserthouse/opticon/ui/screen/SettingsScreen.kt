@@ -3,14 +3,12 @@ package io.github.deserthouse.opticon.ui.screen
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,15 +17,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -37,43 +31,26 @@ import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Palette
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Gesture
-import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.Key
-import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Launch
-import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.Translate
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -86,33 +63,27 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.layout.offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import io.github.deserthouse.opticon.BuildConfig
 import io.github.deserthouse.opticon.R
 import io.github.deserthouse.opticon.util.PreferenceManager
-import io.github.deserthouse.opticon.util.TraceLogger
-import io.github.deserthouse.opticon.ui.viewmodel.SettingsViewModel
-import kotlinx.coroutines.launch
 import io.github.deserthouse.opticon.ui.theme.OptShapes
+import io.github.deserthouse.opticon.ui.viewmodel.SettingsViewModel
 
+/** Q20 拆分：本文件只留页面编排；共享原语见 SettingsScreenShared.kt，
+ *  订阅源/致谢见 SettingsScreenSources.kt，状态卡与重启见 SettingsScreenRuntime.kt。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = viewModel()) {
     val context = LocalContext.current
     val verboseLogging by viewModel.verboseLogging.collectAsState()
     val masterEnabled by viewModel.masterEnabled.collectAsState()
-    val busy by viewModel.busy.collectAsState()
     val infoMessage by viewModel.infoMessage.collectAsState()
     val toastEvent by viewModel.toastEvent.collectAsState()
     val easterEggExpanded by viewModel.easterEggExpanded.collectAsState()
@@ -230,7 +201,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                         onRestoreDefault = if (picpBuiltinHidden) viewModel::restoreDefaultPicp else null)
                 }
             }
-            RestartSystemUiButton()
+            RestartSystemUiButton(viewModel)
 
 
             // ── 通知图标样式（模块对 shade 的行为） ──
@@ -584,653 +555,6 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                     viewModel.addSource(name, url, desc)
                 }
             )
-        }
-    }
-}
-
-@Composable
-private fun AddSourceDialog(onDismiss: () -> Unit, onConfirm: (String, String, String) -> Unit) {
-    var name by remember { mutableStateOf("") }
-    var url by remember { mutableStateOf("") }
-    var desc by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.add_source_title)) },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = name, onValueChange = { name = it },
-                    label = { Text(stringResource(R.string.source_name_label)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = url, onValueChange = { url = it },
-                    label = { Text(stringResource(R.string.source_url_label)) },
-                    placeholder = { Text(stringResource(R.string.source_url_placeholder)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = desc, onValueChange = { desc = it },
-                    label = { Text(stringResource(R.string.source_description_label)) },
-                    maxLines = 3,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { if (name.isNotBlank() && url.isNotBlank()) onConfirm(name, url, desc) },
-                enabled = name.isNotBlank() && url.isNotBlank()
-            ) { Text(stringResource(R.string.add_btn)) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel_btn)) } }
-    )
-}
-
-@Composable
-private fun EditSourceDialog(
-    source: PreferenceManager.SubscriptionSource,
-    isBuiltin: Boolean,
-    onDismiss: () -> Unit,
-    onConfirm: (String, String, String, String) -> Unit,
-    onCopyToCustom: (String, String, String) -> Unit
-) {
-    var name by remember { mutableStateOf(source.name) }
-    var url by remember { mutableStateOf(source.url) }
-    var desc by remember { mutableStateOf(source.description) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.edit_source_title)) },
-        text = {
-            Column {
-                // OI-14: builtin sources silently dropped edits before — the
-                // fields are now read-only and the only write path is
-                // "copy to custom", which actually persists.
-                if (isBuiltin) {
-                    Text(
-                        stringResource(R.string.builtin_source_readonly),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                }
-                OutlinedTextField(
-                    value = name, onValueChange = { name = it },
-                    label = { Text(stringResource(R.string.source_name_label)) },
-                    singleLine = true,
-                    readOnly = isBuiltin,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = url, onValueChange = { url = it },
-                    label = { Text(stringResource(R.string.source_url_label)) },
-                    singleLine = true,
-                    readOnly = isBuiltin,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = desc, onValueChange = { desc = it },
-                    label = { Text(stringResource(R.string.source_description_label)) },
-                    maxLines = 3,
-                    readOnly = isBuiltin,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            if (isBuiltin) {
-                TextButton(onClick = { onCopyToCustom(name, url, desc) }) {
-                    Text(stringResource(R.string.copy_to_custom), color = MaterialTheme.colorScheme.primary)
-                }
-            } else {
-                TextButton(
-                    onClick = { if (name.isNotBlank() && url.isNotBlank()) onConfirm(source.id, name, url, desc) },
-                    enabled = name.isNotBlank() && url.isNotBlank()
-                ) { Text(stringResource(R.string.save_btn)) }
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel_btn)) } }
-    )
-}
-
-@Composable
-private fun CreditEntry(project: String, description: String, url: String) {
-    val ctx = LocalContext.current
-    Column(Modifier.padding(vertical = 6.dp)) {
-        Text(project, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 16.dp))
-        Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp))
-        // Whole row is the hit target — the blue URL is the strongest link
-        // affordance on screen, so the click must live there too, not only on
-        // the 16dp launcher glyph. D4: the 16dp indent sits INSIDE the
-        // clickable region, ripple spans the full card width.
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            // D5 gate: ripple width is full-card; heightIn keeps the touch
-            // target at the 48dp floor without inflating the visual text.
-            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(OptShapes.medium).clickable {
-                ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-            }.padding(horizontal = 16.dp, vertical = 6.dp)
-        ) {
-            Text(url, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
-            Icon(Icons.Rounded.Launch, stringResource(R.string.hero_status_cd), Modifier.padding(start = 8.dp).size(16.dp), tint = MaterialTheme.colorScheme.primary)
-        }
-    }
-}
-
-@Composable
-private fun getSourceDisplayName(source: PreferenceManager.SubscriptionSource): String {
-    return when (source.id) {
-        "ania_raw" -> stringResource(R.string.source_ania_raw)
-        "picp_github" -> stringResource(R.string.source_picp_github)
-        else -> source.name
-    }
-}
-
-@Composable
-private fun getSourceDescription(source: PreferenceManager.SubscriptionSource): String? {
-    return when (source.id) {
-        "ania_raw" -> stringResource(R.string.source_ania_raw_desc)
-        "picp_github" -> stringResource(R.string.source_picp_github_desc)
-        else -> source.description.takeIf { it.isNotBlank() }
-    }
-}
-
-@Composable
-private fun SourceSection(
-    title: String,
-    sources: List<PreferenceManager.SubscriptionSource>,
-    activeId: String,
-    iconCount: Int,
-    syncing: Boolean,
-    status: String?,
-    statusIsError: Boolean = false,
-    onSelect: (String) -> Unit,
-    onSync: () -> Unit,
-    onAddSource: () -> Unit = {},
-    onEditSource: (PreferenceManager.SubscriptionSource) -> Unit = {},
-    onDeleteSource: (String) -> Unit = {},
-    restoreLabel: String? = null,
-    onRestoreDefault: (() -> Unit)? = null
-) {
-    val ctx = LocalContext.current
-    // O-4 (2026-10-03 audit): destructive delete gets a confirm dialog — same
-    // protection level as master-off / restart on this screen.
-    var pendingDelete by remember { mutableStateOf<PreferenceManager.SubscriptionSource?>(null) }
-    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-            if (syncing) {
-                // Reserve the same 48dp footprint as the sync IconButton — a
-                // bare 20dp spinner would shrink the header row mid-sync.
-                Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                }
-            } else IconButton(onClick = onSync) { Icon(Icons.Rounded.Sync, stringResource(R.string.cd_sync), Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary) }
-        }
-        status?.let {
-            Text(
-                it, style = MaterialTheme.typography.labelSmall,
-                color = if (statusIsError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-        sources.forEach { source ->
-            Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                // D4: clickable row carries its own 16dp indent — ripple spans
-                // the full card width.
-                // ME-10: row reads as name + selection + overflow; edit/delete
-                // moved into the menu (delete keeps its O-4 confirm dialog).
-                var rowMenuOpen by remember(source.id) { mutableStateOf(false) }
-                Row(Modifier.fillMaxWidth()
-                    .selectable(selected = activeId == source.id, role = Role.RadioButton) { onSelect(source.id) }
-                    .padding(vertical = 6.dp, horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = activeId == source.id, onClick = null, modifier = Modifier.padding(end = 4.dp))
-                    Text(getSourceDisplayName(source), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f),
-                        maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                    Box {
-                        IconButton(onClick = { rowMenuOpen = true }) { Icon(Icons.Rounded.MoreVert, stringResource(R.string.cd_more_options), Modifier.size(18.dp)) }
-                        DropdownMenu(expanded = rowMenuOpen, onDismissRequest = { rowMenuOpen = false }) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.cd_edit_source)) },
-                                onClick = { rowMenuOpen = false; onEditSource(source) }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.cd_delete_source), color = MaterialTheme.colorScheme.error) },
-                                onClick = { rowMenuOpen = false; pendingDelete = source }
-                            )
-                        }
-                    }
-                }
-                // Description + link (aligned under the row text: 16dp indent
-                // + radio 48dp touch target)
-                getSourceDescription(source)?.let { fullDesc ->
-                    val lines = fullDesc.split("\n")
-                    val linkUrl = lines.lastOrNull()?.takeIf { it.startsWith("http") }
-                    // Q14：描述仅一行 URL 时不再把同一 URL 又当描述文本渲染
-                    val descText = lines.filterNot { it == linkUrl }.joinToString("\n")
-                    Column(Modifier.padding(start = 68.dp, end = 16.dp)) {
-                        if (descText.isNotBlank()) Text(descText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        if (linkUrl != null) {
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier
-                                .heightIn(min = 48.dp)
-                                .clip(OptShapes.small)
-                                .clickable { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(linkUrl))) }
-                                .padding(vertical = 6.dp)) {
-                                Text(linkUrl, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                                Spacer(Modifier.width(4.dp))
-                                Icon(Icons.Rounded.Launch, stringResource(R.string.cd_open_link), Modifier.size(12.dp), tint = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        Row(Modifier.padding(horizontal = 16.dp)) {
-            TextButton(onClick = onAddSource) {
-                Icon(Icons.Rounded.Add, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.add_custom_btn))
-            }
-            if (restoreLabel != null && onRestoreDefault != null) {
-                TextButton(onClick = onRestoreDefault) {
-                    Icon(Icons.Rounded.Add, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text(restoreLabel)
-                }
-            }
-        }
-    }
-    pendingDelete?.let { source ->
-        AlertDialog(onDismissRequest = { pendingDelete = null },
-            title = { Text(stringResource(R.string.delete_source_title)) },
-            text = { Text(stringResource(R.string.delete_source_body, getSourceDisplayName(source))) },
-            confirmButton = {
-                TextButton(onClick = {
-                    pendingDelete = null
-                    onDeleteSource(source.id)
-                }) { Text(stringResource(R.string.delete_btn), color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.cancel)) } })
-    }
-}
-
-/** Result of `su -c kill $(pidof com.android.systemui)` — surfaced inline, no toast */
-private sealed interface RestartResult {
-    data object Running : RestartResult
-    data object Ok : RestartResult
-    data class Failed(val exitCode: Int, val stderr: String) : RestartResult
-    data class Error(val message: String) : RestartResult
-}
-
-@Composable
-private fun RestartSystemUiButton() {
-    var showConfirm by remember { mutableStateOf(false) }
-    var result by remember { mutableStateOf<RestartResult?>(null) }
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val running = result is RestartResult.Running
-
-    // Auto-clear the success line after a few seconds (silent feedback)
-    LaunchedEffect(result) {
-        if (result is RestartResult.Ok) {
-            kotlinx.coroutines.delay(6000)
-            result = null
-        }
-    }
-
-    Column {
-        OutlinedButton(
-            onClick = { showConfirm = true },
-            enabled = !running,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-            shape = OptShapes.medium
-        ) {
-            if (running) {
-                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.restart_running))
-            } else {
-                Text(stringResource(R.string.restart_systemui))
-            }
-        }
-        androidx.compose.animation.AnimatedVisibility(visible = result is RestartResult.Ok) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.CheckCircle, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    stringResource(R.string.restart_result_ok),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        when (val r = result) {
-            is RestartResult.Failed -> RestartFeedbackRow(
-                // E7: no "exit N" jargon — the user cares about root permission,
-                // stderr detail stays as the suffix.
-                text = stringResource(R.string.restart_result_failed,
-                    if (r.stderr.isNotBlank()) " — ${r.stderr.take(120)}" else ""),
-                isError = true)
-            is RestartResult.Error -> RestartFeedbackRow(
-                text = stringResource(R.string.restart_result_error, r.message),
-                isError = true)
-            else -> {}
-        }
-    }
-
-    if (showConfirm) {
-        AlertDialog(onDismissRequest = { showConfirm = false },
-            title = { Text(stringResource(R.string.restart_confirm_title)) },
-            text = { Text(stringResource(R.string.restart_confirm_body)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    showConfirm = false
-                    result = RestartResult.Running
-                    scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                        result = restartSystemUi()
-                    }
-                }) { Text(stringResource(R.string.restart_confirm_btn), color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = { TextButton(onClick = { showConfirm = false }) { Text(stringResource(R.string.cancel)) } })
-    }
-}
-
-@Composable
-private fun RestartFeedbackRow(text: String, isError: Boolean) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Rounded.ErrorOutline, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
-        Spacer(Modifier.width(6.dp))
-        Text(text, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, lineHeight = io.github.deserthouse.opticon.ui.theme.OptTypeAdjustments.hintLine)
-    }
-}
-
-/**
- * Runs the restart on the caller's dispatcher. Reads the real su exit code —
- * a missing/forbidden su or a failed kill no longer shows a fake success toast.
- */
-private suspend fun restartSystemUi(): RestartResult = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-    try {
-        // pidof = exact package match. pkill -f is a FULL-CMDLINE SUBSTRING
-        // match and would collateral-kill any process whose cmdline merely
-        // contains the string (e.g. OOS wallpaper engine on A17 → wallpaper
-        // + Monet palette reset, reported by the tester).
-        val proc = ProcessBuilder("su", "-c", "kill \$(pidof com.android.systemui)")
-            .redirectErrorStream(true)
-            .start()
-        // OI-16: drain output off-thread so waitFor's 5s deadline actually
-        // bounds the whole call even when su never closes its stdout.
-        val outputRef = java.util.concurrent.atomic.AtomicReference<String>("")
-        val drained = Thread { try { outputRef.set(proc.inputStream.bufferedReader().readText().trim()) } catch (_: Exception) {} }
-        drained.start()
-        val exited = proc.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)
-        if (!exited) {
-            proc.destroy()
-            RestartResult.Failed(-1, "timeout")
-        } else if (proc.exitValue() == 0) {
-            RestartResult.Ok
-        } else {
-            RestartResult.Failed(proc.exitValue(), outputRef.get())
-        }
-    } catch (e: Exception) {
-        RestartResult.Error(e.message ?: e.javaClass.simpleName)
-    }
-}
-
-private enum class StatusIconKind { LSPOSED, ROOT }
-
-@Composable
-private fun StatusRow(
-    title: String,
-    statusText: String,
-    active: Boolean?,
-    checking: Boolean,
-    onRecheck: () -> Unit,
-    hint: String? = null,
-    // E7: root-unavailable is expected on non-rooted devices — a neutral
-    // note, not an error-red alarm (LSPosed-inactive keeps the error color).
-    inactiveIsNeutral: Boolean = false,
-    // R2-10：显式语义参数取代 title.contains("LSPosed") 子串选图标（翻译耦合）
-    iconKind: StatusIconKind = StatusIconKind.ROOT
-) {
-    Column {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                if (iconKind == StatusIconKind.LSPOSED) Icons.Rounded.Extension else Icons.Rounded.Key,
-                null, Modifier.padding(end = 12.dp),
-                tint = if (checking) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                       else MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-                // 三态: 检测中(中性) → 结果(主色/错误色), 颜色平滑过渡
-                val statusColor by animateColorAsState(
-                    targetValue = when {
-                        checking || active == null -> MaterialTheme.colorScheme.onSurfaceVariant
-                        active -> MaterialTheme.colorScheme.primary
-                        inactiveIsNeutral -> MaterialTheme.colorScheme.onSurfaceVariant
-                        else -> MaterialTheme.colorScheme.error
-                    },
-                    label = "statusColor"
-                )
-                Text(statusText, style = MaterialTheme.typography.bodySmall, color = statusColor)
-                if (hint != null && !checking) Text(hint, style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), lineHeight = io.github.deserthouse.opticon.ui.theme.OptTypeAdjustments.hintLine)
-            }
-            if (checking) {
-                // Same 48dp footprint as the recheck IconButton — prevents
-                // the row from shrinking while a check is in flight.
-                Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                }
-            } else {
-                // D4b: no explicit size() — IconButton's default is 48dp,
-                // the 18dp glyph sets the visual size.
-                IconButton(onClick = onRecheck) {
-                    Icon(Icons.Rounded.Refresh, stringResource(R.string.refresh), Modifier.size(18.dp))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun RuntimeStatusCard(
-    lsposedActive: Boolean?,
-    rootAvailable: Boolean?,
-    rechecking: Boolean,
-    onRecheck: () -> Unit
-) {
-    SettingsCard {
-        StatusRow(
-            iconKind = StatusIconKind.LSPOSED,
-            title = stringResource(R.string.lsposed_status_title),
-            statusText = when {
-                rechecking && lsposedActive == null -> stringResource(R.string.status_checking)
-                lsposedActive == null -> stringResource(R.string.status_checking)
-                lsposedActive -> stringResource(R.string.lsposed_status_active)
-                else -> stringResource(R.string.lsposed_status_inactive)
-            },
-            active = lsposedActive,
-            checking = rechecking || lsposedActive == null,
-            onRecheck = onRecheck,
-            hint = if (lsposedActive == false) stringResource(R.string.lsposed_status_hint) else null
-        )
-        // F4 (2026-10-07 visual audit): inset to 16dp matching every other
-        // card on this screen — the full-bleed divider was the lone outlier.
-        HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
-        StatusRow(
-            iconKind = StatusIconKind.ROOT,
-            title = stringResource(R.string.root_status_title),
-            statusText = when {
-                rechecking && rootAvailable == null -> stringResource(R.string.root_status_checking)
-                rootAvailable == null -> stringResource(R.string.root_status_checking)
-                rootAvailable -> stringResource(R.string.root_status_active)
-                else -> stringResource(R.string.root_status_inactive)
-            },
-            active = rootAvailable,
-            checking = rechecking || rootAvailable == null,
-            onRecheck = onRecheck,
-            inactiveIsNeutral = true
-        )
-    }
-}
-
-@Composable private fun SettingsCard(content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        shape = OptShapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
-    ) {
-        // D4 (触摸几何): clip FIRST, no padding at the content layer —
-        // descendant rows sit edge-to-edge in the clipped column and carry
-        // their own 16dp indent INSIDE their clickable region, so the ripple
-        // and hit area span the full card width (the old padding-then-clip
-        // order made every ripple stop 16dp short of the card outline).
-        Column(Modifier.clip(OptShapes.large), content = content)
-    }
-}
-
-@Composable private fun SectionTitle(title: String) {    Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
-}
-
-@Composable internal fun SettingItem(
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    onClick: (() -> Unit)? = null,
-    // D2: supplementary hint belongs in the supporting-text slot below the
-    // subtitle — a trailing-slot hint fights the Switch/label for width and
-    // breaks the row (mid-word wrap at large font scales). Placed BEFORE the
-    // trailing action lambda: a new function-type-adjacent param after the
-    // lambda slot steals the call site's trailing lambda (全局规范七.5).
-    supportingHint: String? = null,
-    action: @Composable (() -> Unit)? = null
-) {
-    // D4: clickable BEFORE padding — ripple and hit area cover the full row
-    // width; the 16dp indent is inside the clickable region.
-    Row(Modifier.fillMaxWidth()
-        .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
-        .padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, Modifier.padding(end = 12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (supportingHint != null) {
-                Text(supportingHint, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, lineHeight = io.github.deserthouse.opticon.ui.theme.OptTypeAdjustments.hintLine)
-            }
-        }
-        if (action != null) {
-            Spacer(Modifier.width(8.dp))
-            // Align with the title line, not the row center: a centered label
-            // lands mid-way down a multi-line subtitle and reads as part of it.
-            Box(Modifier.align(Alignment.Top).padding(top = 2.dp)) { action() }
-        }
-    }
-}
-
-/** ME-10/11: a pure switch row is ONE semantics surface — the row carries
- *  toggleable(value, Role.Switch); the trailing Switch is display-only
- *  (onCheckedChange=null, its localized on/off state description applies to
- *  the whole row). Replaces the old SettingItem+Switch pairing where row
- *  clickable and switch each kept a separate behavior surface. */
-@Composable
-internal fun SwitchSettingItem(
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    supportingHint: String? = null
-) {
-    Row(Modifier.fillMaxWidth()
-        .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
-        .padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, Modifier.padding(end = 12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (supportingHint != null) {
-                Text(supportingHint, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, lineHeight = io.github.deserthouse.opticon.ui.theme.OptTypeAdjustments.hintLine)
-            }
-        }
-        Spacer(Modifier.width(8.dp))
-        Box(Modifier.align(Alignment.Top).padding(top = 2.dp)) {
-            Switch(checked = checked, onCheckedChange = null)
-        }
-    }
-}
-
-/** Apply per-app locale (Android 13+). Empty tag = follow system.
- *  The system persists it and recreates the activity; localization
- *  applies to every locale-qualified resource automatically.
- *  Q19：返回成败——失败时调用方反馈用户并可重试，不再只写日志静默。 */
-private fun applyAppLocale(context: android.content.Context, tag: String): Boolean {
-    if (android.os.Build.VERSION.SDK_INT < 33) return false
-    val lm = context.getSystemService(android.app.LocaleManager::class.java) ?: return false
-    return try {
-        if (tag.isEmpty()) lm.applicationLocales = android.os.LocaleList.getEmptyLocaleList()
-        else lm.applicationLocales = android.os.LocaleList.forLanguageTags(tag)
-        TraceLogger.i("OptIcon/Settings", "app locale set: ${tag.ifEmpty { "system" }}")
-        true
-    } catch (e: Exception) {
-        TraceLogger.w("OptIcon/Settings", "setApplicationLocales failed: ${e.message}")
-        false
-    }
-}
-
-data class RadioOption<T>(val value: T, val label: String, val desc: String?)
-
-/** M3 bottom-sheet single-choice picker: the whole row is the hit target,
- *  selected option carries the primary color + medium weight, options can
- *  carry a supporting description.
- *  ME-11: options scroll when tall (large font scales), each row is ONE
- *  selectable surface with Role.RadioButton; the radio is display-only. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun <T> RadioSheet(
-    title: String,
-    options: List<RadioOption<T>>,
-    selected: T,
-    onSelect: (T) -> Unit,
-    onDismiss: () -> Unit
-) {
-    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss, shape = OptShapes.large) {
-        Column(
-            Modifier.fillMaxWidth()
-                .heightIn(max = 480.dp)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 32.dp)
-        ) {
-            Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium)
-            Spacer(Modifier.height(12.dp)); HorizontalDivider(); Spacer(Modifier.height(4.dp))
-            options.forEach { opt ->
-                val selectedHere = opt.value == selected
-                Row(
-                    Modifier.fillMaxWidth()
-                        .clip(OptShapes.medium)
-                        .selectable(selected = selectedHere, role = Role.RadioButton) { onSelect(opt.value) }
-                        .padding(horizontal = 4.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RadioButton(selected = selectedHere, onClick = null)
-                    Spacer(Modifier.size(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            opt.label,
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = if (selectedHere) FontWeight.Medium else null,
-                            color = if (selectedHere) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                        )
-                        if (opt.desc != null) {
-                            Text(opt.desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-            }
         }
     }
 }
