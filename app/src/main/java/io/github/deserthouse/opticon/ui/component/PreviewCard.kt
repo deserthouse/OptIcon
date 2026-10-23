@@ -179,27 +179,30 @@ fun PreviewCard(
                                 tint = MaterialTheme.colorScheme.error
                             )
                         } else {
-                            // D02：Missing 态——"?"保留但加引导文案（不再只是裸问号）
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = "?",
-                                    color = labelColor.copy(alpha = 0.3f),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = stringResource(io.github.deserthouse.opticon.R.string.preview_missing_hint),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = labelColor.copy(alpha = 0.4f),
-                                    modifier = Modifier.padding(top = 2.dp)
-                                )
-                            }
+                            // D02：Missing 态问号；OV-01 修复——引导文案移出
+                            // 40dp 圆形裁剪槽（槽内会截断长文本），与拒绝态
+                            // 文案同放在预览卡下层区域
+                            Text(
+                                text = "?",
+                                color = labelColor.copy(alpha = 0.3f),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                     Spacer(Modifier.weight(1f))
                 }
             }
 
+            // OV-01：Missing 态引导文案（放裁剪槽外，长文本不截断）
+            if (!isRedrawing && bitmap == null && !rejected) {
+                Text(
+                    text = stringResource(io.github.deserthouse.opticon.R.string.preview_missing_hint),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp)
+                )
+            }
             // D02 补全：当前结果来源归属行
             if (!isRedrawing && bitmap != null && sourceTag.isNotBlank()) {
                 Text(
