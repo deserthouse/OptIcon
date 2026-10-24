@@ -24,6 +24,7 @@ import io.github.deserthouse.opticon.network.NetworkExecutor
 import io.github.deserthouse.opticon.ui.session.EditorSessionCore
 import io.github.deserthouse.opticon.ui.state.AlgoSource
 import io.github.deserthouse.opticon.ui.state.AppDetailState
+import io.github.deserthouse.opticon.ui.state.FlatSource
 import io.github.deserthouse.opticon.ui.state.AssetSubStrategy
 import io.github.deserthouse.opticon.ui.state.IconStrategy
 import io.github.deserthouse.opticon.ui.state.StatusBarMode
@@ -222,6 +223,27 @@ class AppDetailViewModel(
                 }
             }
 
+            // T-B2：capturedOriginalInUse 自描述重建——抓取原图与上传同走资产仓
+            // （内容寻址，路径不可区分），以资产字节与系统抓取原图逐字节比对判定；
+            // 原图文件已被清理时回落「上传图片」标签，不猜。
+            val restored = _state.value
+            if (restored.strategy == IconStrategy.ALGORITHM &&
+                restored.algoSource == AlgoSource.LOCAL_FILE && restored.customIconPath != null
+            ) {
+                val assetPath = restored.customIconPath!!
+                viewModelScope.launch {
+                    val same = withContext(Dispatchers.IO) {
+                        runCatching {
+                            val asset = java.io.File(assetPath)
+                            val original = io.github.deserthouse.opticon.engine.SharedIconStore
+                                .originalIconFile(restored.packageName)
+                            asset.isFile && original.isFile && asset.readBytes().contentEquals(original.readBytes())
+                        }.getOrDefault(false)
+                    }
+                    if (same) _state.update { it.copy(capturedOriginalInUse = true) }
+                }
+            }
+
             // R3-4(F03)：重进重建输入分类（元数据恢复）——微调面板按类渲染
             // 参数域，不重建会把透明边距类当默认类显示无效 threshold；
             // 只恢复分类，不触碰已保存参数
@@ -280,7 +302,15 @@ class AppDetailViewModel(
 
     fun setStrategy(strategy: IconStrategy) {
         markDirty()
-        _state.update { it.copy(strategy = strategy, redrawParams = clampedScaleFor(strategy, it.redrawParams), previewBitmap = null, hitSource = HitSource.OTHER) }
+        _state.update {
+            it.copy(
+                strategy = strategy,
+                redrawParams = clampedScaleFor(strategy, it.redrawParams),
+                previewBitmap = null, hitSource = HitSource.OTHER,
+                // T-B2：离开重绘域时 LOCAL_FILE 细分归属随之失效
+                capturedOriginalInUse = if (strategy == IconStrategy.ALGORITHM) it.capturedOriginalInUse else false
+            )
+        }
         debouncePreview()
     }
 
@@ -304,7 +334,8 @@ class AppDetailViewModel(
                 selectedPackIconDrawable = drawable,
                 perfectIconsBitmap = newPicp,
                 previewBitmap = if (sub == AssetSubStrategy.PERFECT_ICONS && newPicp != null) newPicp else it.previewBitmap,
-                hitSource = if (sub == AssetSubStrategy.PERFECT_ICONS && newPicp != null) HitSource.PICP else it.hitSource
+                hitSource = if (sub == AssetSubStrategy.PERFECT_ICONS && newPicp != null) HitSource.PICP else it.hitSource,
+                capturedOriginalInUse = false
             )
         }
         if (sub == AssetSubStrategy.ADAPTIVE_DECOMPOSE) decomposeAdaptiveIcon()
@@ -313,35 +344,80 @@ class AppDetailViewModel(
 
     fun setAlgoSource(src: AlgoSource) {
         markDirty()
-        _state.update { it.copy(algoSource = src) }
+        _state.update { it.copy(algoSource = src, capturedOriginalInUse = if (src == AlgoSource.LOCAL_FILE) it.capturedOriginalInUse else false) }
         // OI-13: classification belongs to the SOURCE IMAGE — switching to SELF
         // must re-classify the app's own icon, otherwise "恢复自动" either
         // no-ops (null class) or reuses the previous upload's class.
-        if (src == AlgoSource.SELF) {
-            val gen = session.bumpInput()
-            viewModelScope.launch {
-                val pkg = _state.value.packageName
-                val cls = withContext(Dispatchers.IO) {
-                    val ctx = getApplication<Application>()
-                    val d = try { ctx.packageManager.getApplicationIcon(pkg) } catch (_: Exception) { null }
-                    if (d == null) null
-                    else {
-                        val bmp = drawableToBitmap(d, 96)
-                        val px = IntArray(bmp.width * bmp.height)
-                        bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
-                        val r = IconRedrawEngine.classifyInput(px, bmp.width)
-                        bmp.recycle()
-                        r
-                    }
-                }
-                if (!session.isCurrentInput(gen)) return@launch   // 过期结果丢弃
-                _algoInputClass.value = cls
-                if (cls != null) {
-                    _state.update { it.copy(redrawParams = autoParamsFor(cls)) }
-                    debouncePreview()
+        if (src == AlgoSource.SELF) reclassifySelfInput() else debouncePreview()
+    }
+
+    /** OI-13 分类体抽出（T-B2 与 applyFlatSource(SelfIcon) 共享）——
+     *  对应用自身图标重分类，过期结果按 input 代丢弃。 */
+    private fun reclassifySelfInput() {
+        val gen = session.bumpInput()
+        viewModelScope.launch {
+            val pkg = _state.value.packageName
+            val cls = withContext(Dispatchers.IO) {
+                val ctx = getApplication<Application>()
+                val d = try { ctx.packageManager.getApplicationIcon(pkg) } catch (_: Exception) { null }
+                if (d == null) null
+                else {
+                    val bmp = drawableToBitmap(d, 96)
+                    val px = IntArray(bmp.width * bmp.height)
+                    bmp.getPixels(px, 0, bmp.width, 0, 0, bmp.width, bmp.height)
+                    val r = IconRedrawEngine.classifyInput(px, bmp.width)
+                    bmp.recycle()
+                    r
                 }
             }
-        } else debouncePreview()
+            if (!session.isCurrentInput(gen)) return@launch   // 过期结果丢弃
+            _algoInputClass.value = cls
+            if (cls != null) {
+                _state.update { it.copy(redrawParams = autoParamsFor(cls)) }
+                debouncePreview()
+            }
+        }
+    }
+
+    /** T-B2：扁平来源列表的组合落点——一次 markDirty 完成策略+来源切换。
+     *  Upload/Picp/IconPack/MaterialLib/EmojiText 由 Screen 本地分发（launcher/
+     *  选择器/弹层），此处只接直接落稿的四项；A3 竞态守卫按"组合动作=一次编辑"计。 */
+    fun applyFlatSource(src: FlatSource) {
+        when (src) {
+            FlatSource.RulesLib -> setStrategy(IconStrategy.FANKES)
+            FlatSource.AdaptiveDecompose -> {
+                markDirty()
+                _state.update {
+                    it.copy(
+                        strategy = IconStrategy.ASSET_IMPORT,
+                        assetSubStrategy = AssetSubStrategy.ADAPTIVE_DECOMPOSE,
+                        redrawParams = clampedScaleFor(IconStrategy.ASSET_IMPORT, it.redrawParams),
+                        selectedIconPack = null, selectedPackIconDrawable = null,
+                        previewBitmap = null, hitSource = HitSource.OTHER,
+                        capturedOriginalInUse = false
+                    )
+                }
+                decomposeAdaptiveIcon()
+                debouncePreview()
+            }
+            FlatSource.SelfIcon -> {
+                val strategyChanged = _state.value.strategy != IconStrategy.ALGORITHM
+                markDirty()
+                _state.update {
+                    it.copy(
+                        strategy = IconStrategy.ALGORITHM,
+                        redrawParams = clampedScaleFor(IconStrategy.ALGORITHM, it.redrawParams),
+                        previewBitmap = if (strategyChanged) null else it.previewBitmap,
+                        hitSource = if (strategyChanged) HitSource.OTHER else it.hitSource,
+                        algoSource = AlgoSource.SELF,
+                        capturedOriginalInUse = false
+                    )
+                }
+                reclassifySelfInput()
+            }
+            FlatSource.CapturedOriginal -> useCapturedOriginal()
+            else -> Unit // Screen 本地分发分支，不达此处
+        }
     }
 
     fun setMethodEnabled(enabled: Boolean) {
@@ -418,7 +494,7 @@ class AppDetailViewModel(
             // Q3：素材确实导入成功才置脏——失败路径（含解码失败）不留假脏，
             // 离开时不再误弹「未保存更改」
             markDirty()
-            _state.update { it.copy(customIconPath = stablePath, algoSource = AlgoSource.LOCAL_FILE) }
+            _state.update { it.copy(customIconPath = stablePath, algoSource = AlgoSource.LOCAL_FILE, capturedOriginalInUse = false) }
             _algoInputClass.value = classified
             if (classified != null) {
                 _state.update { it.copy(redrawParams = autoParamsFor(classified)) }
@@ -449,11 +525,11 @@ class AppDetailViewModel(
                 )
                 return@launch
             }
-            applyUploadedIconFromPath(ref.path)
+            applyUploadedIconFromPath(ref.path, fromCaptured = true)
         }
     }
 
-    private fun applyUploadedIconFromPath(path: String) {
+    private fun applyUploadedIconFromPath(path: String, fromCaptured: Boolean = false) {
         markDirty()
         val gen = session.bumpInput()
         viewModelScope.launch {
@@ -465,7 +541,9 @@ class AppDetailViewModel(
                 }
             }
             if (!session.isCurrentInput(gen)) return@launch
-            _state.update { it.copy(customIconPath = path, algoSource = AlgoSource.LOCAL_FILE) }
+            _state.update {
+                it.copy(customIconPath = path, algoSource = AlgoSource.LOCAL_FILE, capturedOriginalInUse = fromCaptured)
+            }
             _algoInputClass.value = classified
             if (classified != null) {
                 _state.update { it.copy(redrawParams = autoParamsFor(classified)) }
@@ -557,6 +635,7 @@ class AppDetailViewModel(
     /**
      * T4-A：选择 Material 图标——UI 侧已把 ImageVector 渲染为 Bitmap（Compose
      * 依赖在选择点解决），此处持久化为资产文件 + 切源；bake 读文件重绘。
+     * T-B2：扁平列表可从任意策略进入——成功后策略域对齐 ALGORITHM（一次 markDirty）。
      */
     fun applyMaterialIcon(name: String, rendered: android.graphics.Bitmap) {
         viewModelScope.launch {
@@ -573,10 +652,42 @@ class AppDetailViewModel(
                 _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.save_failed)
                 return@launch
             }
+            val strategyChanged = _state.value.strategy != IconStrategy.ALGORITHM
             markDirty()
-            _state.update { it.copy(materialIconName = name, algoSource = AlgoSource.MATERIAL_LIB) }
+            _state.update {
+                it.copy(
+                    strategy = IconStrategy.ALGORITHM,
+                    redrawParams = clampedScaleFor(IconStrategy.ALGORITHM, it.redrawParams),
+                    previewBitmap = if (strategyChanged) null else it.previewBitmap,
+                    hitSource = if (strategyChanged) HitSource.OTHER else it.hitSource,
+                    materialIconName = name, algoSource = AlgoSource.MATERIAL_LIB,
+                    capturedOriginalInUse = false
+                )
+            }
             debouncePreview()
         }
+    }
+
+    /** T-B2：Emoji 确认的组合落点——一次 markDirty 写字+切源+策略域对齐；
+     *  空文本只清字不改源（沿用既有对话框语义）。 */
+    fun applyEmojiText(text: String?) {
+        if (text.isNullOrBlank()) {
+            setEmojiText(null)
+            return
+        }
+        val strategyChanged = _state.value.strategy != IconStrategy.ALGORITHM
+        markDirty()
+        _state.update {
+            it.copy(
+                strategy = IconStrategy.ALGORITHM,
+                redrawParams = clampedScaleFor(IconStrategy.ALGORITHM, it.redrawParams),
+                previewBitmap = if (strategyChanged) null else it.previewBitmap,
+                hitSource = if (strategyChanged) HitSource.OTHER else it.hitSource,
+                emojiText = text, algoSource = AlgoSource.EMOJI_TEXT,
+                capturedOriginalInUse = false
+            )
+        }
+        debouncePreview()
     }
 
     fun setScale(v: Float) {

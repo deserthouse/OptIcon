@@ -38,6 +38,9 @@ data class AppDetailState(
     val algoSource: AlgoSource = AlgoSource.SELF,
     val colorOverride: String? = null,
     val hasOriginalCaptured: Boolean = false,
+    /** T-B2：LOCAL_FILE 的细分归属——true=抓取原图转存，false=用户上传。
+     *  不入配置持久化；loadApp 以资产字节与原图文件比对自描述重建。 */
+    val capturedOriginalInUse: Boolean = false,
     val customIconPath: String? = null,
     val materialIconName: String? = null,
     val emojiText: String? = null,
@@ -65,6 +68,43 @@ data class AppDetailState(
 typealias IconStrategy = io.github.deserthouse.opticon.domain.IconStrategy
 typealias AssetSubStrategy = io.github.deserthouse.opticon.domain.AssetSubStrategy
 typealias AlgoSource = io.github.deserthouse.opticon.domain.AlgoSource
+
+/** T-B2：扁平来源动作模型——UI 单层列表，底层仍映射既有三策略（不改引擎）。
+ *  Upload/Picp/IconPack/MaterialLib/EmojiText 由 Screen 本地分发（SAF launcher/
+ *  素材选择器/输入弹层），其余经 VM applyFlatSource 组合落稿。 */
+sealed interface FlatSource {
+    data object RulesLib : FlatSource
+    data object AdaptiveDecompose : FlatSource
+    data object Picp : FlatSource
+    data object IconPack : FlatSource
+    data object SelfIcon : FlatSource
+    data object CapturedOriginal : FlatSource
+    data object Upload : FlatSource
+    data object MaterialLib : FlatSource
+    data object EmojiText : FlatSource
+}
+
+/** 选中态反推的唯一事实源——SourcePickerSheet 高亮与 SourceSummaryRow 标签
+ *  共用此映射，杜绝两处 when 漂移。纯函数，JVM 可测。 */
+fun selectedFlatSource(
+    strategy: IconStrategy,
+    assetSubStrategy: AssetSubStrategy,
+    algoSource: AlgoSource,
+    capturedOriginalInUse: Boolean
+): FlatSource = when (strategy) {
+    IconStrategy.FANKES -> FlatSource.RulesLib
+    IconStrategy.ASSET_IMPORT -> when (assetSubStrategy) {
+        AssetSubStrategy.ADAPTIVE_DECOMPOSE -> FlatSource.AdaptiveDecompose
+        AssetSubStrategy.PERFECT_ICONS -> FlatSource.Picp
+        AssetSubStrategy.ICON_PACK -> FlatSource.IconPack
+    }
+    IconStrategy.ALGORITHM -> when (algoSource) {
+        AlgoSource.SELF -> FlatSource.SelfIcon
+        AlgoSource.LOCAL_FILE -> if (capturedOriginalInUse) FlatSource.CapturedOriginal else FlatSource.Upload
+        AlgoSource.MATERIAL_LIB -> FlatSource.MaterialLib
+        AlgoSource.EMOJI_TEXT -> FlatSource.EmojiText
+    }
+}
 
 enum class StatusBarMode(@androidx.annotation.StringRes val labelRes: Int) {
     DARK(R.string.preview_mode_dark),

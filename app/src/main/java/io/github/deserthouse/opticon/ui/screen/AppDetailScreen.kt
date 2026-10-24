@@ -80,7 +80,9 @@ import io.github.deserthouse.opticon.ui.state.AlgoSource
 import androidx.compose.ui.graphics.asImageBitmap
 import io.github.deserthouse.opticon.engine.IconPackEngine
 import io.github.deserthouse.opticon.engine.IconLibEngine
+import io.github.deserthouse.opticon.ui.state.FlatSource
 import io.github.deserthouse.opticon.ui.component.PreviewCard
+import io.github.deserthouse.opticon.ui.component.SourcePickerSheet
 import io.github.deserthouse.opticon.ui.state.AppDetailState
 import io.github.deserthouse.opticon.ui.state.IconStrategy
 import io.github.deserthouse.opticon.ui.state.hitLevelRes
@@ -175,6 +177,11 @@ fun AppDetailScreen(
     var showSourceSheet by remember { mutableStateOf(false) }
     // ── Full-screen asset picker (ME-03/B2) ──
     var showAssetPicker by rememberSaveable { mutableStateOf(false) } // V03（RB-3c）：重建不丢选择器打开态
+    // T-B2：扁平来源列表的本地分发态——素材选择器预选段 + Material/Emoji 弹层
+    // （自 AlgorithmAdjustments 上提：入口收敛到来源列表后，弹层与策略卡解耦）
+    var pendingPickerSub by remember { mutableStateOf<AssetSubStrategy?>(null) }
+    var showMaterialPicker by remember { mutableStateOf(false) }
+    var showEmojiInput by remember { mutableStateOf(false) }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -265,8 +272,8 @@ fun AppDetailScreen(
                 Column {
                     when (state.strategy) {
                         IconStrategy.FANKES -> FankesAdjustments(state)
-                        IconStrategy.ASSET_IMPORT -> AssetImportAdjustments(state, viewModel, tuningVisible, onOpenPicker = { showAssetPicker = true })
-                        IconStrategy.ALGORITHM -> AlgorithmAdjustments(state, viewModel, tuningVisible, algoInputClass, pickLauncher)
+                        IconStrategy.ASSET_IMPORT -> AssetImportAdjustments(state, viewModel, tuningVisible)
+                        IconStrategy.ALGORITHM -> AlgorithmAdjustments(viewModel, tuningVisible)
                     }
                 }
             }
@@ -309,34 +316,42 @@ fun AppDetailScreen(
         }
     }
 
-    // ── Source selection sheet ──
+    // ── Source selection: flat grouped sheet (T-B2，策略+来源两层并一步) ──
     if (showSourceSheet) {
-        ModalBottomSheet(onDismissRequest = { showSourceSheet = false }, shape = OptShapes.large) {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp)) {
-                Text(stringResource(R.string.source_change_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium)
-                Spacer(Modifier.height(OptSpacing.cardGap)); HorizontalDivider(); Spacer(Modifier.height(8.dp))
-                Text(stringResource(R.string.source_change_desc), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(16.dp))
-                SourceOptionRow(
-                    label = stringResource(R.string.strategy_fankes_label),
-                    desc = stringResource(R.string.strategy_fankes_desc),
-                    selected = state.strategy == IconStrategy.FANKES,
-                    onClick = { viewModel.setStrategy(IconStrategy.FANKES); showSourceSheet = false }
-                )
-                SourceOptionRow(
-                    label = stringResource(R.string.strategy_asset_label),
-                    desc = stringResource(R.string.strategy_asset_desc_short),
-                    selected = state.strategy == IconStrategy.ASSET_IMPORT,
-                    onClick = { viewModel.setStrategy(IconStrategy.ASSET_IMPORT); showSourceSheet = false }
-                )
-                SourceOptionRow(
-                    label = stringResource(R.string.strategy_algo_label),
-                    desc = stringResource(R.string.strategy_algo_desc),
-                    selected = state.strategy == IconStrategy.ALGORITHM,
-                    onClick = { viewModel.setStrategy(IconStrategy.ALGORITHM); showSourceSheet = false }
-                )
+        SourcePickerSheet(
+            state = state,
+            onDismiss = { showSourceSheet = false },
+            onPick = { src ->
+                showSourceSheet = false
+                when (src) {
+                    FlatSource.Upload -> pickLauncher.launch("image/*") // 取消选择器不改变任何状态
+                    FlatSource.MaterialLib -> showMaterialPicker = true
+                    FlatSource.EmojiText -> showEmojiInput = true
+                    FlatSource.Picp -> { pendingPickerSub = AssetSubStrategy.PERFECT_ICONS; showAssetPicker = true }
+                    FlatSource.IconPack -> { pendingPickerSub = AssetSubStrategy.ICON_PACK; showAssetPicker = true }
+                    else -> viewModel.applyFlatSource(src)
+                }
             }
-        }
+        )
+    }
+    if (showMaterialPicker) {
+        MaterialIconPickerSheet(
+            onDismiss = { showMaterialPicker = false },
+            onPick = { name, bmp ->
+                viewModel.applyMaterialIcon(name, bmp)
+                showMaterialPicker = false
+            }
+        )
+    }
+    if (showEmojiInput) {
+        EmojiInputDialog(
+            initial = state.emojiText ?: "",
+            onConfirm = { text ->
+                viewModel.applyEmojiText(text.ifBlank { null })
+                showEmojiInput = false
+            },
+            onDismiss = { showEmojiInput = false }
+        )
     }
 
     // ── Fine-tune sheet (kept from old layout) ──
@@ -362,22 +377,35 @@ fun AppDetailScreen(
     if (showAssetPicker) {
         AssetPickerScreen(
             state = state,
-            onDismiss = { showAssetPicker = false },
+            initialSub = pendingPickerSub,
+            onDismiss = { showAssetPicker = false; pendingPickerSub = null },
             onConfirm = { sub, pack, drawable, picp ->
                 viewModel.applyAssetSelection(sub, pack, drawable, picp)
                 showAssetPicker = false
+                pendingPickerSub = null
             }
         )
     }
 }
 
-// ━━━ Source summary row (② in the new layout) ━━━
+// ━━━ Source summary row (② in the new layout) ━━
 @Composable
 private fun SourceSummaryRow(state: AppDetailState, onShowSheet: () -> Unit) {
     val (icon, label) = when (state.strategy) {
         IconStrategy.FANKES -> Icons.Rounded.Public to stringResource(R.string.strategy_fankes_label_short)
-        IconStrategy.ASSET_IMPORT -> Icons.Rounded.ImageSearch to stringResource(R.string.strategy_asset_label_short)
-        IconStrategy.ALGORITHM -> Icons.Rounded.AutoFixHigh to stringResource(R.string.strategy_algo_desc_short)
+        IconStrategy.ASSET_IMPORT -> Icons.Rounded.ImageSearch to when (state.assetSubStrategy) {
+            AssetSubStrategy.ADAPTIVE_DECOMPOSE -> stringResource(R.string.asset_sub_adaptive)
+            AssetSubStrategy.PERFECT_ICONS -> "PICP"
+            AssetSubStrategy.ICON_PACK -> state.selectedIconPack ?: stringResource(R.string.source_iconpack_short)
+        }
+        // T-B2：显示具体输入而非内部策略名（Material 显示图标名、Emoji 显示字面）
+        IconStrategy.ALGORITHM -> Icons.Rounded.AutoFixHigh to when (state.algoSource) {
+            AlgoSource.SELF -> stringResource(R.string.algo_source_self)
+            AlgoSource.LOCAL_FILE -> if (state.capturedOriginalInUse) stringResource(R.string.source_captured_short)
+            else stringResource(R.string.algo_source_upload)
+            AlgoSource.MATERIAL_LIB -> state.materialIconName ?: stringResource(R.string.algo_source_material)
+            AlgoSource.EMOJI_TEXT -> state.emojiText ?: stringResource(R.string.algo_source_emoji)
+        }
     }
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onShowSheet).padding(vertical = 8.dp),
@@ -390,26 +418,6 @@ private fun SourceSummaryRow(state: AppDetailState, onShowSheet: () -> Unit) {
             Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
         }
         Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-// ━━━ Source option row (in the change sheet) ━━━
-@Composable
-private fun SourceOptionRow(label: String, desc: String, selected: Boolean, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        shape = OptShapes.medium,
-        color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-    ) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(selected = selected, onClick = null)
-            Spacer(Modifier.width(8.dp))
-            Column {
-                Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                Text(desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
     }
 }
 
@@ -439,13 +447,13 @@ private fun FankesAdjustments(state: AppDetailState) {
     }
 }
 
-// ━━━ ③b: ASSET_IMPORT adjustments — summary + full-screen picker entry ━━━
+// ━━━ ③b: ASSET_IMPORT adjustments — current-asset display + scale slider ━━━
+// T-B2：选择器入口收敛到来源列表（更换 = 来源列表点 PICP/图标包）；本卡只读展示
 @Composable
 private fun AssetImportAdjustments(
     state: AppDetailState,
     viewModel: AppDetailViewModel,
-    tuningVisible: Boolean,
-    onOpenPicker: () -> Unit
+    tuningVisible: Boolean
 ) {
     val context = LocalContext.current
     // Current asset thumbnail (per sub-strategy)
@@ -472,10 +480,8 @@ private fun AssetImportAdjustments(
             else stringResource(R.string.strategy_asset_b_label)
     }
     Card(shape = OptShapes.large, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-        // A12（F3-3）：D4 结构回归——裁剪先行、缩进内移：单动作状态整卡可点，
-        // 波纹满幅覆盖卡片轮廓；滑杆区为独立操作区，视觉边界自划
-        Column(Modifier.fillMaxWidth().clip(OptShapes.large)) {
-            Row(Modifier.fillMaxWidth().clickable(onClick = onOpenPicker).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.fillMaxWidth()) {
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 // Neutral thumbnail slot (surfaceVariant) — no decorative fallback
                 Box(
                     Modifier.size(48.dp).clip(OptShapes.small).background(MaterialTheme.colorScheme.surfaceVariant),
@@ -488,7 +494,6 @@ private fun AssetImportAdjustments(
                     Text(stringResource(R.string.current_asset), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(selectionLabel, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 }
-                Icon(Icons.Rounded.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             // Scale slider (when tuning enabled) — independent action zone,
             // visually divided from the picker row, own 16dp inset
@@ -506,113 +511,14 @@ private fun AssetImportAdjustments(
 }
 
 // ━━━ ③c: ALGORITHM adjustments ━━━
+// T-B2：来源选择（含抓取原图/Material/Emoji 入口）已收敛到扁平来源列表；
+// 本卡只留微调入口——微调关闭时整卡不渲染（空卡是死视觉承诺）
 @Composable
-private fun AlgorithmAdjustments(
-    state: AppDetailState,
-    viewModel: AppDetailViewModel,
-    tuningVisible: Boolean,
-    algoInputClass: io.github.deserthouse.opticon.engine.IconRedrawEngine.InputClass?,
-    pickLauncher: androidx.activity.result.ActivityResultLauncher<String>
-) {
+private fun AlgorithmAdjustments(viewModel: AppDetailViewModel, tuningVisible: Boolean) {
+    if (!tuningVisible) return
     Card(shape = OptShapes.large, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            // Source picker
-            val sourceLabel = when (state.algoSource) {
-                io.github.deserthouse.opticon.ui.state.AlgoSource.SELF -> stringResource(R.string.algo_source_self)
-                else -> stringResource(R.string.algo_source_upload)
-            }
-            // A04（F2-1）：显式来源选择——点击行为不再随当前来源隐式翻转
-            var showAlgoSourceSheet by remember { mutableStateOf(false) }
-            var showMaterialPicker by remember { mutableStateOf(false) }
-            var showEmojiInput by remember { mutableStateOf(false) }
-            SettingItem(
-                Icons.Rounded.Tune,
-                stringResource(R.string.algo_source_title),
-                stringResource(R.string.algo_source_desc),
-                onClick = { showAlgoSourceSheet = true }
-            ) {
-                Text(sourceLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-            }
-            // F05：使用抓取原图（仅当 hasOriginalCaptured 时显示）——
-            // 转存到资产仓获取稳定引用，走 LOCAL_FILE 路径
-            if (state.hasOriginalCaptured && state.algoSource != io.github.deserthouse.opticon.ui.state.AlgoSource.LOCAL_FILE) {
-                TextButton(
-                    onClick = { viewModel.useCapturedOriginal() },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Rounded.ImageSearch, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.algo_source_captured_original), style = MaterialTheme.typography.labelMedium)
-                }
-            }
-            if (showMaterialPicker) {
-                MaterialIconPickerSheet(
-                    onDismiss = { showMaterialPicker = false },
-                    onPick = { name, bmp ->
-                        viewModel.applyMaterialIcon(name, bmp)
-                        showMaterialPicker = false
-                    }
-                )
-            }
-            if (showEmojiInput) {
-                EmojiInputDialog(
-                    initial = state.emojiText ?: "",
-                    onConfirm = { text ->
-                        viewModel.setEmojiText(text.ifBlank { null })
-                        if (text.isNotBlank()) viewModel.setAlgoSource(io.github.deserthouse.opticon.ui.state.AlgoSource.EMOJI_TEXT)
-                        showEmojiInput = false
-                    },
-                    onDismiss = { showEmojiInput = false }
-                )
-            }
-            if (showAlgoSourceSheet) {
-                RadioSheet(
-                    title = stringResource(R.string.algo_source_title),
-                    selected = state.algoSource?.name ?: "",
-                    options = buildList {
-                        add(RadioOption(
-                            io.github.deserthouse.opticon.ui.state.AlgoSource.SELF.name,
-                            stringResource(R.string.algo_source_self),
-                            stringResource(R.string.algo_source_self_desc)
-                        ))
-                        add(RadioOption(
-                            io.github.deserthouse.opticon.ui.state.AlgoSource.LOCAL_FILE.name,
-                            stringResource(R.string.algo_source_upload),
-                            stringResource(R.string.algo_source_upload_desc)
-                        ))
-                        add(RadioOption(
-                            "material_picker",
-                            stringResource(R.string.algo_source_material),
-                            stringResource(R.string.algo_source_material_desc)
-                        ))
-                        if (state.emojiUnlocked) {
-                            add(RadioOption(
-                                io.github.deserthouse.opticon.ui.state.AlgoSource.EMOJI_TEXT.name,
-                                stringResource(R.string.algo_source_emoji),
-                                stringResource(R.string.algo_source_emoji_desc)
-                            ))
-                        }
-                    },
-                    onSelect = { picked ->
-                        showAlgoSourceSheet = false
-                        when (picked) {
-                            "material_picker" -> showMaterialPicker = true
-                            io.github.deserthouse.opticon.ui.state.AlgoSource.EMOJI_TEXT.name ->
-                                showEmojiInput = true
-                            io.github.deserthouse.opticon.ui.state.AlgoSource.SELF.name ->
-                                viewModel.setAlgoSource(io.github.deserthouse.opticon.ui.state.AlgoSource.SELF)
-                            else -> pickLauncher.launch("image/*") // 取消选择器不改变任何状态
-                        }
-                    },
-                    onDismiss = { showAlgoSourceSheet = false }
-                )
-            }
-            // Fine-tune entry (when tuning enabled)
-            if (tuningVisible) {
-                Spacer(Modifier.height(8.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                AlgoWipSection(viewModel::showSheet)
-            }
+            AlgoWipSection(viewModel::showSheet)
         }
     }
 }

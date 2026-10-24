@@ -52,8 +52,6 @@
     <string name="color_override_mono_desc">Gray out the colorful notification icon even if the global switch is off</string>
     <string name="color_override_color">Keep original color</string>
     <string name="color_override_color_desc">Keep the notification icon in its original colors</string>
-    <string name="algo_source_title">Icon source</string>
-    <string name="algo_source_desc">Choose which image the redraw pipeline works from</string>
     <string name="algo_source_self">App own icon</string>
     <string name="algo_source_upload">Upload image</string>
     <string name="algo_source_self_desc">White-filter the app\'s own launcher icon</string>
@@ -104,19 +102,16 @@
         <string name="save_blocked_no_icon">No compliant icon could be generated — nothing was saved. Your previous settings and icon are kept.</string>
     <string name="config_saved">Saved &amp; published — new notifications from this app will use it</string>
 
-    <string name="strategy_fankes_label">Android Notification Icon Standard Adaptation</string>
     <string name="strategy_fankes_covered">This app is already covered in the adaptation library.</string>
     <string name="strategy_fankes_not_covered">Not covered by the library yet — see request option below.</string>
     <string name="strategy_fankes_submit_btn">Submit adaptation request on GitHub</string>
 
-    <string name="strategy_asset_label">Adaptive Asset Import</string>
 
     <string name="algo_source_material">Material icon library</string>
     <string name="algo_source_material_desc">Pick from categorized Material icons</string>
     <string name="algo_source_emoji">Emoji / text</string>
     <string name="algo_source_emoji_desc">Render an emoji or a letter as the icon</string>
     <string name="algo_source_emoji_hint">Emoji or single character</string>
-    <string name="algo_source_captured_original">Use captured original icon</string>
     <string name="picp_go_to_settings">Go to Settings → App icon sources to download</string>
     <string name="strategy_picp_not_downloaded">No PICP icon assets available locally. Check for updates?</string>
     <string name="strategy_picp_submit_hint">If still not available after updating, submit an icon request to the Perfect Icons Project.</string>
@@ -160,20 +155,27 @@
     <string name="no_icons_in_pack">No usable icons in this pack</string>
     <string name="current_asset">Current asset</string>
 
-    <string name="strategy_algo_label">Compatibility Redraw</string>
     <string name="strategy_algo_open_panel_wip">Fine-tune redraw</string>
     <string name="algo_panel_title_wip">Fine-tune redraw</string>
     <string name="algo_panel_wip_body">Adjust and watch the preview update live. \"Reset to auto\" only restores this route\'s parameters — it never changes the chosen source. Changes take effect for new notifications after you save.</string>
     <string name="algo_restore_auto">Reset to auto</string>
     <string name="current_source">Current source</string>
     <string name="source_change_title">Change icon source</string>
-    <string name="source_change_desc">Choose which source provides the icon for this app</string>
+    <string name="source_change_hint">Changes fill the draft only and commit on save — no source is switched for you automatically.</string>
+    <string name="source_group_direct">Direct sources</string>
+    <string name="source_group_redraw">Redraw inputs</string>
+    <string name="source_adaptive_desc">Use the app\'s adaptive icon foreground layer</string>
+    <string name="source_picp_desc">Fetch from the Perfect Icons community library on demand</string>
+    <string name="source_iconpack_short">Icon pack</string>
+    <string name="source_iconpack_desc">Browse installed icon packs — the pick fills the draft</string>
+    <string name="source_captured_short">Captured original</string>
+    <string name="source_captured_desc">Redraw from the original icon captured from the notification shade</string>
+    <string name="badge_covered">Covered</string>
+    <string name="badge_cached">Cached</string>
+    <string name="badge_need_download">Needs download</string>
+    <string name="badge_captured">Captured</string>
     <string name="strategy_fankes_label_short">Rule library (ANIP)</string>
     <string name="strategy_fankes_desc">Icons come from the community-maintained ANIP rule library</string>
-    <string name="strategy_algo_desc">Redraws the app\'s own icon or an uploaded picture into a white silhouette</string>
-    <string name="strategy_asset_label_short">Asset import</string>
-    <string name="strategy_algo_desc_short">Compatibility redraw</string>
-    <string name="strategy_asset_desc_short">Extract from icon packs or adaptive icons</string>
 
     <string name="algo_auto_alpha_note">This image defines itself by transparency — the glyph is whitened along its alpha outline automatically; no purity threshold needed.</string>
     <string name="show_tuning_title">Show fine-tune options</string>

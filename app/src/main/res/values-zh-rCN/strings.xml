@@ -52,8 +52,6 @@
     <string name="color_override_mono_desc">即使全局开关关闭，也将此应用的彩色通知图标置灰</string>
     <string name="color_override_color">保持原色</string>
     <string name="color_override_color_desc">保留此应用通知图标的原始色彩</string>
-    <string name="algo_source_title">图标来源</string>
-    <string name="algo_source_desc">选择重绘管线所使用的图形来源</string>
     <string name="algo_source_self">应用自身图标</string>
     <string name="algo_source_upload">上传图片</string>
     <string name="algo_source_self_desc">对应用自身的启动图标做白色剪影重绘</string>
@@ -104,19 +102,16 @@
         <string name="save_blocked_no_icon">未能生成规范图标，本次未保存；已保留您原先的设置与图标。</string>
     <string name="config_saved">已保存并发布，该应用的新通知将使用新图标</string>
 
-    <string name="strategy_fankes_label">通知图标适配</string>
     <string name="strategy_fankes_covered">该应用已在通知图标适配规则库中，可直接使用。</string>
     <string name="strategy_fankes_not_covered">尚未被规则库收录，可在下方提交适配申请。</string>
     <string name="strategy_fankes_submit_btn">前往 GitHub 提交适配申请</string>
 
-    <string name="strategy_asset_label">自适应资产导入提取</string>
 
     <string name="algo_source_material">Material 图标库</string>
     <string name="algo_source_material_desc">从分类 Material 图标中选择</string>
     <string name="algo_source_emoji">Emoji / 文字</string>
     <string name="algo_source_emoji_desc">用 Emoji 或字符生成图标</string>
     <string name="algo_source_emoji_hint">Emoji 或单个字符</string>
-    <string name="algo_source_captured_original">使用抓取原图</string>
     <string name="picp_go_to_settings">前往 设置 → 应用图标订阅源 同步下载</string>
     <string name="strategy_picp_not_downloaded">本地暂无完美图标资产，检查更新？</string>
     <string name="strategy_picp_submit_hint">如果更新后依然没有，你可以给完美图标计划项目提交该应用的图标申请。</string>
@@ -159,20 +154,27 @@
     <string name="no_icons_in_pack">该图标包内没有可用图标</string>
     <string name="current_asset">当前素材</string>
 
-    <string name="strategy_algo_label">兼容重绘（非自适应图标）</string>
     <string name="strategy_algo_open_panel_wip">微调参数</string>
     <string name="algo_panel_title_wip">重绘微调</string>
     <string name="algo_panel_wip_body">拖动滑杆实时预览；「恢复自动」仅重置本路线参数，不改变所选来源；保存后对新通知生效。</string>
     <string name="algo_restore_auto">恢复自动</string>
     <string name="current_source">当前来源</string>
     <string name="source_change_title">更换图标来源</string>
-    <string name="source_change_desc">选择此应用的通知图标来源</string>
+    <string name="source_change_hint">更改仅回填草稿，保存后提交；不自动跨来源替你选择。</string>
+    <string name="source_group_direct">直达适配</string>
+    <string name="source_group_redraw">重绘输入</string>
+    <string name="source_adaptive_desc">取应用自适应图标的前景层</string>
+    <string name="source_picp_desc">Perfect Icons 社区库按需获取</string>
+    <string name="source_iconpack_short">图标包</string>
+    <string name="source_iconpack_desc">进入图标包浏览器挑选，回填草稿</string>
+    <string name="source_captured_short">抓取原图</string>
+    <string name="source_captured_desc">用系统通知栏里抓到的原始图标重绘</string>
+    <string name="badge_covered">已覆盖</string>
+    <string name="badge_cached">已缓存</string>
+    <string name="badge_need_download">需下载</string>
+    <string name="badge_captured">已抓取</string>
     <string name="strategy_fankes_label_short">规则库（ANIP）</string>
     <string name="strategy_fankes_desc">图标来自社区维护的 ANIP 规则库</string>
-    <string name="strategy_algo_desc">对应用自身图标或上传图片重绘白色剪影</string>
-    <string name="strategy_asset_label_short">资产导入</string>
-    <string name="strategy_algo_desc_short">兼容重绘</string>
-    <string name="strategy_asset_desc_short">从图标包或自适应图标提取</string>
 
     <string name="algo_auto_alpha_note">该图自带透明边距：自动沿 alpha 轮廓白化，无需净化度阈值。</string>
     <string name="show_tuning_title">显示微调选项</string>

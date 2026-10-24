@@ -95,7 +95,10 @@ import kotlinx.coroutines.withContext
 fun AssetPickerScreen(
     state: AppDetailState,
     onDismiss: () -> Unit,
-    onConfirm: (AssetSubStrategy, String?, String?, Bitmap?) -> Unit
+    onConfirm: (AssetSubStrategy, String?, String?, Bitmap?) -> Unit,
+    // T-B2：扁平来源列表指定预选段（PICP/图标包直达）；null=沿用当前草稿段。
+    // 只动初始值——草稿/Apply/Back 契约（V03/U-A1）原样保留。
+    initialSub: AssetSubStrategy? = null
 ) {
     val context = LocalContext.current
     androidx.activity.compose.BackHandler { onDismiss() }
@@ -103,7 +106,7 @@ fun AssetPickerScreen(
     // ── Draft selection (cancel-safe) ──
     // V03（RB-3c）：可保存草稿态——旋转/回收后选择保留。
     // Bitmap(draftPicp)与图标列表不进 Bundle（按 ID 重载），保持 remember。
-    var draftSubName by rememberSaveable { mutableStateOf(state.assetSubStrategy.name) }
+    var draftSubName by rememberSaveable { mutableStateOf(initialSub?.name ?: state.assetSubStrategy.name) }
     var draftPack by rememberSaveable { mutableStateOf(state.selectedIconPack) }
     var draftDrawable by rememberSaveable { mutableStateOf(state.selectedPackIconDrawable) }
     var draftPicp by remember { mutableStateOf(state.perfectIconsBitmap) }
