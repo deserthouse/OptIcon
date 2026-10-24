@@ -54,7 +54,7 @@ class MainActivity : ComponentActivity() {
             if (!io.github.deserthouse.opticon.engine.publish.PublishCoordinator.beginRecoveryOnce()) return@Thread
             try {
                 kotlinx.coroutines.runBlocking {
-                    io.github.deserthouse.opticon.engine.publish.PublishCoordinator.withPipeline {
+                    io.github.deserthouse.opticon.engine.publish.PublishCoordinator.withPipeline("startup-recovery") {
                         io.github.deserthouse.opticon.engine.PublishTransaction.recoverOnStartup(applicationContext) { cfg ->
                             io.github.deserthouse.opticon.data.AppIconConfigRepository.saveJson(cfg)
                         }

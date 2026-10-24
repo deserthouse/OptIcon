@@ -738,7 +738,7 @@ class AppDetailViewModel(
 
             // V06（Y1a）：完整提交流水线（含旧快照读取=一致性边界）与启动恢复
             // 经 PublishCoordinator 互斥——恢复不再能在保存阶段之间插入
-            io.github.deserthouse.opticon.engine.publish.PublishCoordinator.withPipeline {
+            io.github.deserthouse.opticon.engine.publish.PublishCoordinator.withPipeline("save-enabled") {
             if (s.methodEnabled) {
                 // A01（F1-3）：任何已提交数据被改动前固定旧配置快照——失败回滚
                 // 的对象是磁盘上的已提交值，不是本次草稿值。
@@ -818,7 +818,7 @@ class AppDetailViewModel(
                 val old = AppIconConfigRepository.load(pkg)
                 val newConfig = stateToConfig(s, enabled = false)
                 var failStage: String? = null
-                io.github.deserthouse.opticon.engine.publish.PublishCoordinator.withPipeline {
+                io.github.deserthouse.opticon.engine.publish.PublishCoordinator.withPipeline("save-disabled") {
                     val op = io.github.deserthouse.opticon.engine.PublishTransaction.prepareRemoval(
                         ctx, pkg, old.toJson(), newConfig.toJson()
                     ) ?: run { failStage = "prepare"; return@withPipeline }

@@ -386,7 +386,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                             // Z4③（架构前置）：批量覆写共享产物与保存流水线互斥——
                             // 这是 Coordinator 锁外最实际的交错写者
                             io.github.deserthouse.opticon.engine.publish.PublishCoordinator
-                                .withPipelineBlocking {
+                                .withPipelineBlocking("ania-sync-mirror") {
                                     io.github.deserthouse.opticon.engine.SharedIconStore
                                         .mirrorAllFromDir(ctx, java.io.File(ctx.filesDir, "fankes_cache")) { pkg ->
                                             PreferenceManager.isMethodEnabled(pkg) &&
