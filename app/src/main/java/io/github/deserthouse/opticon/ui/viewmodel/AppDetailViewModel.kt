@@ -734,6 +734,7 @@ class AppDetailViewModel(
             // C11（X8）：字符串比较识别"是否已有反馈"不可靠——改显式标记
             var feedbackSet = false
             var ok = true
+            try {
 
             // V06（Y1a）：完整提交流水线（含旧快照读取=一致性边界）与启动恢复
             // 经 PublishCoordinator 互斥——恢复不再能在保存阶段之间插入
@@ -891,6 +892,17 @@ class AppDetailViewModel(
                 session.resolveSaveCompletion(savedRevision, ok = false, requestLeaveAfter = false)
                 _isDirty.value = true
                 _saveState.value = SaveState.Failed
+            }
+            } catch (e: Exception) {
+                // U-5：未预期异常（如发布目录 IO 失败）不得把 saveState 永久留在
+                // Saving——那会吞掉此后所有保存点击（入口 guard 直接 return）。
+                // 结算为 Failed 并反馈，保存入口保持可用。
+                ok = false
+                feedbackSet = true
+                _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.save_failed)
+                io.github.deserthouse.opticon.util.TraceLogger.e(TAG, "saveConfig: unexpected failure", e)
+            } finally {
+                if (_saveState.value == SaveState.Saving) _saveState.value = SaveState.Failed
             }
         }
     }
