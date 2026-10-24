@@ -34,7 +34,7 @@
 |---|---|---|
 | **通知图标适配** | 国内主流应用的适配规则库，开箱即用 | [Android Notification Icon Project](https://github.com/BetterAndroid/android-notification-icon-project)（ANIP，前 ANIA） |
 | **资产导入提取** | 从第三方图标包或系统自适应图标分层提取 | 本地 + [完美图标补全计划](https://github.com/pzcn/Perfect-Icons-Completion-Project) (PICP) |
-| **智能算法重绘** | 四角采样自过滤算法，无规则也能生成规范图标；支持应用自身图标/本地上传两种来源与滑杆微调（「抓取原图」为开发中的储备能力） | 内置引擎 |
+| **智能算法重绘** | 四角采样自过滤算法，无规则也能生成规范图标；五种来源（应用自身图标/抓取原图/本地上传/Material 图标库/Emoji 文字）与滑杆微调，扁平来源选择一步切换 | 内置引擎 |
 
 ### 运行时合规检测
 

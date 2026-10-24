@@ -179,7 +179,7 @@ fun AppDetailScreen(
     var showAssetPicker by rememberSaveable { mutableStateOf(false) } // V03（RB-3c）：重建不丢选择器打开态
     // T-B2：扁平来源列表的本地分发态——素材选择器预选段 + Material/Emoji 弹层
     // （自 AlgorithmAdjustments 上提：入口收敛到来源列表后，弹层与策略卡解耦）
-    var pendingPickerSub by remember { mutableStateOf<AssetSubStrategy?>(null) }
+    var pendingPickerSub by rememberSaveable { mutableStateOf<AssetSubStrategy?>(null) } // U-3：回收后预选段不丢
     var showMaterialPicker by remember { mutableStateOf(false) }
     var showEmojiInput by remember { mutableStateOf(false) }
 

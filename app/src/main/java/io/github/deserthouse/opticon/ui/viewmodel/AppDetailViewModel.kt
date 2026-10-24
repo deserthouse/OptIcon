@@ -300,17 +300,26 @@ class AppDetailViewModel(
         if (strategy == IconStrategy.ALGORITHM) params
         else params.copy(scale = params.scale.coerceIn(RedrawParams.SCALE_MIN, ADAPTIVE_SCALE_MAX))
 
+    /** U-1（T-B2 复查）：策略域对齐的唯一实现——扁平列表使素材入口可从任意
+     *  策略触达后，每个落稿点都必须把 strategy 带进目标域：clamp 按目标域、
+     *  跨域时清即时预览/重置 hitSource、LOCAL_FILE 细分归属按域保留。
+     *  用法：`_state.update { it.copy(<本操作自有字段>).alignedTo(TARGET) }`
+     *  （先写自有字段，对齐语义最后覆盖公共字段；素材即时预览的调用点在
+     *  alignedTo 之后回填，见 applyAssetSelection）。 */
+    private fun AppDetailState.alignedTo(target: IconStrategy): AppDetailState {
+        val changed = strategy != target
+        return copy(
+            strategy = target,
+            redrawParams = clampedScaleFor(target, redrawParams),
+            previewBitmap = if (changed) null else previewBitmap,
+            hitSource = if (changed) HitSource.OTHER else hitSource,
+            capturedOriginalInUse = if (target == IconStrategy.ALGORITHM) capturedOriginalInUse else false
+        )
+    }
+
     fun setStrategy(strategy: IconStrategy) {
         markDirty()
-        _state.update {
-            it.copy(
-                strategy = strategy,
-                redrawParams = clampedScaleFor(strategy, it.redrawParams),
-                previewBitmap = null, hitSource = HitSource.OTHER,
-                // T-B2：离开重绘域时 LOCAL_FILE 细分归属随之失效
-                capturedOriginalInUse = if (strategy == IconStrategy.ALGORITHM) it.capturedOriginalInUse else false
-            )
-        }
+        _state.update { it.alignedTo(strategy) }
         debouncePreview()
     }
 
@@ -327,28 +336,22 @@ class AppDetailViewModel(
             val newPicp = picpBitmap ?: it.perfectIconsBitmap
             it.copy(
                 assetSubStrategy = sub,
-                // Q6：ASSET_IMPORT 全部子策略走自适应域（引擎 coerce 0.5..1.5）
-                redrawParams = if (it.strategy == IconStrategy.ALGORITHM) it.redrawParams
-                    else it.redrawParams.copy(scale = it.redrawParams.scale.coerceIn(RedrawParams.SCALE_MIN, ADAPTIVE_SCALE_MAX)),
                 selectedIconPack = iconPack,
                 selectedPackIconDrawable = drawable,
                 perfectIconsBitmap = newPicp,
-                previewBitmap = if (sub == AssetSubStrategy.PERFECT_ICONS && newPicp != null) newPicp else it.previewBitmap,
-                hitSource = if (sub == AssetSubStrategy.PERFECT_ICONS && newPicp != null) HitSource.PICP else it.hitSource,
                 capturedOriginalInUse = false
             )
+                // U-1：目标域无条件对齐（clamp 0.5..1.5，跨域清即时预览）——
+                // 旧实现按旧 strategy 分支 clamp，正是跨域缺口本体
+                .alignedTo(IconStrategy.ASSET_IMPORT)
+                // C05：PICP 即时预览在对齐清理后回填（有素材才回填）
+                .let { s ->
+                    if (sub == AssetSubStrategy.PERFECT_ICONS && newPicp != null)
+                        s.copy(previewBitmap = newPicp, hitSource = HitSource.PICP) else s
+                }
         }
         if (sub == AssetSubStrategy.ADAPTIVE_DECOMPOSE) decomposeAdaptiveIcon()
         debouncePreview()
-    }
-
-    fun setAlgoSource(src: AlgoSource) {
-        markDirty()
-        _state.update { it.copy(algoSource = src, capturedOriginalInUse = if (src == AlgoSource.LOCAL_FILE) it.capturedOriginalInUse else false) }
-        // OI-13: classification belongs to the SOURCE IMAGE — switching to SELF
-        // must re-classify the app's own icon, otherwise "恢复自动" either
-        // no-ops (null class) or reuses the previous upload's class.
-        if (src == AlgoSource.SELF) reclassifySelfInput() else debouncePreview()
     }
 
     /** OI-13 分类体抽出（T-B2 与 applyFlatSource(SelfIcon) 共享）——
@@ -389,29 +392,19 @@ class AppDetailViewModel(
                 markDirty()
                 _state.update {
                     it.copy(
-                        strategy = IconStrategy.ASSET_IMPORT,
                         assetSubStrategy = AssetSubStrategy.ADAPTIVE_DECOMPOSE,
-                        redrawParams = clampedScaleFor(IconStrategy.ASSET_IMPORT, it.redrawParams),
                         selectedIconPack = null, selectedPackIconDrawable = null,
-                        previewBitmap = null, hitSource = HitSource.OTHER,
                         capturedOriginalInUse = false
-                    )
+                    ).alignedTo(IconStrategy.ASSET_IMPORT)
                 }
                 decomposeAdaptiveIcon()
                 debouncePreview()
             }
             FlatSource.SelfIcon -> {
-                val strategyChanged = _state.value.strategy != IconStrategy.ALGORITHM
                 markDirty()
                 _state.update {
-                    it.copy(
-                        strategy = IconStrategy.ALGORITHM,
-                        redrawParams = clampedScaleFor(IconStrategy.ALGORITHM, it.redrawParams),
-                        previewBitmap = if (strategyChanged) null else it.previewBitmap,
-                        hitSource = if (strategyChanged) HitSource.OTHER else it.hitSource,
-                        algoSource = AlgoSource.SELF,
-                        capturedOriginalInUse = false
-                    )
+                    it.copy(algoSource = AlgoSource.SELF, capturedOriginalInUse = false)
+                        .alignedTo(IconStrategy.ALGORITHM)
                 }
                 reclassifySelfInput()
             }
@@ -494,7 +487,11 @@ class AppDetailViewModel(
             // Q3：素材确实导入成功才置脏——失败路径（含解码失败）不留假脏，
             // 离开时不再误弹「未保存更改」
             markDirty()
-            _state.update { it.copy(customIconPath = stablePath, algoSource = AlgoSource.LOCAL_FILE, capturedOriginalInUse = false) }
+            // U-1：扁平列表使上传可从任意策略触达——落稿进 ALGORITHM 域
+            _state.update {
+                it.copy(customIconPath = stablePath, algoSource = AlgoSource.LOCAL_FILE, capturedOriginalInUse = false)
+                    .alignedTo(IconStrategy.ALGORITHM)
+            }
             _algoInputClass.value = classified
             if (classified != null) {
                 _state.update { it.copy(redrawParams = autoParamsFor(classified)) }
@@ -541,8 +538,10 @@ class AppDetailViewModel(
                 }
             }
             if (!session.isCurrentInput(gen)) return@launch
+            // U-1：同上传链——抓取原图亦可从任意策略触达，落稿进 ALGORITHM 域
             _state.update {
                 it.copy(customIconPath = path, algoSource = AlgoSource.LOCAL_FILE, capturedOriginalInUse = fromCaptured)
+                    .alignedTo(IconStrategy.ALGORITHM)
             }
             _algoInputClass.value = classified
             if (classified != null) {
@@ -652,17 +651,12 @@ class AppDetailViewModel(
                 _saveFeedback.value = ctx.getString(io.github.deserthouse.opticon.R.string.save_failed)
                 return@launch
             }
-            val strategyChanged = _state.value.strategy != IconStrategy.ALGORITHM
             markDirty()
             _state.update {
                 it.copy(
-                    strategy = IconStrategy.ALGORITHM,
-                    redrawParams = clampedScaleFor(IconStrategy.ALGORITHM, it.redrawParams),
-                    previewBitmap = if (strategyChanged) null else it.previewBitmap,
-                    hitSource = if (strategyChanged) HitSource.OTHER else it.hitSource,
                     materialIconName = name, algoSource = AlgoSource.MATERIAL_LIB,
                     capturedOriginalInUse = false
-                )
+                ).alignedTo(IconStrategy.ALGORITHM)
             }
             debouncePreview()
         }
@@ -675,17 +669,12 @@ class AppDetailViewModel(
             setEmojiText(null)
             return
         }
-        val strategyChanged = _state.value.strategy != IconStrategy.ALGORITHM
         markDirty()
         _state.update {
             it.copy(
-                strategy = IconStrategy.ALGORITHM,
-                redrawParams = clampedScaleFor(IconStrategy.ALGORITHM, it.redrawParams),
-                previewBitmap = if (strategyChanged) null else it.previewBitmap,
-                hitSource = if (strategyChanged) HitSource.OTHER else it.hitSource,
                 emojiText = text, algoSource = AlgoSource.EMOJI_TEXT,
                 capturedOriginalInUse = false
-            )
+            ).alignedTo(IconStrategy.ALGORITHM)
         }
         debouncePreview()
     }

@@ -222,15 +222,16 @@ fun PreviewCard(
                 )
             }
 
-            // Bottom legend
+            // Bottom legend — U-4: weight-split columns keep each label on one
+            // line at large font scales (the old SpaceBetween let labels wrap and
+            // the dot drifted off the first line)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .padding(horizontal = 20.dp, vertical = 6.dp)
             ) {
-                LegendDot(color = Color(0xFFFFFFFF), label = stringResource(io.github.deserthouse.opticon.R.string.preview_legend_icon))
-                LegendDot(color = Color(0xCCCCCCCC.toInt()), label = stringResource(io.github.deserthouse.opticon.R.string.preview_legend_edge))
+                LegendDot(color = Color(0xFFFFFFFF), label = stringResource(io.github.deserthouse.opticon.R.string.preview_legend_icon), modifier = Modifier.weight(1f))
+                LegendDot(color = Color(0xCCCCCCCC.toInt()), label = stringResource(io.github.deserthouse.opticon.R.string.preview_legend_edge), modifier = Modifier.weight(1f))
             }
         }
     }
@@ -295,8 +296,8 @@ private fun DrawScope.drawIcon(bitmap: Bitmap, tintColor: Color) {
 }
 
 @Composable
-private fun LegendDot(color: Color, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+private fun LegendDot(color: Color, label: String, modifier: Modifier = Modifier) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         // E4: the white dot sits on a white card — a 1dp variant outline
         // keeps both legend swatches visible in light theme.
         Surface(
@@ -315,7 +316,9 @@ private fun LegendDot(color: Color, label: String) {
             text = label,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 10.sp
+            fontSize = 10.sp,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
         )
     }
 }
