@@ -31,6 +31,7 @@ object PreferenceManager {
 
     // global keys
     private const val KEY_GLOBAL_VERBOSE_LOG = "global_verbose_log"
+    private const val KEY_AUTO_LIB_UPDATE = "auto_lib_update"
     private const val KEY_GLOBAL_PREDICTIVE_BACK = "global_predictive_back"
     private const val KEY_GLOBAL_DYNAMIC_COLOR = "global_dynamic_color"
     private const val KEY_GLOBAL_SHOW_TUNING = "global_show_tuning"
@@ -325,6 +326,18 @@ object PreferenceManager {
         prefs?.edit { putBoolean(KEY_GLOBAL_VERBOSE_LOG, enabled) }
     }
 
+    // ━━━ 批 SYNC V5：规则库后台自动更新（默认关） ━━━
+    // prefs 是 App 侧 UI 的事实源；hook 进程读的是 SharedIconStore 写出的
+    // auto_lib_update.opticon 文件（SystemUI 读不到本模块 prefs）。
+    // 文件写入由 SettingsViewModel 在 setAutoLibUpdate 里联动执行。
+
+    fun isAutoLibUpdate(): Boolean =
+        prefs?.getBoolean(KEY_AUTO_LIB_UPDATE, false) ?: false
+
+    fun setAutoLibUpdate(enabled: Boolean) {
+        prefs?.edit { putBoolean(KEY_AUTO_LIB_UPDATE, enabled) }
+    }
+
     /** App 自身主题动态取色（Material You）。默认开；关=品牌靛蓝金色板。 */
     fun isDynamicColor(): Boolean =
         prefs?.getBoolean(KEY_GLOBAL_DYNAMIC_COLOR, true) ?: true
@@ -381,13 +394,15 @@ object PreferenceManager {
 
     // ━━━ 订阅源管理 ━━━
 
-    /** 订阅源数据类 */
+    /** 订阅源数据类（批 SYNC V3：+format 路由字段） */
     data class SubscriptionSource(
         val id: String,
         val name: String,
         val url: String,
         val description: String = "",
-        val isBuiltin: Boolean = false
+        val isBuiltin: Boolean = false,
+        val format: io.github.deserthouse.opticon.domain.SourceFormat =
+            io.github.deserthouse.opticon.domain.SourceFormat.LEGACY_JSON
     )
 
     /** 内置源 — 只保留 GitHub Raw 直连（无需授权）。
@@ -395,14 +410,14 @@ object PreferenceManager {
     val BUILTIN_ANIA_SOURCES = listOf(
         SubscriptionSource("ania_raw", "Android 通知图标项目（ANIP，原 AndroidNotifyIconAdapt）",
             io.github.deserthouse.opticon.engine.AnipSync.BASE,
-            "", true),
+            "", true, io.github.deserthouse.opticon.domain.SourceFormat.ANIP_BUNDLE),
     )
 
     /** PICP 完美图标计划源 — zipball endpoint */
     val BUILTIN_PICP_SOURCES = listOf(
         SubscriptionSource("picp_github", "完美图标补全计划（Perfect-Icons-Completion-Project）",
             "https://api.github.com/repos/pzcn/Perfect-Icons-Completion-Project/zipball/main",
-            "", true),
+            "", true, io.github.deserthouse.opticon.domain.SourceFormat.PICP_ZIPBALL),
     )
 
     /** OI-14: builtin sources have no editable registry entry — expose the
@@ -425,14 +440,23 @@ object PreferenceManager {
         prefs?.edit { putString(KEY_HIDDEN_BUILTINS, current.joinToString(",")) }
     }
 
-    /** 获取 ANIA 源列表（过滤已隐藏的内置源） */
+    /** 获取 ANIA 源列表（过滤已隐藏的内置源；V3：自定义源按 format 过滤——
+     *  ANIA 列表接受 ANIP bundle 与 legacy JSON，PICP zipball 归 PICP 列表） */
     fun getAniaSources(): List<SubscriptionSource> {
         val hidden = getHiddenBuiltins()
-        return BUILTIN_ANIA_SOURCES.filter { it.id !in hidden } + getCustomSources()
+        val aniaFormats = setOf(
+            io.github.deserthouse.opticon.domain.SourceFormat.ANIP_BUNDLE,
+            io.github.deserthouse.opticon.domain.SourceFormat.LEGACY_JSON
+        )
+        return BUILTIN_ANIA_SOURCES.filter { it.id !in hidden } +
+            getCustomSources().filter { it.format in aniaFormats }
     }
+    /** PICP 源列表（V3：仅 PICP_ZIPBALL 格式——旧版把全部自定义源混进两个
+     *  列表，zipball 之外的载荷会被误送 zipball 解析器） */
     fun getPicpSources(): List<SubscriptionSource> {
         val hidden = getHiddenBuiltins()
-        return BUILTIN_PICP_SOURCES.filter { it.id !in hidden } + getCustomSources()
+        return BUILTIN_PICP_SOURCES.filter { it.id !in hidden } +
+            getCustomSources().filter { it.format == io.github.deserthouse.opticon.domain.SourceFormat.PICP_ZIPBALL }
     }
 
     fun getActiveAniaSourceId(): String =
@@ -450,18 +474,56 @@ object PreferenceManager {
 
     // ━━━ 自定义源 ━━━
 
+    private const val KEY_FORMATS_MIGRATED = "custom_sources_formats_migrated"
+
+    /**
+     * V3 one-shot migration (batch SYNC): entries persisted before the format
+     * field existed are inferred from the legacy routing heuristic — URL under
+     * the ANIP base = ANIP bundle, anything else = legacy JSON — then written
+     * back and a marker key keeps this from ever running again. ANIA-side
+     * routing behavior is unchanged (the same payloads used to be routed by
+     * the same url.startsWith check); inferred entries drop out of the PICP
+     * list by design (V3 format filtering), and an active PICP pointer at
+     * such an entry falls back to the builtin.
+     */
+    private fun migrateFormatsIfNeeded(sources: List<SubscriptionSource>): List<SubscriptionSource> {
+        if (prefs?.getString(KEY_FORMATS_MIGRATED, null) != null) return sources
+        val migrated = sources.map { s -> s.copy(format = inferFormatFromUrl(s.url)) }
+        saveCustomSources(migrated)
+        prefs?.edit { putString(KEY_FORMATS_MIGRATED, "1") }
+        val picpIds = migrated
+            .filter { it.format == io.github.deserthouse.opticon.domain.SourceFormat.PICP_ZIPBALL }
+            .map { it.id }.toSet()
+        if (getActivePicpSourceId() != "picp_github" && getActivePicpSourceId() !in picpIds) {
+            setActivePicpSourceId("picp_github")
+        }
+        return migrated
+    }
+
+    /** Legacy heuristic used only for the one-shot migration of pre-V3 entries. */
+    private fun inferFormatFromUrl(url: String): io.github.deserthouse.opticon.domain.SourceFormat =
+        if (url.startsWith(io.github.deserthouse.opticon.engine.AnipSync.BASE))
+            io.github.deserthouse.opticon.domain.SourceFormat.ANIP_BUNDLE
+        else io.github.deserthouse.opticon.domain.SourceFormat.LEGACY_JSON
+
     private fun getCustomSources(): List<SubscriptionSource> {
         val raw = prefs?.getString(KEY_CUSTOM_SOURCES, null) ?: return emptyList()
-        return try {
+        val sources = try {
             val arr = org.json.JSONArray(raw)
             (0 until arr.length()).map { i ->
                 val obj = arr.getJSONObject(i)
                 SubscriptionSource(
                     obj.getString("id"), obj.getString("name"), obj.getString("url"),
-                    obj.optString("description", ""), false
+                    obj.optString("description", ""), false,
+                    // Absent/unparsable field = pre-V3 entry; the one-shot
+                    // migration below re-infers it from the URL and writes back.
+                    try {
+                        io.github.deserthouse.opticon.domain.SourceFormat.valueOf(obj.optString("format", "LEGACY_JSON"))
+                    } catch (_: Exception) { io.github.deserthouse.opticon.domain.SourceFormat.LEGACY_JSON }
                 )
             }
         } catch (_: Exception) { emptyList() }
+        return migrateFormatsIfNeeded(sources)
     }
 
     private fun saveCustomSources(sources: List<SubscriptionSource>) {
@@ -469,25 +531,42 @@ object PreferenceManager {
         sources.forEach { s ->
             arr.put(org.json.JSONObject().apply {
                 put("id", s.id); put("name", s.name); put("url", s.url); put("description", s.description)
+                put("format", s.format.name)
             })
         }
         prefs?.edit { putString(KEY_CUSTOM_SOURCES, arr.toString()) }
     }
 
-    fun addCustomSource(name: String, url: String, description: String = ""): SubscriptionSource {
+    fun addCustomSource(
+        name: String, url: String, description: String = "",
+        format: io.github.deserthouse.opticon.domain.SourceFormat = io.github.deserthouse.opticon.domain.SourceFormat.LEGACY_JSON
+    ): SubscriptionSource {
         val id = "custom_${System.currentTimeMillis()}"
-        val source = SubscriptionSource(id, name, url, description)
+        val source = SubscriptionSource(id, name, url, description, false, format)
         val current = getCustomSources().toMutableList()
         current.add(source)
         saveCustomSources(current)
         return source
     }
 
-    fun updateCustomSource(id: String, name: String, url: String, description: String = "") {
+    fun updateCustomSource(
+        id: String, name: String, url: String, description: String = "",
+        format: io.github.deserthouse.opticon.domain.SourceFormat? = null
+    ) {
         val current = getCustomSources().map {
-            if (it.id == id) it.copy(name = name, url = url, description = description) else it
+            if (it.id == id) it.copy(
+                name = name, url = url, description = description,
+                format = format ?: it.format
+            ) else it
         }
         saveCustomSources(current)
+    }
+
+    /** V3: authoritative format for a source id (custom or builtin), for sync routing. */
+    fun getSourceFormat(id: String): io.github.deserthouse.opticon.domain.SourceFormat? {
+        (BUILTIN_ANIA_SOURCES + BUILTIN_PICP_SOURCES + getCustomSources())
+            .find { it.id == id }?.let { return it.format }
+        return null
     }
 
     fun removeCustomSource(id: String) {

@@ -27,6 +27,16 @@ import java.util.zip.ZipFile
  * Output layout is identical to IconLibEngine.ingestJson (dir/{pkg}.png +
  * meta.json), so every downstream consumer (IconLibEngine.lookup,
  * bakeRemote, hook-side cache) works unchanged.
+ *
+ * Batch SYNC V2: the sync is snapshot-atomic. The new version is built
+ * completely inside a sibling staging dir, then swapped in via
+ * FileSnapshotSwitch. Upstream revocations (a package absent from the new
+ * bundle) now take effect — the old live dir is replaced wholesale — and an
+ * interrupted sync can no longer leave a half-new/half-old mix (U02: the
+ * previous write-in-place loop never deleted anything, so hasIcon/lookup,
+ * which key on file existence, could never observe a revocation).
+ * Contract unchanged: same signature, same count<=0 failure semantics for
+ * callers (SubscriptionManager / HookLibSync self-sync).
  */
 object AnipSync {
 
@@ -72,8 +82,9 @@ object AnipSync {
 
     /**
      * Sync ANIP resources into [dir] using the legacy cache layout
-     * ({pkg}.png + meta.json). Single zipball download, then local unpack.
-     * Returns the number of icons written.
+     * ({pkg}.png + meta.json). Single zipball download; the new version is
+     * built in a staging dir and switched in atomically. Returns the number
+     * of icons in the new snapshot; 0 = failure (live state untouched).
      */
     fun syncTo(dir: File, onProgress: ((String) -> Unit)? = null, context: Context? = null): Int {
         fun progress(resId: Int) = onProgress?.invoke(
@@ -81,10 +92,17 @@ object AnipSync {
             else if (Locale.getDefault().language == "zh") zhProgress[resId].orEmpty()
             else enProgress[resId].orEmpty()
         )
+        val parent = dir.parentFile ?: return 0
+        // Crash recovery first: converge a switch interrupted mid-steps so we
+        // always build on a well-defined live state.
+        FileSnapshotSwitch.recoverIfInterrupted(parent, dir.name)
         dir.mkdirs()
         dir.setExecutable(true, false)
         dir.setReadable(true, false)
-        val zipFile = File(dir, ".anip_main.zip")
+        // Zip lands OUTSIDE dir — the whole dir is about to be replaced, and
+        // this also sweeps legacy in-dir zips on the first snapshot switch.
+        val zipFile = File(parent, "${dir.name}.zip.tmp")
+        val staging = FileSnapshotSwitch.stagingOf(parent, dir.name)
         try {
             progress(io.github.deserthouse.opticon.R.string.sync_anip_bundle)
             if (!NetworkExecutor.fetchToFile(ZIP_URL, zipFile, null)) {
@@ -93,6 +111,9 @@ object AnipSync {
                 return 0
             }
             progress(io.github.deserthouse.opticon.R.string.sync_unpacking)
+            if (staging.exists()) staging.deleteRecursively()
+            staging.mkdirs()
+            var ok = 0
             ZipFile(zipFile).use { zip ->
                 val manifestEntries = CATEGORIES.associateWith { cat ->
                     zip.getEntry(ZIP_ROOT + "icons/" + cat + "/manifest.json")
@@ -116,17 +137,16 @@ object AnipSync {
                     }
                 }
 
-                // Pass 2: extract res PNGs for known packages
+                // Pass 2: extract res PNGs for known packages INTO STAGING
                 val resEntries = zip.entries().asSequence()
                     .filter { !it.isDirectory && it.name.endsWith(".png") && it.name.contains("/res/") }
                     .associateBy { it.name }
-                var ok = 0
                 val metaArr = org.json.JSONArray()
                 for ((pkg, pair) in merged) {
                     val ze = resEntries[pair.second] ?: continue
                     try {
                         val bytes = zip.getInputStream(ze).readBytes()
-                        val pngFile = File(dir, "$pkg.png")
+                        val pngFile = File(staging, "$pkg.png")
                         pngFile.writeBytes(bytes)
                         pngFile.setReadable(true, false)
                         ok++
@@ -142,18 +162,42 @@ object AnipSync {
                     }
                 }
 
-                // meta.json — atomic-ish write
+                // meta.json — atomic-ish write INSIDE staging (travels with the
+                // snapshot: no "new meta referencing old icons" window)
                 val metaJson = JSONObject().apply { put("apps", metaArr) }
-                val metaTmp = File(dir, "meta.json.tmp")
+                val metaTmp = File(staging, "meta.json.tmp")
                 metaTmp.writeText(metaJson.toString(), Charsets.UTF_8)
-                val metaFile = File(dir, "meta.json")
+                val metaFile = File(staging, "meta.json")
                 if (!metaTmp.renameTo(metaFile)) metaFile.writeText(metaJson.toString(), Charsets.UTF_8)
+            }
 
-                TraceLogger.i(TAG, "ANIP sync: $ok/${merged.size} icons into ${dir.absolutePath}")
+            // V2 gate: empty snapshot = upstream unreachable/dead bundle.
+            // Fail with live state untouched (callers keep their count<=0
+            // failure semantics); staging is discarded.
+            if (ok == 0) {
+                TraceLogger.w(TAG, "ANIP snapshot empty — keeping live dir")
+                staging.deleteRecursively()
+                return 0
+            }
+
+            // Switch: staging validated, swap atomically. IconLibEngine's
+            // cacheDir File is path-keyed (re-resolved per lookup) and the App
+            // caller rebuilds metaIndex/l1Cache right after this returns, so
+            // no extra invalidation hook is needed.
+            try {
+                FileSnapshotSwitch.switchIn(parent, dir.name)
+                dir.setExecutable(true, false)
+                dir.setReadable(true, false)
+                TraceLogger.i(TAG, "ANIP sync: $ok icons switched into ${dir.absolutePath}")
                 return ok
+            } catch (e: Exception) {
+                TraceLogger.w(TAG, "ANIP switch failed, rolling back: ${e.message}")
+                FileSnapshotSwitch.rollback(parent, dir.name)
+                return 0
             }
         } catch (e: Exception) {
             TraceLogger.w(TAG, "ANIP sync error: ${e.message}")
+            staging.deleteRecursively()
             return 0
         } finally {
             zipFile.delete()

@@ -127,6 +127,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 _forceMono.value = counts.third == "force_mono"
                 _forceMonoUnknown.value = counts.third == null
             }
+            // V5 对账：共享目录可能被用户/清理工具删过——prefs 开着而文件缺失
+            // 时 hook 会静默回到默认关，这里幂等写回一次保持两通道一致。
+            if (PreferenceManager.isAutoLibUpdate()) {
+                io.github.deserthouse.opticon.engine.SharedIconStore.writeAutoLibUpdate(app, true)
+            }
         }
     }
 
@@ -260,6 +265,19 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _toastEvent = MutableStateFlow<String?>(null)
     val toastEvent: StateFlow<String?> = _toastEvent.asStateFlow()
 
+    // ━━━ 批 SYNC V5：规则库后台自动更新（默认关，hook 侧经共享文件读取） ━━━
+    private val _autoLibUpdate = MutableStateFlow(PreferenceManager.isAutoLibUpdate())
+    val autoLibUpdate: StateFlow<Boolean> = _autoLibUpdate.asStateFlow()
+
+    fun setAutoLibUpdate(enabled: Boolean) {
+        PreferenceManager.setAutoLibUpdate(enabled)
+        // hook 进程读不到模块 prefs——文件通道是它唯一的读取面，两处必须同写。
+        io.github.deserthouse.opticon.engine.SharedIconStore.writeAutoLibUpdate(
+            getApplication<Application>(), enabled
+        )
+        _autoLibUpdate.value = enabled
+    }
+
     private val _easterEggExpanded = MutableStateFlow(false)
     val easterEggExpanded: StateFlow<Boolean> = _easterEggExpanded.asStateFlow()
 
@@ -355,9 +373,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _aniaSyncFailed.value = false
         _aniaSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_preparing)
         val sourceUrl = PreferenceManager.getSourceUrl(_activeAniaSource.value)
+        // V3 (batch SYNC): route by the source's declared format, not url prefix
+        val sourceFormat = PreferenceManager.getSourceFormat(_activeAniaSource.value)
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                SubscriptionManager.sync(ctx, sourceUrl,
+                SubscriptionManager.sync(ctx, sourceUrl, sourceFormat,
                     onProgress = { _aniaSyncFailed.value = false; _aniaSyncStatus.value = it },
                     onResult = { r ->
                         // R2-04：回调体异常就地兜底——此前逃逸异常被 NetworkExecutor
@@ -414,7 +434,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val ctx = getApplication<Application>().applicationContext
         _picpSyncing.value = true
         _picpSyncFailed.value = false
-        _picpSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_picp_index)
+        // V4 (batch SYNC): size expectation surfaces once at launch; the first
+        // download progress callback overwrites it.
+        _picpSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_picp_index) +
+            " · " + ctx.getString(io.github.deserthouse.opticon.R.string.sync_picp_size_hint)
         val sourceUrl = PreferenceManager.getSourceUrl(_activePicpSource.value)
         if (sourceUrl == null) {
             _picpSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_no_source)
@@ -460,14 +483,26 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun startEditSource(source: PreferenceManager.SubscriptionSource) { _showEditSource.value = source }
     fun dismissEditSource() { _showEditSource.value = null }
 
-    fun addSource(name: String, url: String, description: String) {
-        PreferenceManager.addCustomSource(name, url, description)
+    /** V3 (batch SYNC): format is a mandatory explicit choice — the URL does
+     *  not determine the payload, so nothing is guessed on add. */
+    fun addSource(name: String, url: String, description: String, format: io.github.deserthouse.opticon.domain.SourceFormat) {
+        PreferenceManager.addCustomSource(name, url, description, format)
         refreshSources()
     }
 
-    fun updateSource(id: String, name: String, url: String, description: String) {
-        PreferenceManager.updateCustomSource(id, name, url, description)
+    fun updateSource(
+        id: String, name: String, url: String, description: String,
+        format: io.github.deserthouse.opticon.domain.SourceFormat? = null
+    ) {
+        PreferenceManager.updateCustomSource(id, name, url, description, format)
         refreshSources()
+    }
+
+    /** V4 (batch SYNC): cooperative cancel of an in-flight PICP sync. The
+     *  engine aborts download/extract and reports the cancelled outcome via
+     *  the normal onResult path, which resets the UI state. */
+    fun cancelPicpSync() {
+        PicpEngine.syncCancel()
     }
 
     fun removeSource(id: String) {

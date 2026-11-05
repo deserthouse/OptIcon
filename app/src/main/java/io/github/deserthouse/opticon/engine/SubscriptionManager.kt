@@ -26,20 +26,35 @@ object SubscriptionManager {
         val errorMessage: String? = null
     )
 
+    /** Pre-V3 url-prefix heuristic, kept ONLY as the fallback for legacy
+     *  callers that pass neither sourceFormat nor a resolvable source id. */
+    private fun legacyRoute(url: String): io.github.deserthouse.opticon.domain.SourceFormat =
+        if (url.startsWith(AnipSync.BASE)) io.github.deserthouse.opticon.domain.SourceFormat.ANIP_BUNDLE
+        else io.github.deserthouse.opticon.domain.SourceFormat.LEGACY_JSON
+
+    /**
+     * V3 (batch SYNC): routing keys off the source's declared [format] instead
+     * of the url.startsWith heuristic — a custom URL under the ANIP base that
+     * actually serves legacy JSON (or vice versa) can no longer be misrouted.
+     * [sourceFormat] null = legacy callers → fall back to the old heuristic.
+     */
     fun sync(
         context: Context,
         sourceUrl: String? = null,
+        sourceFormat: io.github.deserthouse.opticon.domain.SourceFormat? = null,
         onProgress: ((String) -> Unit)? = null,
         onResult: (SyncResult) -> Unit
     ) {
+        val activeId = io.github.deserthouse.opticon.util.PreferenceManager.getActiveAniaSourceId()
         val url = sourceUrl
-            ?: io.github.deserthouse.opticon.util.PreferenceManager.getSourceUrl(
-                io.github.deserthouse.opticon.util.PreferenceManager.getActiveAniaSourceId()
-            )
+            ?: io.github.deserthouse.opticon.util.PreferenceManager.getSourceUrl(activeId)
         if (url == null) {
             onResult(SyncResult(false, errorMessage = context.getString(io.github.deserthouse.opticon.R.string.sync_no_source)))
             return
         }
+        val format = sourceFormat
+            ?: io.github.deserthouse.opticon.util.PreferenceManager.getSourceFormat(activeId)
+            ?: legacyRoute(url)
 
         onProgress?.invoke(context.getString(io.github.deserthouse.opticon.R.string.sync_preparing))
         NetworkExecutor.checkConnectivity { networkOk ->
@@ -49,7 +64,7 @@ object SubscriptionManager {
             }
 
             // ANIP source (manifest + per-app PNG) — resource-sync, no base64 JSON
-            if (url.startsWith(AnipSync.BASE)) {
+            if (format == io.github.deserthouse.opticon.domain.SourceFormat.ANIP_BUNDLE) {
                 onProgress?.invoke(context.getString(io.github.deserthouse.opticon.R.string.sync_fetching_manifests))
                 val count = AnipSync.syncTo(
                     File(context.filesDir, IconLibEngine.CACHE_DIR_ACCESSIBLE),
@@ -62,6 +77,14 @@ object SubscriptionManager {
                 }
                 File(context.filesDir, HASH_FILE).writeText("$count", Charsets.UTF_8)
                 onResult(SyncResult(true, iconCount = count, wasChanged = true))
+                return@checkConnectivity
+            }
+
+            if (format == io.github.deserthouse.opticon.domain.SourceFormat.PICP_ZIPBALL) {
+                // A PICP payload has no place in the ANIA sync flow — the V3
+                // list split should make this unreachable; fail honestly if a
+                // stale pointer ever lands here.
+                onResult(SyncResult(false, errorMessage = context.getString(io.github.deserthouse.opticon.R.string.sync_invalid_data)))
                 return@checkConnectivity
             }
 

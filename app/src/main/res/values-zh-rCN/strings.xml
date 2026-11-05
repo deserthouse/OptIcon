@@ -147,6 +147,11 @@
     <string name="picp_fail_missing">下载的 PICP 压缩包丢失</string>
     <string name="picp_fail_invalid">PICP 压缩包无效：%1$s</string>
     <string name="picp_fail_generic">PICP 同步失败：%1$s</string>
+    <!-- 批 SYNC V1/V4：原子更新失败口径（各情形均保留现有图标库） -->
+    <string name="picp_fail_empty">同步源未包含任何有效图标——已保留现有图标库</string>
+    <string name="picp_fail_switch">新图标库落位失败——已保留现有图标库</string>
+    <string name="picp_fail_cancelled">PICP 同步已取消——已保留现有图标库</string>
+    <string name="picp_fail_too_large">同步源超出大小上限——已保留现有图标库</string>
     <string name="preview_source_tag">来源：%1$s</string>
     <string name="preview_missing_hint">打开上方开关并选择来源以预览</string>
     <string name="preview_rejected_hint">无法生成此素材——请更换来源</string>
@@ -237,6 +242,20 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="cd_more_options">更多选项</string>
     <string name="cd_delete_source">删除订阅源</string>
     <string name="cd_open_link">打开订阅源链接</string>
+    <!-- 批 SYNC V3：订阅源数据格式（添加时必选，不做推断） -->
+    <string name="source_format_label">数据格式</string>
+    <string name="source_format_anip">ANIP 资源包</string>
+    <string name="source_format_anip_desc">ANIP 资源包（manifest + 每应用 PNG）</string>
+    <string name="source_format_legacy">Legacy JSON</string>
+    <string name="source_format_legacy_desc">旧版 base64 图标规则 JSON 订阅</string>
+    <string name="source_format_picp">PICP 整库包</string>
+    <string name="source_format_picp_desc">完美图标计划整库归档</string>
+    <string name="cd_cancel_sync">取消同步</string>
+    <!-- 批 SYNC V4：PICP 同步发起时展示一次的体积预期 -->
+    <string name="sync_picp_size_hint">整库较大（数百 MB），建议在 Wi-Fi 下同步</string>
+    <!-- 批 SYNC V5：规则库后台自动更新（默认关，需用户开启） -->
+    <string name="auto_lib_update_title">规则库自动更新（后台）</string>
+    <string name="auto_lib_update_desc">默认关闭。开启后 SystemUI 进程将定期自动检查并下载规则库更新；关闭时仅在手动同步时联网。</string>
 
 
     <!-- UI redesign v0.4.0 -->

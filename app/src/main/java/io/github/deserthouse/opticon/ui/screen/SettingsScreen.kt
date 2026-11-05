@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.rounded.Autorenew
 import androidx.compose.material.icons.rounded.ColorLens
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Build
@@ -198,7 +199,21 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                         onSelect = viewModel::setActivePicpSource, onSync = viewModel::syncPicp,
                         onAddSource = viewModel::startAddSource, onEditSource = viewModel::startEditSource, onDeleteSource = viewModel::removeSource,
                         restoreLabel = if (picpBuiltinHidden) stringResource(R.string.restore_default_picp) else null,
-                        onRestoreDefault = if (picpBuiltinHidden) viewModel::restoreDefaultPicp else null)
+                        onRestoreDefault = if (picpBuiltinHidden) viewModel::restoreDefaultPicp else null,
+                        // V4 (batch SYNC): PICP zipball downloads hundreds of MB — cancel is offered mid-sync
+                        onCancelSync = viewModel::cancelPicpSync)
+                    HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                    // V5 (batch SYNC): hook-side background lib update is opt-in —
+                    // default OFF keeps the published "network on manual sync only"
+                    // promise true; enabling authorizes periodic SystemUI-side syncs.
+                    val autoLibUpdate by viewModel.autoLibUpdate.collectAsState()
+                    SwitchSettingItem(
+                        Icons.Rounded.Autorenew,
+                        stringResource(R.string.auto_lib_update_title),
+                        stringResource(R.string.auto_lib_update_desc),
+                        checked = autoLibUpdate,
+                        onCheckedChange = viewModel::setAutoLibUpdate
+                    )
                 }
             }
             RestartSystemUiButton(viewModel)
@@ -549,10 +564,10 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                 source = source,
                 isBuiltin = PreferenceManager.isBuiltinSource(source.id),
                 onDismiss = viewModel::dismissEditSource,
-                onConfirm = { id, name, url, desc -> viewModel.updateSource(id, name, url, desc) },
-                onCopyToCustom = { name, url, desc ->
+                onConfirm = { id, name, url, desc, format -> viewModel.updateSource(id, name, url, desc, format) },
+                onCopyToCustom = { name, url, desc, format ->
                     viewModel.dismissEditSource()
-                    viewModel.addSource(name, url, desc)
+                    viewModel.addSource(name, url, desc, format)
                 }
             )
         }

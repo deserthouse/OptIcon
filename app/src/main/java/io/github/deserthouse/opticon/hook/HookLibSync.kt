@@ -39,6 +39,8 @@ object HookLibSync {
     private const val SYNC_INTERVAL_MS = 12L * 60 * 60 * 1000
     /** Post-boot grace period before first sync (network settle). */
     private const val BOOT_DELAY_MS = 30_000L
+    /** Batch SYNC V5: consecutive-failure backoff ceiling. */
+    private const val MAX_INTERVAL_MS = 48L * 60 * 60 * 1000
 
     private val syncing = AtomicBoolean(false)
     private val lastSyncAt = AtomicLong(0L)
@@ -48,6 +50,49 @@ object HookLibSync {
 
     @Volatile
     private var appContext: Context? = null
+
+    /** Shared flag dir — same production channel as master_switch (the hook
+     *  process cannot read the module's prefs). */
+    private val sharedFlagDir: File by lazy {
+        File(
+            android.os.Environment
+                .getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS),
+            "OptIcon"
+        )
+    }
+
+    /**
+     * Batch SYNC V5: background self-sync is opt-in. Default OFF — the
+     * published promise is "network only on manual sync" (README FAQ); the
+     * App writes auto_lib_update.opticon ("true"/"false") when the user
+     * enables it, and absent also means off.
+     */
+    internal fun autoUpdateEnabled(): Boolean {
+        return try {
+            val f = File(sharedFlagDir, "auto_lib_update.opticon")
+            f.exists() && f.readText().trim() == "true"
+        } catch (_: Exception) { false }
+    }
+
+    /** Master gate per round — hook-local reads of the shared master flag.
+     *  File read (not the hot rate-limited path) is fine at 12h cadence. */
+    internal fun masterEnabled(): Boolean {
+        return try {
+            val f = File(sharedFlagDir, "master_switch.opticon")
+            !f.exists() || f.readText().trim() != "false"
+        } catch (_: Exception) { true }
+    }
+
+    /** Backoff series (batch SYNC V5): success resets to the base 12h cycle;
+     *  each consecutive failure doubles the wait, capped at 48h. JVM-testable. */
+    internal fun nextSyncInterval(currentMs: Long, success: Boolean): Long {
+        if (success) return SYNC_INTERVAL_MS
+        return (currentMs * 2).coerceAtMost(MAX_INTERVAL_MS)
+    }
+
+    /** Test-visible constant accessors (unit tests live in the same module). */
+    internal fun testBaseIntervalMs() = SYNC_INTERVAL_MS
+    internal fun testMaxIntervalMs() = MAX_INTERVAL_MS
 
     /** Directory holding hook-process-local rule icons.
      *  The SystemContext ("android" package) has no accessible cacheDir —
@@ -75,16 +120,35 @@ object HookLibSync {
         } catch (_: Exception) { null }
     }
 
-    /** Launch the background self-sync loop. Call once from hook init. */
+    /**
+     * Launch the background self-sync loop from hook init. Batch SYNC V5:
+     * opt-in — with the auto-update flag off (the default) no loop thread is
+     * created at all; requestSync() below stays always-available as the
+     * manual-sync extension path.
+     */
     fun start(context: Context) {
         appContext = context.applicationContext
+        if (!autoUpdateEnabled()) {
+            TraceLogger.i(TAG, "auto lib update disabled (default) — no background sync loop")
+            return
+        }
         Thread({
             Thread.sleep(BOOT_DELAY_MS)
+            var interval = SYNC_INTERVAL_MS
             while (true) {
-                val ok = syncNow(context)
-                lastSyncAt.set(System.currentTimeMillis())
-                TraceLogger.i(TAG, "self-sync ${if (ok) "ok" else "failed"}, next in ${SYNC_INTERVAL_MS / 3600000}h")
-                Thread.sleep(SYNC_INTERVAL_MS)
+                if (!autoUpdateEnabled()) {
+                    // Flag flipped off at runtime — park quietly, keep checking
+                    // at the base cadence without ever syncing.
+                    TraceLogger.i(TAG, "auto lib update flag off — skipping round")
+                } else if (!masterEnabled()) {
+                    TraceLogger.i(TAG, "master switch off — skipping round")
+                } else {
+                    val ok = syncNow(context)
+                    lastSyncAt.set(System.currentTimeMillis())
+                    interval = nextSyncInterval(interval, ok)
+                    TraceLogger.i(TAG, "self-sync ${if (ok) "ok" else "failed"}, next in ${interval / 3600000}h")
+                }
+                Thread.sleep(interval)
             }
         }, "OptIconHookLibSync").apply { isDaemon = true }.start()
     }

@@ -98,6 +98,14 @@ object SharedIconStore {
     fun writeMasterSwitch(context: Context, enabled: Boolean): String? =
         writeBytes(context, "master_switch.opticon", if (enabled) "true".toByteArray() else "false".toByteArray())
 
+    /** Batch SYNC V5: hook-side auto lib update authorization flag.
+     *  Absent = OFF (default — README promises no background network traffic
+     *  unless the user enables this or syncs manually). Content "true"/"false". */
+    fun autoLibUpdateFile(): File = File(publicDir(), "auto_lib_update.opticon")
+
+    fun writeAutoLibUpdate(context: Context, enabled: Boolean): String? =
+        writeBytes(context, "auto_lib_update.opticon", if (enabled) "true".toByteArray() else "false".toByteArray())
+
     /** Write the shade icon mode flag; content is "app"/"notif"/"pref". */
     fun writeShadeIconMode(context: Context, mode: String): String? =
         writeBytes(context, "shade_icon_mode.opticon", mode.toByteArray())

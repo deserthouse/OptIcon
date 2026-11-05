@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Launch
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Sync
@@ -51,10 +52,68 @@ import io.github.deserthouse.opticon.util.PreferenceManager
 /** 订阅源管理与致谢组件（Q20 拆分自 SettingsScreen.kt）。 */
 
 @Composable
-internal fun AddSourceDialog(onDismiss: () -> Unit, onConfirm: (String, String, String) -> Unit) {
+internal fun SourceFormatPicker(
+    selected: io.github.deserthouse.opticon.domain.SourceFormat?,
+    enabled: Boolean = true,
+    onSelect: (io.github.deserthouse.opticon.domain.SourceFormat) -> Unit
+) {
+    val options = listOf(
+        Triple(
+            io.github.deserthouse.opticon.domain.SourceFormat.ANIP_BUNDLE,
+            stringResource(R.string.source_format_anip),
+            stringResource(R.string.source_format_anip_desc)
+        ),
+        Triple(
+            io.github.deserthouse.opticon.domain.SourceFormat.LEGACY_JSON,
+            stringResource(R.string.source_format_legacy),
+            stringResource(R.string.source_format_legacy_desc)
+        ),
+        Triple(
+            io.github.deserthouse.opticon.domain.SourceFormat.PICP_ZIPBALL,
+            stringResource(R.string.source_format_picp),
+            stringResource(R.string.source_format_picp_desc)
+        )
+    )
+    Column {
+        Text(
+            stringResource(R.string.source_format_label),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        options.forEach { (format, label, desc) ->
+            Row(
+                Modifier.fillMaxWidth()
+                    .heightIn(min = 44.dp)
+                    .selectable(
+                        selected = selected == format,
+                        role = Role.RadioButton,
+                        enabled = enabled,
+                        onClick = { onSelect(format) }
+                    )
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RadioButton(selected = selected == format, onClick = null, enabled = enabled)
+                Column(Modifier.padding(start = 4.dp)) {
+                    Text(label, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                    Text(
+                        desc, style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun AddSourceDialog(onDismiss: () -> Unit, onConfirm: (String, String, String, io.github.deserthouse.opticon.domain.SourceFormat) -> Unit) {
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
     var desc by remember { mutableStateOf("") }
+    // V3 (batch SYNC): format is mandatory — the URL does not determine the
+    // payload, so nothing is guessed; save stays disabled until chosen.
+    var format by remember { mutableStateOf<io.github.deserthouse.opticon.domain.SourceFormat?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -82,12 +141,14 @@ internal fun AddSourceDialog(onDismiss: () -> Unit, onConfirm: (String, String, 
                     maxLines = 3,
                     modifier = Modifier.fillMaxWidth()
                 )
+                Spacer(Modifier.height(8.dp))
+                SourceFormatPicker(selected = format) { format = it }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { if (name.isNotBlank() && url.isNotBlank()) onConfirm(name, url, desc) },
-                enabled = name.isNotBlank() && url.isNotBlank()
+                onClick = { format?.let { onConfirm(name, url, desc, it) } },
+                enabled = name.isNotBlank() && url.isNotBlank() && format != null
             ) { Text(stringResource(R.string.add_btn)) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel_btn)) } }
@@ -99,12 +160,13 @@ internal fun EditSourceDialog(
     source: PreferenceManager.SubscriptionSource,
     isBuiltin: Boolean,
     onDismiss: () -> Unit,
-    onConfirm: (String, String, String, String) -> Unit,
-    onCopyToCustom: (String, String, String) -> Unit
+    onConfirm: (String, String, String, String, io.github.deserthouse.opticon.domain.SourceFormat) -> Unit,
+    onCopyToCustom: (String, String, String, io.github.deserthouse.opticon.domain.SourceFormat) -> Unit
 ) {
     var name by remember { mutableStateOf(source.name) }
     var url by remember { mutableStateOf(source.url) }
     var desc by remember { mutableStateOf(source.description) }
+    var format by remember { mutableStateOf<io.github.deserthouse.opticon.domain.SourceFormat?>(source.format) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -145,17 +207,30 @@ internal fun EditSourceDialog(
                     readOnly = isBuiltin,
                     modifier = Modifier.fillMaxWidth()
                 )
+                Spacer(Modifier.height(8.dp))
+                // V3: format stays editable on custom sources (readonly for builtins).
+                SourceFormatPicker(
+                    selected = format,
+                    enabled = !isBuiltin,
+                    onSelect = { format = it }
+                )
             }
         },
         confirmButton = {
             if (isBuiltin) {
-                TextButton(onClick = { onCopyToCustom(name, url, desc) }) {
+                TextButton(onClick = {
+                    format?.let { onCopyToCustom(name, url, desc, it) }
+                }) {
                     Text(stringResource(R.string.copy_to_custom), color = MaterialTheme.colorScheme.primary)
                 }
             } else {
                 TextButton(
-                    onClick = { if (name.isNotBlank() && url.isNotBlank()) onConfirm(source.id, name, url, desc) },
-                    enabled = name.isNotBlank() && url.isNotBlank()
+                    onClick = {
+                        format?.let {
+                            if (name.isNotBlank() && url.isNotBlank()) onConfirm(source.id, name, url, desc, it)
+                        }
+                    },
+                    enabled = name.isNotBlank() && url.isNotBlank() && format != null
                 ) { Text(stringResource(R.string.save_btn)) }
             }
         },
@@ -220,7 +295,8 @@ internal fun SourceSection(
     onEditSource: (PreferenceManager.SubscriptionSource) -> Unit = {},
     onDeleteSource: (String) -> Unit = {},
     restoreLabel: String? = null,
-    onRestoreDefault: (() -> Unit)? = null
+    onRestoreDefault: (() -> Unit)? = null,
+    onCancelSync: (() -> Unit)? = null
 ) {
     val ctx = LocalContext.current
     // O-4 (2026-10-03 audit): destructive delete gets a confirm dialog — same
@@ -230,6 +306,13 @@ internal fun SourceSection(
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
             if (syncing) {
+                // V4 (batch SYNC): cancel affordance during a long sync (PICP
+                // downloads hundreds of MB). Same 48dp footprint discipline.
+                if (onCancelSync != null) {
+                    IconButton(onClick = onCancelSync) {
+                        Icon(Icons.Rounded.Close, stringResource(R.string.cd_cancel_sync), Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
+                    }
+                }
                 // Reserve the same 48dp footprint as the sync IconButton — a
                 // bare 20dp spinner would shrink the header row mid-sync.
                 Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {

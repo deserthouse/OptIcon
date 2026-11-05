@@ -134,20 +134,39 @@ object NetworkExecutor {
 
     /**
      * Stream a large download directly to disk without buffering in memory.
-     * For downloading the PICP zipball (~50MB). Returns true on success.
+     * For downloading the PICP zipball. Returns true on success.
      */
-    fun fetchToFile(url: String, destFile: java.io.File, onProgress: ((downloadedBytes: Long, totalBytes: Long) -> Unit)? = null): Boolean {
+    fun fetchToFile(url: String, destFile: java.io.File, onProgress: ((downloadedBytes: Long, totalBytes: Long) -> Unit)? = null): Boolean =
+        fetchToFileBounded(url, destFile, onProgress = onProgress) == DownloadOutcome.OK
+
+    /** Bounded download result — distinguishes user cancel / budget breach from network failure. */
+    enum class DownloadOutcome { OK, CANCELLED, TOO_LARGE, FAILED }
+
+    /**
+     * fetchToFile with a byte budget and a cooperative cancel hook (batch SYNC V4):
+     *  - [maxBytes]: hard ceiling on accumulated bytes — a malicious/hostile
+     *    source can no longer fill the disk with a giant or endless body.
+     *  - [shouldCancel]: polled between chunks; true aborts with CANCELLED.
+     * Non-OK outcomes leave [destFile] partial — the caller owns cleanup.
+     */
+    fun fetchToFileBounded(
+        url: String,
+        destFile: java.io.File,
+        maxBytes: Long = Long.MAX_VALUE,
+        shouldCancel: (() -> Boolean)? = null,
+        onProgress: ((downloadedBytes: Long, totalBytes: Long) -> Unit)? = null
+    ): DownloadOutcome {
         val response: okhttp3.Response?
         try {
             response = largeClient.newCall(
                 Request.Builder().url(url).get().build()
             ).execute()
         } catch (e: Exception) {
-            return false
+            return DownloadOutcome.FAILED
         }
         return try {
-            if (!response.isSuccessful) return false
-            val body = response.body ?: return false
+            if (!response.isSuccessful) return DownloadOutcome.FAILED
+            val body = response.body ?: return DownloadOutcome.FAILED
             val totalBytes = body.contentLength()
             destFile.outputStream().use { fos ->
                 body.byteStream().use { input ->
@@ -155,15 +174,17 @@ object NetworkExecutor {
                     var read: Int
                     var downloaded = 0L
                     while (input.read(buffer).also { read = it } != -1) {
-                        fos.write(buffer, 0, read)
+                        if (shouldCancel?.invoke() == true) return DownloadOutcome.CANCELLED
                         downloaded += read
+                        if (downloaded > maxBytes) return DownloadOutcome.TOO_LARGE
+                        fos.write(buffer, 0, read)
                         onProgress?.invoke(downloaded, totalBytes)
                     }
                 }
             }
-            true
+            DownloadOutcome.OK
         } catch (e: Exception) {
-            false
+            DownloadOutcome.FAILED
         } finally {
             response.close()
         }

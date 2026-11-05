@@ -148,6 +148,11 @@
     <string name="picp_fail_missing">Downloaded PICP zip is missing</string>
     <string name="picp_fail_invalid">PICP archive invalid: %1$s</string>
     <string name="picp_fail_generic">PICP sync failed: %1$s</string>
+    <!-- batch SYNC V1/V4: atomic-update failure surfaces (live library kept in every case) -->
+    <string name="picp_fail_empty">Sync source contains no usable icons — previous library kept</string>
+    <string name="picp_fail_switch">Failed to apply the new icon library — previous library kept</string>
+    <string name="picp_fail_cancelled">PICP sync cancelled — previous library kept</string>
+    <string name="picp_fail_too_large">Source download exceeds the size limit — previous library kept</string>
     <string name="preview_source_tag">Source: %1$s</string>
     <string name="preview_missing_hint">Open the switch and select a source to see a preview</string>
     <string name="preview_rejected_hint">Can\'t render this asset — try a different source</string>
@@ -238,6 +243,20 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="cd_more_options">More options</string>
     <string name="cd_delete_source">Delete source</string>
     <string name="cd_open_link">Open source link</string>
+    <!-- batch SYNC V3: source payload format (mandatory explicit choice on add) -->
+    <string name="source_format_label">Data format</string>
+    <string name="source_format_anip">ANIP bundle</string>
+    <string name="source_format_anip_desc">ANIP resource pack (manifest + per-app PNG)</string>
+    <string name="source_format_legacy">Legacy JSON</string>
+    <string name="source_format_legacy_desc">Old base64 icon-rule JSON subscription</string>
+    <string name="source_format_picp">PICP zipball</string>
+    <string name="source_format_picp_desc">Perfect Icons full-library archive</string>
+    <string name="cd_cancel_sync">Cancel sync</string>
+    <!-- batch SYNC V4: size expectation shown once when a PICP sync starts -->
+    <string name="sync_picp_size_hint">Full library is large (hundreds of MB) — Wi-Fi recommended</string>
+    <!-- batch SYNC V5: hook-side background lib update (opt-in, default off) -->
+    <string name="auto_lib_update_title">Auto lib update (background)</string>
+    <string name="auto_lib_update_desc">Off by default. When enabled, the SystemUI process periodically checks and downloads rule-library updates in the background; otherwise the network is only used when you sync manually.</string>
 
     <!-- v0.3.0-alpha ModernAppCard + AppListScreen -->
     <string name="refresh">Refresh</string>
