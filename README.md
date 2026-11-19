@@ -58,7 +58,7 @@
 
 ## 🚀 安装使用
 
-**[📥 前往 Releases 下载最新版本](https://github.com/deserthouse/OptIcon/releases)**
+[下载稳定版](https://github.com/deserthouse/OptIcon/releases/latest) · [查看全部版本（含测试版）](https://github.com/deserthouse/OptIcon/releases) · [更新日志](CHANGELOG.md)
 
 ### 环境要求
 

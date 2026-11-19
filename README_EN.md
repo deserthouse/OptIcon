@@ -58,7 +58,7 @@ Whenever an app posts a notification, OptIcon automatically evaluates whether it
 
 ## 🚀 Installation
 
-**[📥 Get the latest release from Releases](https://github.com/deserthouse/OptIcon/releases)**
+[Download the stable release](https://github.com/deserthouse/OptIcon/releases/latest) · [All releases, including prereleases](https://github.com/deserthouse/OptIcon/releases) · [Changelog](CHANGELOG.md)
 
 ### Requirements
 
