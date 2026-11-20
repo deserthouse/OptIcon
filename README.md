@@ -1,30 +1,31 @@
 <div align="center">
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/icon_dark.png">
+  <img src="assets/icon_light.png" width="96" alt="OptIcon">
+</picture>
+
 # OptIcon
 
-<p align="center">
-  <img src="assets/icon_light.png" width="120" alt="OptIcon">
-  &nbsp;&nbsp;
-  <img src="assets/icon_dark.png" width="120" alt="OptIcon Dark">
-</p>
+用 LSPosed 将应用的彩色通知图标统一为 Material You 风格。
 
+[安装使用](#-安装使用) · [界面预览](#-界面预览) · [兼容性](#-兼容性)
 
-**Android 通知图标规范化工具 —— 覆盖完整 Material You 世代**
+[![License](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE) [![Platform](https://img.shields.io/badge/Platform-Android%2012%2B-green.svg)](#-兼容性) [![API](https://img.shields.io/badge/LSPosed-API%20102-orange.svg)](https://github.com/libxposed/api) [![Release](https://img.shields.io/github/v/release/deserthouse/OptIcon?include_prereleases&color=yellow&style=flat-square)](https://github.com/deserthouse/OptIcon/releases)
 
-让适配范围内的通知图标符合原生 Android 设计规范
-
-[![License](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Android%2012%2B-green.svg)](#-兼容性)
-[![API](https://img.shields.io/badge/LSPosed-API%20102-orange.svg)](https://github.com/libxposed/api)
-[![Release](https://img.shields.io/github/v/release/deserthouse/OptIcon?include_prereleases&color=yellow&style=flat-square)](https://github.com/deserthouse/OptIcon/releases)
-
-[简体中文](README.md) · [English](README_EN.md)
+**简体中文** · [English](README_EN.md)
 
 </div>
 
 ---
 
-> **OptIcon** 是一个 [LSPosed](https://github.com/LSPosed/LSPosed) 模块，用于将不规范的彩色通知图标替换为符合原生 Android 设计规范的 Material You 图标。
+## 📸 界面预览
+
+<p align="center">
+  <img src="docs/screenshots/list_current.png" width="30%" alt="应用列表"/>
+  <img src="docs/screenshots/detail.png" width="30%" alt="应用详情"/>
+  <img src="docs/screenshots/list_dark.png" width="30%" alt="深色模式"/>
+</p>
 
 ## ✨ 功能特性
 
@@ -47,14 +48,6 @@
 - ⚡ **热生效** —— 修改图标无需重启，FileObserver 实时监听
 - 🌐 **多语言就绪** —— 中文/英文，架构支持任意语言扩展
 - 🔒 **可选联网** —— 仅规则库按需下载；无订阅、无遥测、不上传数据
-
-## 📸 界面预览
-
-<p float="left">
-  <img src="docs/screenshots/list_current.png" width="270" alt="应用列表"/>
-  <img src="docs/screenshots/detail.png" width="270" alt="应用详情"/>
-  <img src="docs/screenshots/list_dark.png" width="270" alt="深色模式"/>
-</p>
 
 ## 🚀 安装使用
 
@@ -147,9 +140,11 @@ OptIcon 申请 `QUERY_ALL_PACKAGES`（查询全部应用）权限。**该权限�
 > - **无关联声明**：本项目与 Google、Android、一加及文中提及的任何厂商/项目无隶属关系；各商标归其各自所有者所有。
 > - **用途自决**：项目用途由使用者自行决定，开发者不对任何滥用行为负责。
 
-## 🤖 AI 使用声明 / AI Disclosure
+<a name="-ai-使用声明--ai-disclosure"></a>
 
-> 本项目不含任何人类成分，绝大多数工作都由 **AI** 完成。
+## AI 使用声明
+
+本项目不含任何人类成分。本项目的大部分代码和文档由 AI 完成，维护者负责提出需求、审阅与验收。图标素材和上游规则保留各自的署名与许可。
 
 ## ⚖️ 开源协议
 

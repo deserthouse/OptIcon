@@ -1,30 +1,31 @@
 <div align="center">
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/icon_dark.png">
+  <img src="assets/icon_light.png" width="96" alt="OptIcon">
+</picture>
+
 # OptIcon
 
-<p align="center">
-  <img src="assets/icon_light.png" width="120" alt="OptIcon">
-  &nbsp;&nbsp;
-  <img src="assets/icon_dark.png" width="120" alt="OptIcon Dark">
-</p>
+An LSPosed module that gives Android notification icons a consistent Material You style.
 
+[Installation](#-installation) · [Screenshots](#-screenshots) · [Compatibility](#-compatibility)
 
-**Notification icon normalizer for Android — covering the full Material You generation**
+[![License](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE) [![Platform](https://img.shields.io/badge/Platform-Android%2012%2B-green.svg)](#-compatibility) [![API](https://img.shields.io/badge/LSPosed-API%20102-orange.svg)](https://github.com/libxposed/api) [![Release](https://img.shields.io/github/v/release/deserthouse/OptIcon?include_prereleases&color=yellow&style=flat-square)](https://github.com/deserthouse/OptIcon/releases)
 
-Make adapted notification icons comply with native Android design guidelines
-
-[![License](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Android%2012%2B-green.svg)](#-compatibility)
-[![API](https://img.shields.io/badge/LSPosed-API%20102-orange.svg)](https://github.com/libxposed/api)
-[![Release](https://img.shields.io/github/v/release/deserthouse/OptIcon?include_prereleases&color=yellow&style=flat-square)](https://github.com/deserthouse/OptIcon/releases)
-
-[简体中文](README.md) · [English](README_EN.md)
+[简体中文](README.md) · **English**
 
 </div>
 
 ---
 
-> **OptIcon** is an [LSPosed](https://github.com/LSPosed/LSPosed) module that replaces non-compliant colorful notification icons with native Android Material You style icons.
+## 📸 Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/list_current.png" width="30%" alt="App list"/>
+  <img src="docs/screenshots/detail.png" width="30%" alt="App detail"/>
+  <img src="docs/screenshots/list_dark.png" width="30%" alt="Dark mode"/>
+</p>
 
 ## ✨ Features
 
@@ -47,14 +48,6 @@ Whenever an app posts a notification, OptIcon automatically evaluates whether it
 - ⚡ **Hot reload** — icon changes apply without restarting; monitored by FileObserver
 - 🌐 **Multilingual ready** — Chinese/English out of the box, extensible to any language
 - 🔒 **Optional networking** — rule sets are downloaded on demand only; no subscription, no telemetry, nothing uploaded
-
-## 📸 Screenshots
-
-<p float="left">
-  <img src="docs/screenshots/list_current.png" width="270" alt="App list"/>
-  <img src="docs/screenshots/detail.png" width="270" alt="App detail"/>
-  <img src="docs/screenshots/list_dark.png" width="270" alt="Dark mode"/>
-</p>
 
 ## 🚀 Installation
 
@@ -146,9 +139,11 @@ OptIcon requests the `QUERY_ALL_PACKAGES` permission **solely to enumerate insta
 > - **No affiliation**: this project is not affiliated with Google, Android, OnePlus, or any vendor/project mentioned; all trademarks belong to their respective owners.
 > - **Your call**: how you use it is entirely up to you; the developer is not responsible for any misuse.
 
-## 🤖 AI Disclosure
+<a name="-ai-disclosure"></a>
 
-> This project contains no human contribution; the vast majority of the work was done by **AI**.
+## AI disclosure
+
+This project contains no human ingredients. AI produced most of the project’s code and documentation. The maintainer sets requirements and reviews the results. Upstream icon assets and rules retain their own credits and licenses.
 
 ## ⚖️ License
 
