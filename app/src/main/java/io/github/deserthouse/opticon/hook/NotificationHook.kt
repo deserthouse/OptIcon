@@ -11,6 +11,7 @@ import android.net.Uri
 import android.os.FileObserver
 import android.service.notification.StatusBarNotification
 import android.util.LruCache
+import io.github.deserthouse.opticon.engine.SharedIconStore
 import io.github.deserthouse.opticon.util.TraceLogger
 import io.github.libxposed.api.XposedInterface
 import java.io.File
@@ -97,6 +98,10 @@ object NotificationHook {
 
     /** rate-limit guard for master_switch stat checks */
     private val lastSwitchCheck = AtomicLong(0L)
+
+    /** 规则版本戳跟踪（修复批 X-04）：应用侧规则库同步收尾后写入共享目录；
+     *  它一变，图标缓存整体作废——镜像可能被更新，被上游撤销的包的镜像已被删除。 */
+    private val rulesStamp = RulesStampTracker { onRulesStampChanged() }
 
     /** Shade row icon mode: "app" (force app icon) / "notif" (force small
      *  icon) / "pref" (respect the app's preferSmallIcon extra). */
@@ -213,10 +218,11 @@ object NotificationHook {
                 "${if (moduleResolver != null) "ready" else "UNAVAILABLE"}")
 
             refreshMasterSwitch()
+            rulesStamp.seed(readRulesStamp())
 
             // Warm the icon cache off the main thread — decode the most recently
-            // baked/updated PNGs so the first notifications after boot don't hit
-            // the disk on SystemUI main thread.
+            // baked/updated PNGs so the first notifications after boot don't hit the
+            // disk on SystemUI main thread.
             if (masterEnabled) preloadIcons()
 
             // Watch icon dirs and drop stale cache entries on change
@@ -287,8 +293,25 @@ object NotificationHook {
                 else -> -1L
             }
             if (mtime != masterSwitchMtime) refreshMasterSwitch()
+            // 同一次限频里顺带看规则版本戳：与总开关一样不依赖共享目录的观察者
+            rulesStamp.observe(readRulesStamp())
         } catch (_: Exception) {
         }
+    }
+
+    private fun readRulesStamp(): String? = try {
+        File(SHARED_ICON_DIR, SharedIconStore.RULES_STAMP_FILE).takeIf { it.isFile }?.readText()?.trim()
+    } catch (_: Exception) {
+        null
+    }
+
+    /** 规则版本戳变了 → 图标缓存整体作废 + 通知 HookLibSync（修复批 X-04）。
+     *  带锁屏密码的设备开机时目录读不到，解锁后第一次读到戳算一次变化，
+     *  会多作废一次缓存——无害，图标按需重新加载。 */
+    private fun onRulesStampChanged() {
+        iconCache.evictAll()
+        TraceLogger.i(TAG, "Rules stamp changed — icon cache dropped")
+        HookLibSync.onRulesChanged()
     }
 
     /** Preload most recent icons into cache (background thread only) */
@@ -350,9 +373,15 @@ object NotificationHook {
                         // Production channel files use .opticon; dev channels
                         // use .png — both must invalidate the cache.
                         if (path == null) return
-                        // App→hook sync wakeup: fresh meta.json means the App
-                        // just published new ANIP rules — re-sync the local
-                        // cache instead of waiting out the 12h cycle.
+                        // 规则版本戳（修复批 X-04）：应用侧规则库同步收尾。观察者在的时候
+                        // 立刻处理，不必等热路径的限频检查。
+                        if (sub == SHARED_ICON_DIR && path == SharedIconStore.RULES_STAMP_FILE) {
+                            rulesStamp.observe(readRulesStamp())
+                            return
+                        }
+                        // 仅限开发 / Root 环境：这里的 fankes_cache 是模块私有目录，生产环境下
+                        // SystemUI 读不到它，这个观察者建立不起来（X-25）。生产环境的规则
+                        // 缓存走上面的规则版本戳与共享目录。
                         if (sub.name == FANKES_DIR && path == "meta.json") {
                             HookLibSync.requestSync()
                             return

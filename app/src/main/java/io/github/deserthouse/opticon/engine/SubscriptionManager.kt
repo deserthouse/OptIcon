@@ -41,6 +41,13 @@ object SubscriptionManager {
     private fun legacyRoute(url: String): SourceFormat =
         if (url.startsWith(AnipSync.BASE)) SourceFormat.ANIP_BUNDLE else SourceFormat.LEGACY_JSON
 
+    /** 同步实际会走的格式：显式格式 → 源上登记的格式 → 旧的地址前缀启发式。
+     *  同步后的收尾（旧版规则文件要不要导入）必须用同一个判断。 */
+    fun resolveFormat(sourceFormat: SourceFormat?, url: String): SourceFormat =
+        sourceFormat
+            ?: PreferenceManager.getSourceFormat(PreferenceManager.getActiveAniaSourceId())
+            ?: legacyRoute(url)
+
     /**
      * 阻塞直到同步结束。[onResult] 在调用线程上回调。
      *
@@ -78,9 +85,7 @@ object SubscriptionManager {
             onResult(SyncResult(false, errorMessage = context.getString(R.string.sync_no_source)))
             return
         }
-        val format = sourceFormat
-            ?: PreferenceManager.getSourceFormat(activeId)
-            ?: legacyRoute(url)
+        val format = resolveFormat(sourceFormat, url)
         if (format == SourceFormat.UNSPECIFIED) {
             onResult(SyncResult(false, errorMessage = context.getString(R.string.sync_format_unspecified)))
             return

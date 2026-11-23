@@ -1,6 +1,7 @@
 package io.github.deserthouse.opticon.ui.viewmodel
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.deserthouse.opticon.engine.IconLibEngine
@@ -375,6 +376,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val sourceUrl = PreferenceManager.getSourceUrl(_activeAniaSource.value)
         // V3 (batch SYNC): route by the source's declared format, not url prefix
         val sourceFormat = PreferenceManager.getSourceFormat(_activeAniaSource.value)
+        // 同步实际会走的格式。收尾时「旧版规则文件要不要导入」用的是同一个判断（X-21）
+        val routedFormat = SubscriptionManager.resolveFormat(sourceFormat, sourceUrl ?: "")
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 SubscriptionManager.sync(ctx, sourceUrl, sourceFormat,
@@ -383,36 +386,22 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                         // R2-04：回调体异常就地兜底——此前逃逸异常被 NetworkExecutor
                         // 转译成"网络不可用"（失真）且 _aniaSyncing 恢复延迟
                         runCatching {
-                        _aniaSyncFailed.value = !r.success
-                        _aniaSyncStatus.value = when {
-                            !r.success -> r.errorMessage ?: ctx.getString(io.github.deserthouse.opticon.R.string.sync_failed)
-                            r.wasChanged -> ctx.getString(io.github.deserthouse.opticon.R.string.sync_anip_done, r.iconCount)
-                            else -> ctx.getString(io.github.deserthouse.opticon.R.string.sync_anip_uptodate, r.iconCount)
-                        }
-                        if (r.success && r.wasChanged) {
-                            _aniaIconCount.value = r.iconCount
-                            // ANIP sync writes fankes_cache + meta.json directly;
-                            // legacy base64 sources still go through ingestJson.
-                            if (SubscriptionManager.readRulesJson(ctx) != null) {
-                                IconLibEngine.ingestJson(ctx, SubscriptionManager.readRulesJson(ctx)!!)
-                            } else {
-                                IconLibEngine.initializeFromFiles(ctx, emptyList())
+                        if (r.busy) {
+                            // 已有同步在进行：不是失败，状态行不用错误色
+                            _aniaSyncFailed.value = false
+                            _aniaSyncStatus.value = r.errorMessage
+                                ?: ctx.getString(io.github.deserthouse.opticon.R.string.sync_failed)
+                        } else {
+                            _aniaSyncFailed.value = !r.success
+                            _aniaSyncStatus.value = when {
+                                !r.success -> r.errorMessage ?: ctx.getString(io.github.deserthouse.opticon.R.string.sync_failed)
+                                r.wasChanged -> ctx.getString(io.github.deserthouse.opticon.R.string.sync_anip_done, r.iconCount)
+                                else -> ctx.getString(io.github.deserthouse.opticon.R.string.sync_anip_uptodate, r.iconCount)
                             }
-                            // Publish all fankes_cache icons to the shared Downloads
-                            // dir so the SystemUI hook can read them (SELinux-safe).
-                            // OI-02: skip apps the user has configured with a
-                            // non-rules strategy — a rules update must never
-                            // silently replace their authored icon.
-                            // Z4③（架构前置）：批量覆写共享产物与保存流水线互斥——
-                            // 这是 Coordinator 锁外最实际的交错写者
-                            io.github.deserthouse.opticon.engine.publish.PublishCoordinator
-                                .withPipelineBlocking("ania-sync-mirror") {
-                                    io.github.deserthouse.opticon.engine.SharedIconStore
-                                        .mirrorAllFromDir(ctx, java.io.File(ctx.filesDir, "fankes_cache")) { pkg ->
-                                            PreferenceManager.isMethodEnabled(pkg) &&
-                                                PreferenceManager.getStrategy(pkg) != io.github.deserthouse.opticon.ui.state.IconStrategy.FANKES
-                                        }
-                                }
+                            if (r.success && r.wasChanged) {
+                                _aniaIconCount.value = r.iconCount
+                                finishRuleSync(ctx, routedFormat, r.revokedPackages)
+                            }
                         }
                         _aniaSyncing.value = false
                         }.onFailure { e ->
@@ -425,6 +414,66 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 )
             }
         }
+    }
+
+    /**
+     * 规则库同步成功之后的收尾（在同步线程上）：
+     * 重建内存索引 → 镜像到共享目录 → 清掉被撤销的包的镜像 → 写规则版本戳。
+     *
+     * 修复批（X-04 / X-21）：
+     *  - 旧版 base64 规则文件只在当前源确实是 Legacy JSON 时才导入。此前只要文件
+     *    还在就导入，规则库（ANIP）刚同步好的结果会被这份旧内容覆盖回去。
+     *  - 镜像只往共享目录里写、从不删：上游撤销的包留在原地，通知栏继续显示旧图标。
+     *    现在删掉它们的镜像——但只为「用户没有启用自定义」的包删。
+     *  - 写规则版本戳，让 hook 侧的图标缓存失效。
+     */
+    private fun finishRuleSync(ctx: Context, routedFormat: io.github.deserthouse.opticon.domain.SourceFormat, revoked: List<String>) {
+        if (io.github.deserthouse.opticon.engine.RuleSyncFollowUp.shouldIngestLegacyRules(routedFormat)) {
+            SubscriptionManager.readRulesJson(ctx)?.let { IconLibEngine.ingestJson(ctx, it) }
+        } else {
+            IconLibEngine.initializeFromFiles(ctx, emptyList())
+        }
+
+        // OI-02: skip apps the user has configured with a non-rules strategy —
+        // a rules update must never silently replace their authored icon.
+        // Z4③（架构前置）：批量覆写共享产物与保存流水线互斥——
+        // 这是 Coordinator 锁外最实际的交错写者
+        val userAuthored = { pkg: String ->
+            PreferenceManager.isMethodEnabled(pkg) &&
+                PreferenceManager.getStrategy(pkg) != io.github.deserthouse.opticon.ui.state.IconStrategy.FANKES
+        }
+        io.github.deserthouse.opticon.engine.publish.PublishCoordinator
+            .withPipelineBlocking("ania-sync-mirror") {
+                io.github.deserthouse.opticon.engine.SharedIconStore.mirrorAllFromDir(
+                    ctx, java.io.File(ctx.filesDir, "fankes_cache"), userAuthored
+                )
+            }
+
+        // 撤销清理：只为没有启用自定义的包删镜像；逐包尽力而为，失败只记日志
+        val doomed = io.github.deserthouse.opticon.engine.RuleSyncFollowUp
+            .mirrorsToDelete(revoked) { pkg -> PreferenceManager.isMethodEnabled(pkg) }
+        var removed = 0
+        if (doomed.isNotEmpty()) {
+            io.github.deserthouse.opticon.engine.publish.PublishCoordinator
+                .withPipelineBlocking("ania-sync-revoke") {
+                    doomed.forEach { pkg ->
+                        runCatching {
+                            io.github.deserthouse.opticon.engine.SharedIconStore.deleteIcon(ctx, pkg)
+                        }.onSuccess { if (it) removed++ }
+                            .onFailure { TraceLogger.w(TAG, "revoke cleanup failed for $pkg: ${it.message}") }
+                    }
+                }
+        }
+        TraceLogger.i(
+            TAG,
+            "rule sync follow-up: revoked=${revoked.size}, mirrors removed=$removed, " +
+                "kept (customized)=${revoked.size - doomed.size}"
+        )
+
+        // 规则版本戳：hook 侧看到它变化就清图标缓存（不依赖共享目录的观察者）
+        io.github.deserthouse.opticon.engine.SharedIconStore
+            .writeRulesStamp(ctx, System.currentTimeMillis())
+            ?: TraceLogger.w(TAG, "rules stamp write failed — hook icon cache may stay stale")
     }
 
     // ━━━ PICP sync ━━━

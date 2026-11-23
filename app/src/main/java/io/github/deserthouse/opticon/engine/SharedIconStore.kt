@@ -106,6 +106,16 @@ object SharedIconStore {
     fun writeAutoLibUpdate(context: Context, enabled: Boolean): String? =
         writeBytes(context, "auto_lib_update.opticon", if (enabled) "true".toByteArray() else "false".toByteArray())
 
+    /** 规则版本戳（修复批 X-04）：应用侧规则库同步收尾（镜像 + 撤销清理）之后写入，
+     *  内容是时间戳。hook 侧看到它变化就清掉图标缓存——不依赖共享目录的观察者
+     *  （带锁屏密码的设备上，首次解锁前这个目录读不到，观察者建立不起来）。 */
+    const val RULES_STAMP_FILE = "rules_stamp.opticon"
+
+    fun rulesStampFile(): File = File(publicDir(), RULES_STAMP_FILE)
+
+    fun writeRulesStamp(context: Context, stamp: Long): String? =
+        writeBytes(context, RULES_STAMP_FILE, stamp.toString().toByteArray())
+
     /** Write the shade icon mode flag; content is "app"/"notif"/"pref". */
     fun writeShadeIconMode(context: Context, mode: String): String? =
         writeBytes(context, "shade_icon_mode.opticon", mode.toByteArray())

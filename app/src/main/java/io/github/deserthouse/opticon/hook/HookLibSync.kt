@@ -159,10 +159,23 @@ object HookLibSync {
 
     /** App→hook wakeup: the App just published fresh rules (meta.json event).
      *  Debounced by the syncing flag — a call during an in-flight sync is a
-     *  no-op because that run already sees the new data. */
+     *  no-op because that run already sees the new data.
+     *
+     *  注意（X-25）：能触发它的只有模块私有目录 fankes_cache 上的观察者，生产环境下
+     *  SystemUI 读不到那个目录、观察者建立不起来——所以这只是开发 / Root 环境的通道。
+     *  生产环境的规则库变化走 [onRulesChanged]（共享目录里的规则版本戳）。 */
     fun requestSync() {
         val ctx = appContext ?: return
         Thread({ syncNow(ctx) }, "OptIconHookSyncWake").apply { isDaemon = true }.start()
+    }
+
+    /**
+     * 应用侧规则库同步收尾（共享目录里的规则版本戳变化，修复批 X-04）。
+     * 自动更新开着就立刻自同步一次，让 hook 侧的本地规则缓存与共享目录一致——
+     * 被上游撤销的包不再从 hook 本地缓存被读到。关着的时候不做任何联网。
+     */
+    fun onRulesChanged() {
+        if (autoUpdateEnabled()) requestSync()
     }
 
     /** One-shot sync: download ANIP manifests + PNGs into cacheDir. */
