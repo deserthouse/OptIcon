@@ -59,7 +59,9 @@ object IconLibEngine {
      */
     fun initializeFromFiles(context: Context, cacheFiles: List<File>): Boolean {
         lock.write {
-            cacheDir = File(context.filesDir, CACHE_DIR).also { it.mkdirs() }
+            // 读取路径恢复（修复批 X-07）：先收敛上次切换的中间态，再确保目录存在。
+            // 顺序不能反——中间态下先建目录，会把完好的旧版困在备份里。
+            cacheDir = File(context.filesDir, CACHE_DIR).also { RuleLibrary.ensureDir(it) }
             l1Cache = LruCache(L1_CACHE_MAX_ENTRIES)
 
             // Rebuild meta index from disk
@@ -88,9 +90,13 @@ object IconLibEngine {
         return true
     }
 
-    /** True when a previously synced meta.json exists (ANIP direct-write). */
-    fun hasMetaIndex(context: Context): Boolean =
-        File(File(context.filesDir, CACHE_DIR_ACCESSIBLE), META_FILE).exists()
+    /** True when a previously synced meta.json exists (ANIP direct-write).
+     *  启动时最先被调用的读取入口——在这里收敛上次切换留下的中间态。 */
+    fun hasMetaIndex(context: Context): Boolean {
+        val dir = File(context.filesDir, CACHE_DIR_ACCESSIBLE)
+        RuleLibrary.prepareForRead(dir)
+        return File(dir, META_FILE).exists()
+    }
 
     fun hasIcon(packageName: String): Boolean {
         if (!isInitialized) return false
@@ -131,7 +137,8 @@ object IconLibEngine {
      * then GC the JSON object.
      */
     fun ingestJson(context: Context, jsonString: String): Int {
-        val dir = File(context.filesDir, CACHE_DIR).also { it.mkdirs() }
+        // 旧版规则文件是就地写入的，不经过快照切换；进入前同样先收敛中间态
+        val dir = File(context.filesDir, CACHE_DIR).also { RuleLibrary.ensureDir(it) }
         // Make directory world-traversable for SystemUI hook access
         dir.setExecutable(true, false)
         dir.setReadable(true, false)

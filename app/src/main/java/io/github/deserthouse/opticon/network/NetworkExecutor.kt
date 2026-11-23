@@ -105,10 +105,21 @@ object NetworkExecutor {
      * Quick connectivity check — GET GitHub Raw README, callback with true/false.
      */
     fun checkConnectivity(onResult: (Boolean) -> Unit) {
-        fetchStringAsync("https://raw.githubusercontent.com/BetterAndroid/android-notification-icon-project/main/README.md",
+        fetchStringAsync(CONNECTIVITY_PROBE_URL,
             onSuccess = { onResult(true) },
             onFailure = { onResult(false) }
         )
+    }
+
+    private const val CONNECTIVITY_PROBE_URL =
+        "https://raw.githubusercontent.com/BetterAndroid/android-notification-icon-project/main/README.md"
+
+    /** [checkConnectivity] 的同步版本——给已经在后台线程上的调用方用。 */
+    fun checkConnectivitySync(): Boolean = try {
+        client.newCall(Request.Builder().url(CONNECTIVITY_PROBE_URL).get().build())
+            .execute().use { it.isSuccessful }
+    } catch (e: Exception) {
+        false
     }
 
     /**

@@ -107,6 +107,9 @@ androidComponents {
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    // 单测里的 android.jar 是桩：org.json 的方法只会返回默认值。
+    // 迁移、快照构建这些以 JSON 为输入的纯函数要有真实实现才测得动。
+    testImplementation("org.json:json:20240303")
 
     // ━━━ libxposed API 102 ━━━
     compileOnly("io.github.libxposed:api:102.0.0")

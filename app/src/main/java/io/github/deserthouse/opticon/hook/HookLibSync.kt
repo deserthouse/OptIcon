@@ -107,7 +107,11 @@ object HookLibSync {
                 ?: throw IllegalStateException("no SystemUI app context for hook cache")
             File(app.cacheDir, DIR_NAME)
         }
-        d.mkdirs()
+        // 读取路径恢复（修复批 X-07）：先收敛上次切换留下的中间态，再确保目录存在。
+        // 顺序不能反——「旧版在备份里、live 缺失」的中间态下直接建目录，会在完好的
+        // prev 旁边造出一个空的 live，下一次收敛就把 prev 当成旧备份删掉。
+        // 收敛失败时 ensureDir 不建目录：读方暂时什么都读不到，但完好的旧版还在备份里。
+        io.github.deserthouse.opticon.engine.RuleLibrary.ensureDir(d)
         iconDir = d
         return d
     }

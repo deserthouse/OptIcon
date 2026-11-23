@@ -40,5 +40,12 @@ enum class SourceFormat {
     /** 旧版 base64 JSON 订阅格式 */
     LEGACY_JSON,
     /** PICP 整仓 zipball（themes 主题目录下的 per-app 1.png 结构） */
-    PICP_ZIPBALL
+    PICP_ZIPBALL,
+    /**
+     * 待确认（修复批 X-02）：升级时无法从旧记录判定格式的自定义源。
+     * 它同时出现在两个源列表里并带提示；同步被拒绝，直到用户在编辑对话框里选定格式。
+     * 修复批之前这类记录一律被判成 Legacy JSON——老用户的自定义应用图标源
+     * 因此从应用图标源列表消失、选中被重置。
+     */
+    UNSPECIFIED
 }

@@ -147,6 +147,8 @@
     <string name="picp_fail_download">Failed to download PICP zipball</string>
     <!-- 修复批 X-22：进程级同步互斥，第二次发起得到的口径 -->
     <string name="sync_busy">A sync is already in progress — wait for it to finish</string>
+    <!-- 修复批 X-02：待确认格式的源不能同步，引导用户去编辑 -->
+    <string name="sync_format_unspecified">This source has no data format chosen yet — edit the source and pick its format before syncing</string>
     <string name="picp_fail_invalid">PICP archive invalid: %1$s</string>
     <string name="picp_fail_generic">PICP sync failed: %1$s</string>
     <!-- batch SYNC V1/V4: atomic-update failure surfaces (live library kept in every case) -->
