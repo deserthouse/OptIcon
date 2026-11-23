@@ -52,6 +52,11 @@ object PreferenceManager {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         modulePrefs = context.getSharedPreferences(MODULE_PREFS_NAME, Context.MODE_PRIVATE)
         ctxRef = java.lang.ref.WeakReference(context.applicationContext)
+        // 启动时对账选中指针（修复批 X-14）：悬空的、或指向已不在对应列表里的源的指针，
+        // 回到内置源。此前只有删除源时会校正。
+        try {
+            reconcileActivePointers()
+        } catch (_: Exception) {}
         // Ensure master_switch file exists and is world-readable
         try {
             val file = java.io.File(context.filesDir, "master_switch")
@@ -441,28 +446,27 @@ object PreferenceManager {
     }
 
     /** 获取 ANIA 源列表（过滤已隐藏的内置源；V3：自定义源按 format 过滤——
-     *  ANIA 列表接受 ANIP bundle 与 legacy JSON，PICP zipball 归 PICP 列表） */
+     *  ANIA 列表接受 ANIP bundle 与 legacy JSON，PICP zipball 归 PICP 列表。
+     *  待确认的源（修复批 X-02）两个列表都显示，带提示等用户选定格式） */
     fun getAniaSources(): List<SubscriptionSource> {
         val hidden = getHiddenBuiltins()
-        val aniaFormats = setOf(
-            io.github.deserthouse.opticon.domain.SourceFormat.ANIP_BUNDLE,
-            io.github.deserthouse.opticon.domain.SourceFormat.LEGACY_JSON
-        )
         return BUILTIN_ANIA_SOURCES.filter { it.id !in hidden } +
-            getCustomSources().filter { it.format in aniaFormats }
+            getCustomSources().filter { it.format in SourceMigration.ANIA_FORMATS }
     }
+
     /** PICP 源列表（V3：仅 PICP_ZIPBALL 格式——旧版把全部自定义源混进两个
-     *  列表，zipball 之外的载荷会被误送 zipball 解析器） */
+     *  列表，zipball 之外的载荷会被误送 zipball 解析器）。待确认的源也显示在这里。 */
     fun getPicpSources(): List<SubscriptionSource> {
         val hidden = getHiddenBuiltins()
         return BUILTIN_PICP_SOURCES.filter { it.id !in hidden } +
-            getCustomSources().filter { it.format == io.github.deserthouse.opticon.domain.SourceFormat.PICP_ZIPBALL }
+            getCustomSources().filter { it.format in SourceMigration.PICP_FORMATS }
     }
 
     fun getActiveAniaSourceId(): String =
-        prefs?.getString(KEY_ACTIVE_ANIA_SOURCE, "ania_raw") ?: "ania_raw"
+        prefs?.getString(KEY_ACTIVE_ANIA_SOURCE, BUILTIN_ANIA_ID) ?: BUILTIN_ANIA_ID
+
     fun getActivePicpSourceId(): String =
-        prefs?.getString(KEY_ACTIVE_PICP_SOURCE, "picp_github") ?: "picp_github"
+        prefs?.getString(KEY_ACTIVE_PICP_SOURCE, BUILTIN_PICP_ID) ?: BUILTIN_PICP_ID
 
     fun setActiveAniaSourceId(id: String) { prefs?.edit { putString(KEY_ACTIVE_ANIA_SOURCE, id) } }
     fun setActivePicpSourceId(id: String) { prefs?.edit { putString(KEY_ACTIVE_PICP_SOURCE, id) } }
@@ -476,54 +480,68 @@ object PreferenceManager {
 
     private const val KEY_FORMATS_MIGRATED = "custom_sources_formats_migrated"
 
-    /**
-     * V3 one-shot migration (batch SYNC): entries persisted before the format
-     * field existed are inferred from the legacy routing heuristic — URL under
-     * the ANIP base = ANIP bundle, anything else = legacy JSON — then written
-     * back and a marker key keeps this from ever running again. ANIA-side
-     * routing behavior is unchanged (the same payloads used to be routed by
-     * the same url.startsWith check); inferred entries drop out of the PICP
-     * list by design (V3 format filtering), and an active PICP pointer at
-     * such an entry falls back to the builtin.
-     */
-    private fun migrateFormatsIfNeeded(sources: List<SubscriptionSource>): List<SubscriptionSource> {
-        if (prefs?.getString(KEY_FORMATS_MIGRATED, null) != null) return sources
-        val migrated = sources.map { s -> s.copy(format = inferFormatFromUrl(s.url)) }
-        saveCustomSources(migrated)
-        prefs?.edit { putString(KEY_FORMATS_MIGRATED, "1") }
-        val picpIds = migrated
-            .filter { it.format == io.github.deserthouse.opticon.domain.SourceFormat.PICP_ZIPBALL }
-            .map { it.id }.toSet()
-        if (getActivePicpSourceId() != "picp_github" && getActivePicpSourceId() !in picpIds) {
-            setActivePicpSourceId("picp_github")
-        }
-        return migrated
-    }
-
-    /** Legacy heuristic used only for the one-shot migration of pre-V3 entries. */
-    private fun inferFormatFromUrl(url: String): io.github.deserthouse.opticon.domain.SourceFormat =
-        if (url.startsWith(io.github.deserthouse.opticon.engine.AnipSync.BASE))
-            io.github.deserthouse.opticon.domain.SourceFormat.ANIP_BUNDLE
-        else io.github.deserthouse.opticon.domain.SourceFormat.LEGACY_JSON
+    /** 内置源 id（落盘的选中指针用到，保持稳定）。 */
+    private const val BUILTIN_ANIA_ID = "ania_raw"
+    private const val BUILTIN_PICP_ID = "picp_github"
 
     private fun getCustomSources(): List<SubscriptionSource> {
+        migrateFormatsOnce()
         val raw = prefs?.getString(KEY_CUSTOM_SOURCES, null) ?: return emptyList()
-        val sources = try {
-            val arr = org.json.JSONArray(raw)
-            (0 until arr.length()).map { i ->
-                val obj = arr.getJSONObject(i)
-                SubscriptionSource(
-                    obj.getString("id"), obj.getString("name"), obj.getString("url"),
-                    obj.optString("description", ""), false,
-                    // Absent/unparsable field = pre-V3 entry; the one-shot
-                    // migration below re-infers it from the URL and writes back.
-                    try {
-                        io.github.deserthouse.opticon.domain.SourceFormat.valueOf(obj.optString("format", "LEGACY_JSON"))
-                    } catch (_: Exception) { io.github.deserthouse.opticon.domain.SourceFormat.LEGACY_JSON }
-                )
-            }
-        } catch (_: Exception) { emptyList() }
-        return migrateFormatsIfNeeded(sources)
+        val arr = try {
+            org.json.JSONArray(raw)
+        } catch (_: Exception) {
+            return emptyList()
+        }
+        return (0 until arr.length()).mapNotNull { i ->
+            val obj = arr.optJSONObject(i) ?: return@mapNotNull null
+            val id = obj.optString("id", "")
+            if (id.isEmpty()) return@mapNotNull null
+            SubscriptionSource(
+                id, obj.optString("name", ""), obj.optString("url", ""),
+                obj.optString("description", ""), false,
+                // 不认识的格式名记为「待确认」，不猜成某一种
+                SourceMigration.parseFormat(obj.optString("format", ""))
+            )
+        }
+    }
+
+    /**
+     * 一次性迁移（修复批 X-01 / X-02）：只处理缺格式字段的旧记录，带格式字段的
+     * 原样保留——此前它把用户刚添加的源所选的格式也覆盖掉。规则见 [SourceMigration]。
+     * 迁移标记在第一次读取时写入，与有没有自定义源无关。
+     */
+    private fun migrateFormatsOnce() {
+        val p = prefs ?: return
+        if (p.getString(KEY_FORMATS_MIGRATED, null) != null) return
+        val outcome = SourceMigration.migrate(
+            rawJson = p.getString(KEY_CUSTOM_SOURCES, null),
+            pointers = SourceMigration.Pointers(getActiveAniaSourceId(), getActivePicpSourceId())
+        )
+        val raw = p.getString(KEY_CUSTOM_SOURCES, null)
+        val migrated = outcome.rawJson
+        if (migrated != null && migrated != raw) {
+            p.edit { putString(KEY_CUSTOM_SOURCES, migrated) }
+        }
+        applyPointers(outcome.pointers)
+        p.edit { putString(KEY_FORMATS_MIGRATED, "1") }
+    }
+
+    /**
+     * 选中指针校正（X-14）：选中的源必须仍在对应当的列表里，否则回到内置源。
+     * 启动时、以及增删改源之后调用。此前只有删除会校正——把选中源的格式改掉之后
+     * 指针就悬空了：列表里没有选中项，同步却还按那个源进行。
+     */
+    fun reconcileActivePointers() {
+        val formats = getCustomSources().associate { it.id to it.format }
+        val current = SourceMigration.Pointers(getActiveAniaSourceId(), getActivePicpSourceId())
+        applyPointers(
+            SourceMigration.reconcilePointers(current, formats, BUILTIN_ANIA_ID, BUILTIN_PICP_ID)
+        )
+    }
+
+    private fun applyPointers(pointers: SourceMigration.Pointers) {
+        if (getActiveAniaSourceId() != pointers.activeAnia) setActiveAniaSourceId(pointers.activeAnia)
+        if (getActivePicpSourceId() != pointers.activePicp) setActivePicpSourceId(pointers.activePicp)
     }
 
     private fun saveCustomSources(sources: List<SubscriptionSource>) {
@@ -539,9 +557,11 @@ object PreferenceManager {
 
     fun addCustomSource(
         name: String, url: String, description: String = "",
-        format: io.github.deserthouse.opticon.domain.SourceFormat = io.github.deserthouse.opticon.domain.SourceFormat.LEGACY_JSON
+        format: io.github.deserthouse.opticon.domain.SourceFormat =
+            io.github.deserthouse.opticon.domain.SourceFormat.UNSPECIFIED
     ): SubscriptionSource {
-        val id = "custom_${System.currentTimeMillis()}"
+        // id 只需唯一：毫秒时间戳后面再接一段随机数，同一毫秒内连加两个也不会撞
+        val id = "custom_${System.currentTimeMillis()}_${(Math.random() * 0xFFFF).toInt().toString(16)}"
         val source = SubscriptionSource(id, name, url, description, false, format)
         val current = getCustomSources().toMutableList()
         current.add(source)
@@ -560,6 +580,8 @@ object PreferenceManager {
             ) else it
         }
         saveCustomSources(current)
+        // 改格式可能让这个源离开选中它的那个列表（X-14）
+        reconcileActivePointers()
     }
 
     /** V3: authoritative format for a source id (custom or builtin), for sync routing. */
@@ -576,8 +598,8 @@ object PreferenceManager {
         } else {
             saveCustomSources(getCustomSources().filter { it.id != id })
         }
-        if (getActiveAniaSourceId() == id) setActiveAniaSourceId("ania_raw")
-        if (getActivePicpSourceId() == id) setActivePicpSourceId("picp_github")
+        // 被删掉的源如果正被选中，指针回到内置源（X-14）
+        reconcileActivePointers()
     }
 
     /** Restore a hidden builtin source (e.g. user clicked "Restore default") */

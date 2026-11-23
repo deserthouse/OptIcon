@@ -432,12 +432,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun syncPicp() {
         if (_picpSyncing.value) return
         val ctx = getApplication<Application>().applicationContext
+        // 待确认格式的源不能同步（修复批 X-02）：引导用户先编辑该源、选定格式
+        if (PreferenceManager.getSourceFormat(_activePicpSource.value) ==
+            io.github.deserthouse.opticon.domain.SourceFormat.UNSPECIFIED
+        ) {
+            _picpSyncing.value = false
+            _picpSyncFailed.value = true
+            _picpSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_format_unspecified)
+            return
+        }
         _picpSyncing.value = true
         _picpSyncFailed.value = false
-        // V4 (batch SYNC): size expectation surfaces once at launch; the first
-        // download progress callback overwrites it.
-        _picpSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_picp_index) +
-            " · " + ctx.getString(io.github.deserthouse.opticon.R.string.sync_picp_size_hint)
         val sourceUrl = PreferenceManager.getSourceUrl(_activePicpSource.value)
         if (sourceUrl == null) {
             _picpSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_no_source)
@@ -520,8 +525,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun removeSource(id: String) {
         PreferenceManager.removeCustomSource(id)
         refreshSources()
-        _activeAniaSource.value = PreferenceManager.getActiveAniaSourceId()
-        _activePicpSource.value = PreferenceManager.getActivePicpSourceId()
     }
 
     fun restoreDefaultAnia() {
@@ -537,6 +540,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private fun refreshSources() {
         _aniaSources.value = PreferenceManager.getAniaSources()
         _picpSources.value = PreferenceManager.getPicpSources()
+        // 选中指针也一起刷新：改格式、删除都可能让它回到内置源（修复批 X-14）——
+        // 此前只有删除源时刷新，改格式后界面上的选中项与实际使用的源对不上。
+        _activeAniaSource.value = PreferenceManager.getActiveAniaSourceId()
+        _activePicpSource.value = PreferenceManager.getActivePicpSourceId()
         _showAddSource.value = false
         _showEditSource.value = null
     }
