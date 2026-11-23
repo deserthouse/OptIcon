@@ -144,7 +144,8 @@
     <string name="sync_picp_extracting">正在提取图标…</string>
     <string name="sync_picp_extracted">已同步 %1$d 个图标包</string>
     <string name="picp_fail_download">PICP 压缩包下载失败</string>
-    <string name="picp_fail_missing">下载的 PICP 压缩包丢失</string>
+    <!-- 修复批 X-22：进程级同步互斥，第二次发起得到的口径 -->
+    <string name="sync_busy">已有同步正在进行，请等它结束</string>
     <string name="picp_fail_invalid">PICP 压缩包无效：%1$s</string>
     <string name="picp_fail_generic">PICP 同步失败：%1$s</string>
     <!-- 批 SYNC V1/V4：原子更新失败口径（各情形均保留现有图标库） -->

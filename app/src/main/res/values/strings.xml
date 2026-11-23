@@ -145,7 +145,8 @@
     <string name="sync_picp_extracting">Extracting icons…</string>
     <string name="sync_picp_extracted">Synced %1$d icon packs</string>
     <string name="picp_fail_download">Failed to download PICP zipball</string>
-    <string name="picp_fail_missing">Downloaded PICP zip is missing</string>
+    <!-- 修复批 X-22：进程级同步互斥，第二次发起得到的口径 -->
+    <string name="sync_busy">A sync is already in progress — wait for it to finish</string>
     <string name="picp_fail_invalid">PICP archive invalid: %1$s</string>
     <string name="picp_fail_generic">PICP sync failed: %1$s</string>
     <!-- batch SYNC V1/V4: atomic-update failure surfaces (live library kept in every case) -->

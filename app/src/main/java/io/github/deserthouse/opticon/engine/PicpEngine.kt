@@ -3,221 +3,183 @@ package io.github.deserthouse.opticon.engine
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import io.github.deserthouse.opticon.R
 import io.github.deserthouse.opticon.network.NetworkExecutor
 import io.github.deserthouse.opticon.util.TraceLogger
 import java.io.File
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * PicpEngine — downloads ALL PICP icons as a GitHub zipball, extracts locally.
  * No more API rate limits, no more step-by-step enumeration.
  * One big download, then done.
  *
- * Batch SYNC V1: updates are atomic. The zip is extracted into a staging dir
- * which is validated (non-empty) BEFORE the live icons/ dir is touched; the
- * switch itself is an atomic directory swap (FileSnapshotSwitch) with rollback
- * on failure and crash recovery on next load. A hostile/empty/broken source
- * can no longer wipe the usable index while reporting success (SYNTHESIS U01).
+ * 批 SYNC V1/V4 的原子更新、字节预算与取消现在都住在 [PicpSyncOrchestrator]（纯 JVM、
+ * 有测试）与 [PicpLibrary]（磁盘布局与读取路径）里。本类只是外壳：线程、资源文案、
+ * 进程级同步互斥（[SyncGate]）。
  *
- * Batch SYNC V4: downloads carry a byte budget (MAX_ZIP_BYTES) and a
- * cooperative cancel flag (syncCancel) — polled between download chunks and
- * zip entries; cancellation and budget breach never touch the live state.
+ * 修复批（X-06/X-08/X-16/X-18/X-19/X-22/X-23）之后的行为变化：
+ *  - 索引随图标目录走（目录内的 index.txt 是唯一事实源），不再有「根索引换位」；
+ *  - 读路径先收敛上次切换的中间态，空闲时顺带清暂存目录与遗留归档；
+ *  - 截断的归档一律判无效；取消直达网络调用；
+ *  - 结果区分「失败 / 取消 / 已有同步在进行」，后两者不是失败。
  */
 object PicpEngine {
 
     private const val TAG = "OptIcon/PicpEngine"
     private const val CACHE_DIR = "picp"
-    private const val INDEX_FILE = "picp_index.txt"
-    private const val ZIPBALL_URL = "https://api.github.com/repos/pzcn/Perfect-Icons-Completion-Project/zipball/main"
 
     /** Batch SYNC V4: hard download budget — real zipball is ~0.5GB; 2GB
      *  absorbs reasonable growth while still capping a hostile source. */
     const val MAX_ZIP_BYTES: Long = 2L * 1024 * 1024 * 1024
 
-    private val index = ConcurrentHashMap<String, Boolean>(2000)
-    private val cancelFlag = AtomicBoolean(false)
+    /** 同步的最终结果。[Cancelled] 与 [Busy] 不是失败——界面不以错误色显示（X-18）。 */
+    sealed class SyncEnd {
+        data class Success(val count: Int) : SyncEnd()
+        data class Failed(val message: String) : SyncEnd()
+        data class Cancelled(val message: String) : SyncEnd()
+        data class Busy(val message: String) : SyncEnd()
+    }
+
+    /** 在库中的包集合。整份替换，读方拿到的永远是完整的一份。 */
+    @Volatile
+    private var packages: Set<String> = emptySet()
+
+    private val indexLock = Any()
+
+    /** 进行中的同步的取消信号；没有同步在跑时为 null。 */
+    @Volatile
+    private var activeToken: NetworkExecutor.CancelToken? = null
 
     fun getIndexedCount(context: Context): Int {
-        if (index.isEmpty()) loadIndex(context)
-        return index.size
+        ensureIndex(context)
+        return packages.size
     }
 
     fun hasIcon(packageName: String, context: Context): Boolean {
-        if (index.isEmpty()) loadIndex(context)
-        return index.containsKey(packageName)
+        ensureIndex(context)
+        return packageName in packages
     }
 
-    /** Batch SYNC V4: request cancellation of an in-flight sync. Safe to call
-     *  anytime; a sync not running simply leaves the flag set for the next
-     *  run — syncIndex clears it on entry. */
-    fun syncCancel() { cancelFlag.set(true) }
-
-    /** Poll point for [PicpZipScanner] cancellation — live flag, no stale copy. */
-    internal fun isCancelled(): Boolean = cancelFlag.get()
+    /** Batch SYNC V4: request cancellation of an in-flight sync. 没有同步在跑时
+     *  是 no-op——不会给下一次同步留下一个陈旧的取消位。 */
+    fun syncCancel() {
+        activeToken?.cancel()
+    }
 
     /** Download entire PICP repo as zipball, extract into staging, validate,
-     *  atomically switch. Streams download to disk (atomic tmp+rename) with a
-     *  byte budget and cancel support, retries transient download failures
-     *  once. An empty/invalid payload fails WITHOUT touching the live index. */
-    fun syncIndex(context: Context, url: String, onProgress: ((String) -> Unit)?, onResult: (Boolean, Int, String?) -> Unit) {
-        cancelFlag.set(false)
+     *  atomically switch. An empty/invalid/truncated payload fails WITHOUT
+     *  touching the live library. [onResult] 在后台线程回调，回调时盘上的
+     *  清理已经做完。 */
+    fun syncIndex(
+        context: Context,
+        url: String,
+        onProgress: ((String) -> Unit)?,
+        onResult: (SyncEnd) -> Unit
+    ) {
+        // 进程级互斥（X-22）：第二次发起直接得到「已有同步在进行」，
+        // 不排队，也不去碰另一个同步正在构建的暂存目录。
+        if (!SyncGate.tryAcquire()) {
+            onResult(SyncEnd.Busy(context.getString(R.string.sync_busy)))
+            return
+        }
+        val token = NetworkExecutor.CancelToken()
+        activeToken = token
+        val cacheDir = File(context.filesDir, CACHE_DIR)
         Thread {
-            val cacheDir = File(context.filesDir, CACHE_DIR).apply { mkdirs() }
-            val zipFile = File(cacheDir, "picp_repo.zip")
-            val staging = FileSnapshotSwitch.stagingOf(cacheDir, "icons")
-
-            fun downloadZip(): NetworkExecutor.DownloadOutcome {
-                onProgress?.invoke(context.getString(io.github.deserthouse.opticon.R.string.sync_picp_streaming))
-                // Write to a tmp file first so a failed/interrupted download can
-                // never leave a missing or half-written zip behind.
-                val tmp = File(cacheDir, "picp_repo.zip.tmp")
-                tmp.delete()
-                val outcome = NetworkExecutor.fetchToFileBounded(url, tmp, MAX_ZIP_BYTES, { cancelFlag.get() }) { downloaded, total ->
-                    val pct = if (total > 0) (downloaded * 100 / total).toInt() else 0
-                    val sizeText = "${downloaded / 1024 / 1024}MB${if (total > 0) " / ${total / 1024 / 1024}MB ($pct %)" else ""}"
-                    onProgress?.invoke(context.getString(io.github.deserthouse.opticon.R.string.sync_picp_bytes, sizeText))
-                }
-                if (outcome != NetworkExecutor.DownloadOutcome.OK) {
-                    tmp.delete()
-                    return outcome
-                }
-                if (!tmp.exists() || tmp.length() == 0L) {
-                    TraceLogger.w(TAG, "PICP download empty (fileExists=${tmp.exists()} size=${if (tmp.exists()) tmp.length() else -1})")
-                    tmp.delete()
-                    return NetworkExecutor.DownloadOutcome.FAILED
-                }
-                zipFile.delete()
-                return if (tmp.renameTo(zipFile)) NetworkExecutor.DownloadOutcome.OK else NetworkExecutor.DownloadOutcome.FAILED
+            val end = executeSync(context, url, cacheDir, token, onProgress)
+            // 磁盘状态已定（清理在编排函数返回前完成），内存里的包集合与磁盘对齐之后才回调
+            packages = readFromDisk(context).packages
+            activeToken = null
+            SyncGate.release()
+            if (end is SyncEnd.Success) {
+                onProgress?.invoke(context.getString(R.string.sync_picp_extracted, end.count))
             }
-
-            /** Extract matched icons into [staging]; returns count. Never
-             *  touches the live index — pure staging build (logic in
-             *  [PicpZipScanner], JVM-testable). */
-
-            try {
-                var lastError: String? = null
-                // Two attempts for TRANSIENT failures only (network/invalid zip).
-                // Deterministic failures (empty index, cancelled, budget) and
-                // switch failures return immediately.
-                for (attempt in 1..2) {
-                    if (cancelFlag.get()) { onResult(false, 0, context.getString(io.github.deserthouse.opticon.R.string.picp_fail_cancelled)); return@Thread }
-                    if (attempt > 1) {
-                        onProgress?.invoke(context.getString(io.github.deserthouse.opticon.R.string.sync_picp_retrying))
-                        Thread.sleep(1500)
-                    }
-                    val outcome = downloadZip()
-                    if (outcome != NetworkExecutor.DownloadOutcome.OK) {
-                        lastError = when (outcome) {
-                            NetworkExecutor.DownloadOutcome.CANCELLED -> context.getString(io.github.deserthouse.opticon.R.string.picp_fail_cancelled)
-                            NetworkExecutor.DownloadOutcome.TOO_LARGE -> context.getString(io.github.deserthouse.opticon.R.string.picp_fail_too_large)
-                            else -> context.getString(io.github.deserthouse.opticon.R.string.picp_fail_download)
-                        }
-                        if (outcome != NetworkExecutor.DownloadOutcome.FAILED) {
-                            onResult(false, 0, lastError)
-                            return@Thread
-                        }
-                        continue
-                    }
-                    if (!zipFile.exists() || zipFile.length() == 0L) {
-                        // Should be impossible after the atomic tmp+rename —
-                        // reported as ENOENT on some devices before this guard.
-                        TraceLogger.w(TAG, "PICP zip missing after download (attempt $attempt)")
-                        lastError = context.getString(io.github.deserthouse.opticon.R.string.picp_fail_missing)
-                        continue
-                    }
-                    onProgress?.invoke(context.getString(io.github.deserthouse.opticon.R.string.sync_picp_extracting))
-                    // Extract matched icons into staging (pure staging build —
-                    // the live index is only touched after a validated switch).
-                    val count = try {
-                        PicpZipScanner.extractToStaging(zipFile, staging) { isCancelled() }
-                    } catch (e: PicpZipScanner.CancelledException) {
-                        staging.deleteRecursively()
-                        zipFile.delete()
-                        onResult(false, 0, context.getString(io.github.deserthouse.opticon.R.string.picp_fail_cancelled))
-                        return@Thread
-                    } catch (e: Exception) {
-                        TraceLogger.w(TAG, "PICP extract failed: ${e}")
-                        // A non-zip payload (HTML error page from a proxy, a
-                        // truncated download) surfaces here — retry cleanly.
-                        lastError = context.getString(io.github.deserthouse.opticon.R.string.picp_fail_invalid, e.message ?: "")
-                        continue
-                    }
-                    zipFile.delete()
-                    // V1 gate: an empty index means the source has no usable
-                    // PICP payload. Fail WITHOUT touching the live state —
-                    // reporting success here used to wipe the whole usable
-                    // index (SYNTHESIS U01). Empty is deterministic: no retry.
-                    if (count == 0) {
-                        staging.deleteRecursively()
-                        TraceLogger.w(TAG, "PICP payload contains no usable icons — keeping live index")
-                        onResult(false, 0, context.getString(io.github.deserthouse.opticon.R.string.picp_fail_empty))
-                        return@Thread
-                    }
-                    // V1 switch: staging validated, swap atomically. The root
-                    // INDEX_FILE swap runs as the afterPromote step so its
-                    // failure still rolls the whole thing back (the commit
-                    // point sits inside FileSnapshotSwitch, before prev is
-                    // dropped — a plain switchIn would leave the root index
-                    // stranded if the swap failed).
-                    try {
-                        FileSnapshotSwitch.switchIn(cacheDir, "icons") {
-                            val innerIndex = File(cacheDir, "icons/index.txt")
-                            val rootIndex = File(cacheDir, INDEX_FILE)
-                            val tmpIndex = File(cacheDir, "$INDEX_FILE.tmp")
-                            tmpIndex.delete()
-                            if (!innerIndex.renameTo(tmpIndex)) throw FileSnapshotSwitch.SwitchException("index→tmp")
-                            rootIndex.delete()
-                            if (!tmpIndex.renameTo(rootIndex)) throw FileSnapshotSwitch.SwitchException("tmp→index")
-                        }
-                        index.clear()
-                        loadIndex(context)
-                        TraceLogger.i(TAG, "PICP extracted: $count icons (atomic switch ok)")
-                        onProgress?.invoke(context.getString(io.github.deserthouse.opticon.R.string.sync_picp_extracted, count))
-                        onResult(true, count, null)
-                        return@Thread
-                    } catch (e: Exception) {
-                        TraceLogger.w(TAG, "PICP switch failed, rolled back: ${e.message}")
-                        index.clear()
-                        loadIndex(context)
-                        onResult(false, 0, context.getString(io.github.deserthouse.opticon.R.string.picp_fail_switch))
-                        return@Thread
-                    }
-                }
-                onResult(false, 0, lastError ?: context.getString(io.github.deserthouse.opticon.R.string.picp_fail_generic, ""))
-            } catch (e: Exception) {
-                TraceLogger.w(TAG, "PICP sync error: ${e}")
-                onResult(false, 0, context.getString(io.github.deserthouse.opticon.R.string.picp_fail_generic, e.message ?: ""))
-            } finally {
-                staging.deleteRecursively() // belt & braces: no staging residue
-            }
+            onResult(end)
         }.start()
     }
 
-    private fun loadIndex(context: Context) {
-        val cacheDir = File(context.filesDir, CACHE_DIR)
-        // Crash recovery: a switch interrupted between steps converges before
-        // we read the index (live missing + prev present → back to old live).
-        FileSnapshotSwitch.recoverIfInterrupted(cacheDir, "icons")
-        val file = File(cacheDir, INDEX_FILE)
-        if (!file.exists()) {
-            // Defense in depth: the inner staging index may still exist if a
-            // crash hit between the inner-index swap and the root rename.
-            val inner = File(cacheDir, "icons/index.txt")
-            if (inner.exists()) {
-                try { inner.copyTo(file, overwrite = true) } catch (_: Exception) { return }
-            } else return
+    /** 在同步线程上阻塞执行一次编排，把编排结果翻译成带文案的最终结果。 */
+    private fun executeSync(
+        context: Context,
+        url: String,
+        cacheDir: File,
+        token: NetworkExecutor.CancelToken,
+        onProgress: ((String) -> Unit)?
+    ): SyncEnd = try {
+        val outcome = PicpSyncOrchestrator.run(
+            cacheDir = cacheDir,
+            download = PicpSyncOrchestrator.Downloader { dest, onBytes ->
+                val result = NetworkExecutor.fetchToFileCancellable(
+                    url, dest, token, MAX_ZIP_BYTES, onBytes
+                )
+                PicpSyncOrchestrator.FetchResult.valueOf(result.name)
+            },
+            cancelled = { token.isCancelled },
+            onStage = { stage -> onProgress?.invoke(stageText(context, stage)) },
+        )
+        when (outcome) {
+            is PicpSyncOrchestrator.Outcome.Success -> SyncEnd.Success(outcome.count)
+            PicpSyncOrchestrator.Outcome.Empty ->
+                SyncEnd.Failed(context.getString(R.string.picp_fail_empty))
+            is PicpSyncOrchestrator.Outcome.Invalid ->
+                SyncEnd.Failed(context.getString(R.string.picp_fail_invalid, outcome.detail))
+            PicpSyncOrchestrator.Outcome.DownloadFailed ->
+                SyncEnd.Failed(context.getString(R.string.picp_fail_download))
+            PicpSyncOrchestrator.Outcome.SwitchFailed ->
+                SyncEnd.Failed(context.getString(R.string.picp_fail_switch))
+            PicpSyncOrchestrator.Outcome.Cancelled ->
+                SyncEnd.Cancelled(context.getString(R.string.picp_fail_cancelled))
+            PicpSyncOrchestrator.Outcome.TooLarge ->
+                SyncEnd.Failed(context.getString(R.string.picp_fail_too_large))
         }
-        try {
-            index.clear()
-            file.readLines().forEach { if (it.isNotBlank()) index[it] = true }
-        } catch (_: Exception) {}
+    } catch (e: Exception) {
+        TraceLogger.w(TAG, "PICP sync error: $e")
+        SyncEnd.Failed(context.getString(R.string.picp_fail_generic, e.message ?: ""))
     }
+
+    private fun ensureIndex(context: Context) {
+        if (packages.isNotEmpty()) return
+        synchronized(indexLock) {
+            if (packages.isNotEmpty()) return
+            packages = readFromDisk(context).packages
+        }
+    }
+
+    /** 读路径：收敛中间态；暂存目录与遗留归档只在没有同步在跑时才清。 */
+    private fun readFromDisk(context: Context): PicpLibrary.Loaded {
+        val cacheDir = File(context.filesDir, CACHE_DIR)
+        val loaded = try {
+            PicpLibrary.readPackages(cacheDir, clearStaging = !SyncGate.isHeld)
+        } catch (e: Exception) {
+            TraceLogger.w(TAG, "PICP library read failed: $e")
+            PicpLibrary.Loaded(emptySet(), PicpLibrary.IndexSource.NONE)
+        }
+        if (loaded.source != PicpLibrary.IndexSource.INNER) {
+            TraceLogger.i(TAG, "PICP index source: ${loaded.source} (${loaded.packages.size} packages)")
+        }
+        return loaded
+    }
+
+    private fun stageText(context: Context, stage: PicpSyncOrchestrator.Stage): String =
+        when (stage) {
+            PicpSyncOrchestrator.Stage.Downloading ->
+                context.getString(R.string.sync_picp_streaming)
+            is PicpSyncOrchestrator.Stage.Bytes -> {
+                val total = stage.total
+                val pct = if (total > 0) (stage.downloaded * 100 / total).toInt() else 0
+                val sizeText = "${stage.downloaded / 1024 / 1024}MB" +
+                    if (total > 0) " / ${total / 1024 / 1024}MB ($pct %)" else ""
+                context.getString(R.string.sync_picp_bytes, sizeText)
+            }
+            PicpSyncOrchestrator.Stage.Retrying ->
+                context.getString(R.string.sync_picp_retrying)
+            PicpSyncOrchestrator.Stage.Extracting ->
+                context.getString(R.string.sync_picp_extracting)
+        }
 
     /** Download PICP icon — reads from local cache, trims transparent padding, scales for preview. */
     fun downloadIcon(context: Context, packageName: String): Bitmap? {
-        if (index.isEmpty()) loadIndex(context)
-        if (!index.containsKey(packageName)) return null
+        if (!hasIcon(packageName, context)) return null
 
         val iconDir = File(context.filesDir, CACHE_DIR)
         val cacheFile = File(iconDir, "icons/$packageName.png")

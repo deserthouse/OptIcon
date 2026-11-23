@@ -191,8 +191,9 @@ object AnipSync {
                 TraceLogger.i(TAG, "ANIP sync: $ok icons switched into ${dir.absolutePath}")
                 return ok
             } catch (e: Exception) {
-                TraceLogger.w(TAG, "ANIP switch failed, rolling back: ${e.message}")
-                FileSnapshotSwitch.rollback(parent, dir.name)
+                // switchIn 自己负责恢复：返回前旧版已放回原位，
+                // 或停在读取路径认得的中间态（修复批 X-23，调用方不再回滚）。
+                TraceLogger.w(TAG, "ANIP switch failed, live dir restored: ${e.message}")
                 return 0
             }
         } catch (e: Exception) {

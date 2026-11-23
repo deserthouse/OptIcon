@@ -444,30 +444,42 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             _picpSyncing.value = false
             return
         }
+        // 取消 / 已有同步在进行：不是失败，状态行不用错误色
+        fun settleNeutral(message: String) {
+            _picpSyncFailed.value = false
+            _picpSyncStatus.value = message
+            _picpSyncing.value = false
+        }
         PicpEngine.syncIndex(ctx, sourceUrl,
             onProgress = { _picpSyncFailed.value = false; _picpSyncStatus.value = it },
-            onResult = { ok, count, err ->
-                if (ok) {
-                    statusSupersededByUser = true
-                    _picpSyncFailed.value = false
-                    _picpCount.value = count
-                    // After index sync, prefetch icons for installed apps
-                    val installed = ctx.packageManager.getInstalledApplications(0)
-                        .map { it.packageName.toString() }
-                        .filter { it != ctx.packageName }
-                    PicpEngine.prefetchForInstalled(ctx, installed,
-                        onProgress = { done, total ->
-                            _picpSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_picp_icons, done, total)
-                        },
-                        onDone = { downloaded ->
-                            _picpSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_picp_done, count, downloaded)
-                            _picpSyncing.value = false
-                        }
-                    )
-                } else {
-                    _picpSyncFailed.value = true
-                    _picpSyncStatus.value = err ?: ctx.getString(io.github.deserthouse.opticon.R.string.sync_picp_failed)
-                    _picpSyncing.value = false
+            onResult = { end ->
+                when (end) {
+                    is PicpEngine.SyncEnd.Success -> {
+                        statusSupersededByUser = true
+                        _picpSyncFailed.value = false
+                        _picpCount.value = end.count
+                        // After index sync, prefetch icons for installed apps
+                        val installed = ctx.packageManager.getInstalledApplications(0)
+                            .map { it.packageName.toString() }
+                            .filter { it != ctx.packageName }
+                        PicpEngine.prefetchForInstalled(ctx, installed,
+                            onProgress = { done, total ->
+                                _picpSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_picp_icons, done, total)
+                            },
+                            onDone = { downloaded ->
+                                _picpSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_picp_done, end.count, downloaded)
+                                _picpSyncing.value = false
+                            }
+                        )
+                    }
+                    is PicpEngine.SyncEnd.Failed -> {
+                        _picpSyncFailed.value = true
+                        _picpSyncStatus.value = end.message
+                        _picpSyncing.value = false
+                    }
+                    // 取消 / 已有同步在进行：不是失败，不以错误色显示（X-18）
+                    is PicpEngine.SyncEnd.Cancelled -> settleNeutral(end.message)
+                    is PicpEngine.SyncEnd.Busy -> settleNeutral(end.message)
                 }
             }
         )

@@ -143,6 +143,37 @@ object NetworkExecutor {
     enum class DownloadOutcome { OK, CANCELLED, TOO_LARGE, FAILED }
 
     /**
+     * 可中断的取消信号：[isCancelled] 供下载循环轮询；[cancel] 还会直接取消
+     * 正在进行的 HTTP 调用。
+     *
+     * 修复批（X-19）之前取消只靠轮询——源停住不发数据时，两个数据块之间
+     * 没有轮询点，要等到读超时（大文件 120 秒）才返回「已取消」。
+     */
+    class CancelToken {
+        private val cancelled = java.util.concurrent.atomic.AtomicBoolean(false)
+
+        @Volatile
+        private var inFlight: Call? = null
+
+        val isCancelled: Boolean get() = cancelled.get()
+
+        fun cancel() {
+            cancelled.set(true)
+            inFlight?.cancel()
+        }
+
+        internal fun track(call: Call) {
+            inFlight = call
+            // 登记之前就已经取消：补一次，不让这次调用跑下去
+            if (cancelled.get()) call.cancel()
+        }
+
+        internal fun untrack() {
+            inFlight = null
+        }
+    }
+
+    /**
      * fetchToFile with a byte budget and a cooperative cancel hook (batch SYNC V4):
      *  - [maxBytes]: hard ceiling on accumulated bytes — a malicious/hostile
      *    source can no longer fill the disk with a giant or endless body.
@@ -155,14 +186,38 @@ object NetworkExecutor {
         maxBytes: Long = Long.MAX_VALUE,
         shouldCancel: (() -> Boolean)? = null,
         onProgress: ((downloadedBytes: Long, totalBytes: Long) -> Unit)? = null
+    ): DownloadOutcome = fetchToFileCore(url, destFile, maxBytes, shouldCancel, null, onProgress)
+
+    /**
+     * [fetchToFileBounded] 的可中断版本（修复批 X-19）：[token] 取消时直接掐断
+     * 正在进行的网络调用，不必等轮询点或读超时。其余语义相同。
+     */
+    fun fetchToFileCancellable(
+        url: String,
+        destFile: java.io.File,
+        token: CancelToken,
+        maxBytes: Long = Long.MAX_VALUE,
+        onProgress: ((downloadedBytes: Long, totalBytes: Long) -> Unit)? = null
+    ): DownloadOutcome = fetchToFileCore(url, destFile, maxBytes, token::isCancelled, token, onProgress)
+
+    private fun fetchToFileCore(
+        url: String,
+        destFile: java.io.File,
+        maxBytes: Long,
+        shouldCancel: (() -> Boolean)?,
+        token: CancelToken?,
+        onProgress: ((downloadedBytes: Long, totalBytes: Long) -> Unit)?
     ): DownloadOutcome {
-        val response: okhttp3.Response?
+        val call: Call
+        val response: Response
         try {
-            response = largeClient.newCall(
-                Request.Builder().url(url).get().build()
-            ).execute()
+            call = largeClient.newCall(Request.Builder().url(url).get().build())
+            token?.track(call)
+            response = call.execute()
         } catch (e: Exception) {
-            return DownloadOutcome.FAILED
+            // 被掐断的调用以 IOException 冒出来——按取消归位，不冒充网络故障
+            token?.untrack()
+            return if (token?.isCancelled == true) DownloadOutcome.CANCELLED else DownloadOutcome.FAILED
         }
         return try {
             if (!response.isSuccessful) return DownloadOutcome.FAILED
@@ -184,9 +239,11 @@ object NetworkExecutor {
             }
             DownloadOutcome.OK
         } catch (e: Exception) {
+            if (token?.isCancelled == true) return DownloadOutcome.CANCELLED
             DownloadOutcome.FAILED
         } finally {
             response.close()
+            token?.untrack()
         }
     }
 }
