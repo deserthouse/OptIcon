@@ -147,6 +147,33 @@ wait_status() {   # wait_status 标题y "词1|词2|…" [超时秒] → 状态�
   echo "$st"; return 1
 }
 ime_shown() { as dumpsys input_method | tr -d '\r' | grep -q "mInputShown=true"; }
+# 贴底软键盘的上沿（像素）。键盘没弹出、或者是悬浮键盘 / 侧边工具条（都不占屏幕底部）时输出空。
+# 这台模拟器挂着实体键盘，输入法默认只显示侧边工具条，所以不能只看「输入法已显示」。
+ime_top() {
+  as dumpsys window 2>/dev/null | tr -d '\r' | python -c '
+import re, sys
+m = re.search(r"type=ime frame=\[(\d+),(\d+)\]\[(\d+),(\d+)\]", sys.stdin.read())
+if m:
+    l, t, r, b = map(int, m.groups())
+    if b - t >= 400:
+        print(t)
+'
+}
+# buttons_above_ime 键盘上沿：界面树里的 Add / Cancel / Save 都在它上方（键盘弹出时按钮还能点到）
+buttons_above_ime() {
+  python - "$OUT/_ui.xml" "$1" <<'PY'
+import io, re, sys
+s = io.open(sys.argv[1], encoding="utf-8", errors="replace").read(); top = int(sys.argv[2]); found = {}
+for m in re.finditer(r"<node [^>]*>", s):
+    n = m.group(0)
+    g = lambda k: (re.search(k + r'="([^"]*)"', n) or [None, ""])[1]
+    if g("text") in ("Add", "Cancel", "Save"):
+        b = [int(x) for x in re.findall(r"\d+", g("bounds"))]
+        found[g("text")] = b[3]
+print(", ".join("%s bottom=%d" % kv for kv in sorted(found.items())))
+sys.exit(0 if found and all(v <= top for v in found.values()) else 1)
+PY
+}
 
 # ── 应用与偏好 ──
 app_stop()      { as am force-stop "$PKG"; }
@@ -212,6 +239,15 @@ save_logs()     { hook_logs > "$OUT/$1.log"; }          # hook / 应用日志落
 ls_shared()     { as ls -la "$SHARED" | tr -d '\r'; }    # 共享目录清单
 pin_cleared()   { as locksettings get-disabled 2>/dev/null | tr -d '\r' | grep -q true; }
 
+# 清掉测试期间发的通知。系统没有提供「取消通知」的命令行（cmd notification 没有 cancel），
+# 只能走通知栏的「全部清除」。尽力而为，不计分——清不掉只影响整洁，不影响结论。
+clear_notifications() {
+  local xy
+  as cmd statusbar expand-notifications; sleep 2; dump
+  xy=$(node_xy "Clear all notifications.") && { as input tap $xy; sleep 1; }
+  as cmd statusbar collapse
+}
+
 # ── 崩溃总闸 ──
 # 概率性的崩溃靠单个场景的断言抓不住：清日志之前先把崩溃缓冲区留底，报告末尾统一查一次
 clear_logs() {
@@ -223,8 +259,11 @@ crash_of() {     # crash_of 包名：运行期间这个进程崩过
   { adb -s "$S" logcat -d -b crash 2>/dev/null | tr -d '\r'; cat "$OUT/crashes.log" 2>/dev/null; } | grep -q "Process: $1,"
 }
 
-# ── hook 本地规则缓存（系统界面进程自己的 cacheDir；系统界面以 system uid 运行） ──
-HOOK_CACHE_PARENT=/data/user/0/com.android.systemui/cache
+# ── hook 本地规则缓存（系统界面进程自己的 cacheDir） ──
+# 注意是「设备加密存储」那一份（/data/user_de），不是 /data/user/0：hook 拿到的系统界面上下文
+# 是设备保护存储的上下文，开机后、用户解锁前就能读。放到 /data/user/0 下那份里，hook 看不到
+# （2026-11-25 首次复验时就在这里放错了，日志是「dropped 0」）。属主与标签照父目录抄。
+HOOK_CACHE_PARENT=/data/user_de/0/com.android.systemui/cache
 HOOK_CACHE=$HOOK_CACHE_PARENT/opticon_hook_icons
 hook_cache_has() { su_ "test -f $HOOK_CACHE/$1.png"; }
 # 往 hook 本地缓存里放图标文件，属主与安全标签同该目录（模拟「旧版本自同步留下的快照」）

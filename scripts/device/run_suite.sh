@@ -187,8 +187,10 @@ PY
   check "D5 前提：hook 本地缓存里有将被撤销的包" hook_cache_has "$D5_PLAIN"
   check "D5 前提：hook 本地缓存里有将被撤销的自定义包" hook_cache_has "$D5_CUSTOM"
   SYSUI_PID0=$(as pidof com.android.systemui | tr -d '\r')
+  # 每次用不同的标签：同一个标签再发走的是「更新」路径，hook 的日志与行为都不一样
+  local t1="suite$(date +%s)a" t2="suite$(date +%s)b"
   clear_logs
-  as cmd notification post -S bigtext -t suite tagSuite1 "before sync" >/dev/null; sleep 3
+  as cmd notification post -S bigtext -t suite "$t1" "before sync" >/dev/null; sleep 3
   check "D5 同步前 hook 用镜像替换了该包的通知图标" hook_has "createIcons: $D5_PLAIN -> setSmallIcon replaced"
   save_logs d5-before-sync
   open_settings || { check "D5 打开设置页" false; return; }
@@ -215,7 +217,7 @@ PY
   check "D5 hook 日志记下了本地缓存的清理" hook_has "dropped 2 revoked packages from hook-local cache"
   check_eq "D5 全程没有重启系统界面" "$(as pidof com.android.systemui | tr -d '\r')" "$SYSUI_PID0"
   clear_logs
-  as cmd notification post -S bigtext -t suite tagSuite2 "after sync" >/dev/null; sleep 3
+  as cmd notification post -S bigtext -t suite "$t2" "after sync" >/dev/null; sleep 3
   check "D5 同步后的新通知不再被替换成旧图标" not hook_has "setSmallIcon replaced"
   save_logs d5-after-notification
   shot d5-01-after
@@ -313,31 +315,42 @@ d7() {  # 首次同步的体积确认；同步中取消
   check_eq "D7 图标库逐字节不变" "$(picp_hash)" "$PICP_HASH0"
 }
 
-d8() {  # 视觉项的采集与几何断言（2.0 倍字体、旋转、深色、软键盘）
+d8() {  # 视觉项的采集与几何断言（2.0 倍字体、贴底软键盘、旋转、深色）
   python "$DIR/mkprefs.py" "$OUT/backup/optcon_prefs.xml" "$OUT/p-d8.xml" \
     "custom_sub_sources=[{\"id\":\"custom_long\",\"name\":\"LongDesc\",\"url\":\"https://example.com/long\",\"description\":\"A deliberately long description used to make the edit dialog taller than the screen at the largest font scale, so that scrolling inside the dialog can be verified end to end.\",\"format\":\"PICP_ZIPBALL\"}]" \
     active_picp_source=custom_long picp_size_confirmed=true >/dev/null
   prefs_inject "$OUT/p-d8.xml"
   as settings put system font_scale 2.0; sleep 1
-  # 这台模拟器配了硬件键盘，软键盘默认不弹；打开「硬键盘时也显示软键盘」才能采到「键盘弹出」的画面
+  # 这台模拟器挂着实体键盘，输入法默认只显示侧边工具条。打开「有实体键盘时也显示软键盘」之后，
+  # 输入法在实例重启后**头一次**弹出时是贴底键盘；被收起（BACK）之后改为工具条或悬浮键盘。
+  # 整跑时 d8 排在会重启的 d6b 之后；单独跑 d8 之前先重启实例。
   as settings put secure show_ime_with_hard_keyboard 1
   goto_picp >/dev/null || { check "D8 进入应用图标源分区" false; return; }
   read -r ax ay <<< "$(scroll_to_add)"
   as input tap "$ax" "$ay"; sleep 2; dump; shot d8-01-add-2x
   check "D8 2.0 倍字体下三个格式选项都可见" test "$(grep -o 'text="PICP zipball"\|text="Legacy JSON"\|text="ANIP bundle"' "$OUT/_ui.xml" | wc -l)" -eq 3
   check "D8 单选行高都不低于 48dp" python "$DIR/radios.py" "$OUT/_ui.xml" "$DENSITY" _min_48
-  tap_field 0; sleep 2; shot d8-02-add-2x-keyboard
-  check "D8 前提：软键盘已弹出（采到的确实是键盘弹出后的画面）" ime_shown
-  note "D8 软键盘弹出时「添加」「取消」是否还在界面树里" "$(dump; for t in Add Cancel; do node_xy "$t" >/dev/null 2>&1 && printf '%s=可见 ' "$t" || printf '%s=不可见 ' "$t"; done)"
-  as input keyevent KEYCODE_BACK; sleep 1        # 收起键盘（上一步已断言键盘在，所以这一下只收键盘）
-  check "D8 收起键盘后对话框还在" node_xy "Add Source"
+  # 软键盘弹出：对话框要收在键盘上方，按钮还能点到（内容区自己为键盘让位，不是靠系统平移窗口）
+  tap_field 0; sleep 3; dump; shot d8-02-add-2x-keyboard
+  local top; top=$(ime_top)
+  check "D8 前提：软键盘贴底弹出（不是悬浮键盘或侧边工具条）" test -n "$top" -a "$top" -lt 2000
+  note "D8 添加对话框：键盘弹出时的键盘上沿" "${top:-（没有贴底键盘）}"
+  check "D8 添加对话框：键盘弹出时「取消」「添加」都在键盘上方" buttons_above_ime "${top:-0}"
   check "D8 2.0 倍字体下每个选项的标题都在自己那一行之内" python "$DIR/radios.py" "$OUT/_ui.xml" "$DENSITY" _titles_inside
-  as input swipe 540 1900 540 1200 500; sleep 1.5; dump; shot d8-02b-add-2x-scrolled
+  as input swipe 540 1200 540 500 500; sleep 1.5; dump; shot d8-02b-add-2x-scrolled   # 在键盘上方的可滚动区域里滚
   check "D8 2.0 倍字体滚动后三个格式选项仍都可见" test "$(grep -o 'text="PICP zipball"\|text="Legacy JSON"\|text="ANIP bundle"' "$OUT/_ui.xml" | wc -l)" -eq 3
   check "D8 2.0 倍字体下滚动后的行高都不低于 48dp" python "$DIR/radios.py" "$OUT/_ui.xml" "$DENSITY" _min_48
   check "D8 2.0 倍字体下选项之间的空隙明显大于一项内部的空隙" python "$DIR/radios.py" "$OUT/_ui.xml" "$DENSITY" _grouped
-  tap_node "Cancel"; sleep 1
-  dump; tap_row_button "LongDesc" "More options"; sleep 1; tap_node "Edit source"; sleep 2; dump; shot d8-03-edit-2x-top
+  check "D8 键盘弹出、内容滚动之后按钮仍在键盘上方" buttons_above_ime "${top:-0}"
+  tap_node "Cancel"; sleep 2     # 关对话框即可，不用 BACK 收键盘（那会让输入法改显示工具条）
+  dump; tap_row_button "LongDesc" "More options"; sleep 1; tap_node "Edit source"; sleep 2
+  tap_field 1; sleep 3; dump; shot d8-03-edit-2x-keyboard
+  local top2; top2=$(ime_top)
+  check "D8 前提：编辑对话框里软键盘贴底弹出" test -n "$top2" -a "$top2" -lt 2000
+  check "D8 编辑对话框：键盘弹出时「取消」「保存」都在键盘上方" buttons_above_ime "${top2:-0}"
+  as input keyevent KEYCODE_BACK; sleep 1        # 收起键盘（后面不再需要键盘）
+  check "D8 收起键盘后对话框还在" node_xy "Edit Source"
+  dump; shot d8-03-edit-2x-top
   as input swipe 780 1750 780 1050 600; sleep 1.5; dump; shot d8-04-edit-2x-scrolled
   as settings put system accelerometer_rotation 0; as settings put system user_rotation 1; sleep 3; dump; shot d8-05-landscape
   check "D8 旋转（界面重建）后对话框与输入仍在" grep -q 'text="https://example.com/long"' "$OUT/_ui.xml"
@@ -347,7 +360,7 @@ d8() {  # 视觉项的采集与几何断言（2.0 倍字体、旋转、深色、
 }
 
 d9() {  # 共享目录被整体移走再放回：观察者随之作废，巡检发现目录回来后重新建立
-  check "D9 前提：观察者在" hook_has "FileObserver established"
+  check "D9 前提：共享目录在" as test -d "$SHARED"
   clear_logs
   su_ "mv $SHARED $SHARED.removed" || { check "D9 移走共享目录" false; return; }
   check "D9 移走共享目录" not as test -d "$SHARED"
@@ -363,7 +376,15 @@ d9() {  # 共享目录被整体移走再放回：观察者随之作废，巡检�
 setup() {
   require_avd
   check "被测包已安装" as pm path "$PKG"
-  check "hook 已注入系统界面" hook_has "Installing notification icon hooks"
+  # hook 在不在，不能靠日志里翻「安装」那一行——系统界面进程启动几分钟后它就被刷掉了。
+  # 日志里没有就重启系统界面进程，等 hook 随**当前安装的包**重新加载（也保证了跑的是新装的那一版）。
+  adb -s "$S" logcat -c -b all
+  if ! hook_has "Installing notification icon hooks"; then
+    log "日志里没有 hook 的安装记录——重启系统界面进程，让 hook 重新加载"
+    su_ "kill \$(pidof com.android.systemui)"
+    local i; for i in $(seq 1 40); do hook_has "self-sync loop starting" && break; sleep 2; done
+  fi
+  check "hook 已注入系统界面" hook_has "self-sync loop starting"
   check "root 可用" test "$(su_ "id -u" | tr -d '\r')" = 0
   app_stop
   prefs_pull "$OUT/backup/optcon_prefs.xml"
@@ -411,7 +432,7 @@ restore() {
   [ -n "$IME0" ] && { [ "$IME0" = "null" ] && as settings delete secure show_ime_with_hard_keyboard || as settings put secure show_ime_with_hard_keyboard "$IME0"; }
   [ -n "$COOLDOWN0" ] && as settings put global notification_cooldown_enabled "$COOLDOWN0"
   [ "$NOTIF_GRANTED0" = "0" ] && as pm revoke "$PKG" android.permission.POST_NOTIFICATIONS
-  for t in tagSuite1 tagSuite2; do as cmd notification cancel "$t" >/dev/null 2>&1; done
+  clear_notifications
   if as test -d "$SHARED.removed"; then    # d9 中途失败时的兜底：目录被移走了就放回去
     su_ "mv $SHARED.removed $SHARED" && check "还原：共享目录已放回" as test -d "$SHARED"
   fi
@@ -435,7 +456,9 @@ restore() {
       check "还原：测试镜像 $pkg 已清除" not as test -f "$SHARED/$pkg.opticon"
     fi
   done
-  su_ "rm -f $HOOK_CACHE/$D5_PLAIN.png $HOOK_CACHE/$D5_CUSTOM.png $P/files/fankes_cache/$D5_PLAIN.png $P/files/fankes_cache/$D5_CUSTOM.png /data/local/tmp/opticon-prefs.xml /data/local/tmp/suite-src.png /data/local/tmp/opticon-suite-picp.tar $P/files/baked/suite-src.png $P/files/baked/$D5_PLAIN.png $P/files/baked/$D5_CUSTOM.png"
+  su_ "rm -f $HOOK_CACHE/$D5_PLAIN.png $HOOK_CACHE/$D5_CUSTOM.png"   # 以防场景中途失败
+  su_ "rmdir /data/user/0/com.android.systemui/cache/opticon_hook_icons 2>/dev/null"   # 早期版本误建在普通存储下的空目录
+  su_ "rm -f $P/files/fankes_cache/$D5_PLAIN.png $P/files/fankes_cache/$D5_CUSTOM.png /data/local/tmp/opticon-prefs.xml /data/local/tmp/suite-src.png /data/local/tmp/opticon-suite-picp.tar $P/files/baked/suite-src.png $P/files/baked/$D5_PLAIN.png $P/files/baked/$D5_CUSTOM.png"
   check "还原：临时文件已清除" not su_ "test -e /data/local/tmp/opticon-prefs.xml -o -e /data/local/tmp/suite-src.png -o -e /data/local/tmp/opticon-suite-picp.tar"
   [ -n "$SERVER_PID" ] && kill "$SERVER_PID" 2>/dev/null
   report
