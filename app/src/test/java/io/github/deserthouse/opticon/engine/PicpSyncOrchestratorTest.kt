@@ -170,7 +170,8 @@ class PicpSyncOrchestratorTest {
 
         val outcome = PicpSyncOrchestrator.run(cache, dl, cancelled = { false }, pauseBetweenAttempts = {})
 
-        assertTrue(outcome is PicpSyncOrchestrator.Outcome.Invalid)
+        // 详情会原样进状态行（"PICP archive invalid: %1$s"）：不能再带一层 "invalid archive:" 前缀
+        assertEquals("truncated or not a zip archive", (outcome as PicpSyncOrchestrator.Outcome.Invalid).detail)
         assertEquals(2, dl.calls)
         assertEquals(before, snapshot(icons))
         assertNoResidue()
@@ -185,7 +186,7 @@ class PicpSyncOrchestratorTest {
 
         val outcome = PicpSyncOrchestrator.run(cache, dl, cancelled = { false }, pauseBetweenAttempts = {})
 
-        assertTrue(outcome is PicpSyncOrchestrator.Outcome.Invalid)
+        assertEquals("truncated or not a zip archive", (outcome as PicpSyncOrchestrator.Outcome.Invalid).detail)
         assertEquals(before, snapshot(icons))
         assertNoResidue()
     }

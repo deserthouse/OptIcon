@@ -32,8 +32,9 @@ internal object PicpZipScanner {
     class CancelledException : Exception("PICP extract cancelled")
 
     /** 归档不完好：不是压缩包、中央目录缺失或损坏（截断的典型形态）、条目数据
-     *  与中央目录登记的不一致（解压出错、长度或校验和不符）。 */
-    class InvalidArchiveException(detail: String) : Exception("invalid archive: $detail")
+     *  与中央目录登记的不一致（解压出错、长度或校验和不符）。
+     *  [detail] 会原样进状态行（"PICP archive invalid: %1$s"）——调用方取它，别取 message。 */
+    class InvalidArchiveException(val detail: String) : Exception("invalid archive: $detail")
 
     /**
      * Rebuild [staging] from scratch with one {pkg}.png per matched package
@@ -47,12 +48,12 @@ internal object PicpZipScanner {
             throw InvalidArchiveException("cannot create staging dir")
         }
         val pkgs = LinkedHashMap<String, Boolean>()
+        // 失败详情会原样进状态行（"PICP archive invalid: %1$s"）：只说「哪种问题、涉及哪个包」，
+        // Java 异常类名与归档内部路径不进用户可见文案
         val zip = try {
             ZipFile(zipFile)
-        } catch (e: IOException) {
-            throw InvalidArchiveException(
-                "not a complete zip (${e.javaClass.simpleName}: ${e.message})"
-            )
+        } catch (_: IOException) {
+            throw InvalidArchiveException("truncated or not a zip archive")
         }
         try {
             val entries = zip.entries()
@@ -66,7 +67,7 @@ internal object PicpZipScanner {
                 // 包目录名只会拼成 "{pkg}.png" 一个文件名。挡掉路径分隔符与相对
                 // 路径成分——恶意归档无法把文件写出暂存目录（Windows 上反斜杠也是分隔符）。
                 if (pkg == "." || pkg == ".." || pkg.contains('\\')) continue
-                copyVerified(zip, entry, File(staging, "$pkg.png"), shouldCancel)
+                copyVerified(zip, entry, File(staging, "$pkg.png"), pkg, shouldCancel)
                 pkgs[pkg] = true
             }
         } finally {
@@ -76,11 +77,12 @@ internal object PicpZipScanner {
         return pkgs.size
     }
 
-    /** 解压一个条目到 [target]，并按中央目录登记的长度与 CRC-32 复核。 */
+    /** 解压一个条目到 [target]，并按中央目录登记的长度与 CRC-32 复核。[pkg] 只用于失败详情。 */
     private fun copyVerified(
         zip: ZipFile,
         entry: ZipEntry,
         target: File,
+        pkg: String,
         shouldCancel: (() -> Boolean)?
     ) {
         val crc = CRC32()
@@ -101,22 +103,18 @@ internal object PicpZipScanner {
             }
         } catch (e: CancelledException) {
             throw e
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             target.delete()
-            throw InvalidArchiveException(
-                "entry ${entry.name} (${e.javaClass.simpleName}: ${e.message})"
-            )
+            throw InvalidArchiveException("unreadable entry: $pkg")
         }
         // 中央目录没登记长度/校验和时取值为 -1，此时无从复核
         if (entry.size >= 0 && written != entry.size) {
             target.delete()
-            throw InvalidArchiveException(
-                "entry ${entry.name}: $written bytes, declared ${entry.size}"
-            )
+            throw InvalidArchiveException("incomplete entry: $pkg")
         }
         if (entry.crc >= 0L && crc.value != entry.crc) {
             target.delete()
-            throw InvalidArchiveException("entry ${entry.name}: checksum mismatch")
+            throw InvalidArchiveException("corrupt entry: $pkg")
         }
     }
 }

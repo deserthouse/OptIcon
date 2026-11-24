@@ -316,7 +316,7 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="sync_network_unavailable">Network unavailable — check connection and retry</string>
     <string name="sync_invalid_data">Invalid data from source</string>
     <string name="sync_download_failed">Download failed — check network or switch source</string>
-    <string name="sync_anip_done">ANIP synced %1$d icons — restart SystemUI to apply</string>
+    <string name="sync_anip_done">ANIP synced %1$d rule icons</string>
     <string name="sync_anip_uptodate">Already up to date (%1$d icons)</string>
     <string name="sync_picp_streaming">Downloading PICP (streaming)…</string>
     <string name="sync_picp_bytes">Downloading %1$s</string>

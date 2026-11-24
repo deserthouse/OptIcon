@@ -105,7 +105,7 @@ internal object PicpSyncOrchestrator {
                     return Outcome.Cancelled
                 } catch (e: PicpZipScanner.InvalidArchiveException) {
                     // 代理返回的错误页、被截断的下载……重试一次，两次都坏就如实报「无效」
-                    lastInvalid = e.message
+                    lastInvalid = e.detail
                     continue
                 }
                 zip.delete() // 归档已用完

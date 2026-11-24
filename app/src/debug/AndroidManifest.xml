@@ -8,7 +8,9 @@
          variant; release builds physically exclude the receiver. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <application>
+    <!-- Debug-only: 设备验证用本机 http://10.0.2.2 测试源（坏归档、慢速源）。
+         正式包不声明此项，保持系统默认的禁止明文流量。 -->
+    <application android:usesCleartextTraffic="true">
         <receiver
             android:name="io.github.deserthouse.opticon.util.E2ETestReceiver"
             android:exported="true" />
