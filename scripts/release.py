@@ -364,16 +364,17 @@ def cmd_build(args):
     shutil.copy2(src, dest)
     if sha256_of(dest) != sha:
         fail("复制产物后哈希不一致")
-    badging, _ = sh([build_tool("aapt2"), "dump", "badging", dest])
+    # sh() 返回 (退出码, 输出)：要的是输出
+    _, badging = sh([build_tool("aapt2"), "dump", "badging", dest])
     if ("versionName='%s'" % version) not in badging or ("versionCode='%d'" % code) not in badging:
         fail("APK 里的版本号与源码不一致：\n" + "\n".join(l for l in badging.split("\n") if "version" in l))
-    manifest, _ = sh([build_tool("aapt2"), "dump", "xmltree", "--file", "AndroidManifest.xml", dest])
+    _, manifest = sh([build_tool("aapt2"), "dump", "xmltree", "--file", "AndroidManifest.xml", dest])
     if "E2ETestReceiver" in manifest:
         fail("release 包里带有调试专有的测试接收器")
     for line in manifest.split("\n"):
         if "usesCleartextTraffic" in line and "0xffffffff" in line:
             fail("release 包允许明文流量（应只在调试包里）：\n" + line.strip())
-    certs, _ = sh([build_tool("apksigner"), "verify", "--print-certs", dest])
+    _, certs = sh([build_tool("apksigner"), "verify", "--print-certs", dest])
     m = re.search(r"certificate SHA-256 digest:\s*([0-9a-f]+)", certs)
     if not m or m.group(1).lower() != RELEASE_CERT_SHA256:
         fail("签名证书不是正式 keystore（可能回退成了 debug 签名）：\n" + certs.strip()[-300:])
