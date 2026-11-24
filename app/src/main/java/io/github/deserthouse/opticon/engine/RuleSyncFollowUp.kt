@@ -25,4 +25,33 @@ internal object RuleSyncFollowUp {
      */
     fun shouldIngestLegacyRules(routedFormat: SourceFormat): Boolean =
         routedFormat == SourceFormat.LEGACY_JSON
+
+    /** 从磁盘加载规则库时走哪条路。 */
+    enum class Load {
+        /** 导入旧版 base64 规则文件。 */
+        INGEST_LEGACY_RULES,
+
+        /** 读规则库快照目录（规则库同步写出的 meta.json + PNG）。 */
+        READ_SNAPSHOT,
+
+        /** 还没有任何可加载的东西。 */
+        NOTHING,
+    }
+
+    /**
+     * 应用启动与同步收尾共用的判断。上一轮修复只改了同步收尾，应用启动入口仍在
+     * 「只要旧文件还在就导入」——进程一重启，刚同步好的规则库又被旧内容覆盖。
+     *
+     * 旧版规则文件只在当前源确实是 Legacy JSON 时才算数。当前源是规则库（ANIP）时，
+     * 盘上残留的旧文件一律不读：有快照就读快照，没有就是「还没同步过」。
+     */
+    fun loadPlan(
+        routedFormat: SourceFormat,
+        legacyRulesPresent: Boolean,
+        snapshotMetaPresent: Boolean
+    ): Load = when {
+        shouldIngestLegacyRules(routedFormat) && legacyRulesPresent -> Load.INGEST_LEGACY_RULES
+        snapshotMetaPresent -> Load.READ_SNAPSHOT
+        else -> Load.NOTHING
+    }
 }

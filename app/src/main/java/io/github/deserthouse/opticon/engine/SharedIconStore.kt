@@ -127,6 +127,19 @@ object SharedIconStore {
     fun writeRulesStamp(context: Context, stamp: Long): String? =
         writeBytes(context, RULES_STAMP_FILE, stamp.toString().toByteArray())
 
+    /** 被上游撤销的包清单（规则库同步收尾时写，每行一个包名）。hook 在规则版本戳变化时读它，
+     *  据此删掉自己本地缓存里的对应文件——本地缓存是独立的一份快照，不随应用侧的
+     *  手动同步更新。必须先写清单、后写版本戳。 */
+    const val RULES_REVOKED_FILE = "rules_revoked.opticon"
+
+    private val SAFE_PACKAGE = Regex("^[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)*$")
+
+    /** 写撤销清单。只收安全的包名（hook 侧会把它们拼成本地文件名）。 */
+    fun writeRevokedPackages(context: Context, packages: Collection<String>): String? {
+        val text = packages.filter { SAFE_PACKAGE.matches(it) }.distinct().joinToString("\n")
+        return writeBytes(context, RULES_REVOKED_FILE, text.toByteArray())
+    }
+
     /** Write the shade icon mode flag; content is "app"/"notif"/"pref". */
     fun writeShadeIconMode(context: Context, mode: String): String? =
         writeBytes(context, "shade_icon_mode.opticon", mode.toByteArray())

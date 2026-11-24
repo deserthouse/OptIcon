@@ -5,6 +5,7 @@ import org.json.JSONObject
 import java.io.File
 import java.io.IOException
 import java.util.Locale
+import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 
@@ -83,10 +84,12 @@ internal object AnipSnapshotBuilder {
             var written = 0
             var carriedOver = 0
             var missing = 0
+            val categoriesSeen = HashSet<String>()
 
             for (category in AnipSync.CATEGORIES) {
                 val manifest = zip.getEntry(root + "icons/" + category + "/manifest.json")
-                    ?: continue // 清单条目不存在 = 上游没有这个类别
+                    ?: continue // 清单条目不存在 = 上游没有这个类别（见下面的整类保护）
+                categoriesSeen.add(category)
                 val text = try {
                     zip.getInputStream(manifest).use { it.readBytes().toString(Charsets.UTF_8) }
                 } catch (e: IOException) {
@@ -140,6 +143,30 @@ internal object AnipSnapshotBuilder {
                 }
             }
 
+            // 整类保护：上一个版本里有、这次归档里整个类别的清单都不见了。分不清是上游撤销了
+            // 整个类别，还是归档不完整 / 上游改了目录。按「读取失败」处理——沿用旧版本里
+            // 这一类的图标，不当作撤销（撤销会一路扩散到通知栏读取的共享目录）。
+            // 只有上一个版本也记录了类别（本版写出的快照）才认得出来。
+            val vanished = oldCategories(old).filterKeys { it in AnipSync.CATEGORIES && it !in categoriesSeen }
+            for ((_, entries) in vanished) {
+                for (meta in entries) {
+                    val pkg = meta.getString("packageName")
+                    if (!PKG_KEY.matches(pkg) || !seen.add(pkg)) continue
+                    val source = old?.let { File(it, "$pkg.png") } ?: continue
+                    if (!source.isFile) continue
+                    val target = File(staging, "$pkg.png")
+                    source.copyTo(target, overwrite = true)
+                    target.setReadable(true, false)
+                    carriedOver++
+                    items += Item(
+                        pkg = pkg,
+                        appName = meta.optString("appName", ""),
+                        contributor = meta.optString("contributorName", ""),
+                        category = meta.getString("category")
+                    )
+                }
+            }
+
             if (items.isEmpty()) {
                 return reject(
                     "snapshot empty (declared $declared, written $written, carried over $carriedOver, missing $missing)"
@@ -149,6 +176,25 @@ internal object AnipSnapshotBuilder {
             return Result.Built(items, Stats(declared, written, carriedOver, missing))
         } finally {
             zip.close()
+        }
+    }
+
+    /** 上一个版本里每个类别各有哪些包（取自旧目录的 meta.json）。旧快照没记类别时返回空。 */
+    private fun oldCategories(old: File?): Map<String, List<JSONObject>> {
+        old ?: return emptyMap()
+        val meta = File(old, RuleLibrary.META_FILE)
+        if (!meta.isFile) return emptyMap()
+        return try {
+            val arr = JSONObject(meta.readText(Charsets.UTF_8)).optJSONArray("apps") ?: return emptyMap()
+            val out = HashMap<String, MutableList<JSONObject>>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                val category = obj.optString("category", "")
+                if (category.isNotEmpty()) out.getOrPut(category) { ArrayList() }.add(obj)
+            }
+            out
+        } catch (_: Exception) {
+            emptyMap()
         }
     }
 
@@ -165,7 +211,8 @@ internal object AnipSnapshotBuilder {
         return countByRoot.maxByOrNull { it.value }?.key
     }
 
-    /** 读一个资源条目；缺失、读不出、或内容不是图片 → null。 */
+    /** 读一个资源条目，并按中央目录登记的长度与 CRC-32 复核。
+     *  缺失、读不出、数据与登记不符（传输或打包后损坏但文件头完好）、或不是图片 → null。 */
     private fun readImage(zip: ZipFile, name: String): ByteArray? {
         val entry: ZipEntry = zip.getEntry(name) ?: return null
         if (entry.isDirectory) return null
@@ -174,6 +221,8 @@ internal object AnipSnapshotBuilder {
         } catch (_: IOException) {
             return null
         }
+        if (entry.size >= 0 && bytes.size.toLong() != entry.size) return null
+        if (entry.crc >= 0L && CRC32().apply { update(bytes) }.value != entry.crc) return null
         return if (looksLikeImage(bytes)) bytes else null
     }
 
@@ -216,6 +265,8 @@ internal object AnipSnapshotBuilder {
                     put("appName", it.appName)
                     put("contributorName", it.contributor)
                     put("isEnabled", true)
+                    // 记录类别：下一次同步时若整个类别的清单从归档里消失，据此沿用旧图标
+                    put("category", it.category)
                 }
             )
         }

@@ -25,6 +25,18 @@ object SubscriptionManager {
     private const val RULES_FILE = "icon_rules.json"
     private const val HASH_FILE = "icon_rules.hash"
 
+    /** 资源文案。生产走 Context.getString；单测换成不依赖 Android 资源的实现
+     *  （android.jar 的桩里 getString 永远返回 null，引擎外壳的接线测试走不通）。 */
+    internal var strings: (Context, Int, Array<out Any?>) -> String = { c, id, args ->
+        if (args.isEmpty()) c.getString(id) else c.getString(id, *args)
+    }
+
+    private fun Context.txt(id: Int, vararg args: Any?): String = strings(this, id, args)
+
+    /** 内置源同步前的连通性探测。生产走网络；单测换成不联网的实现（例如把同步卡在探测里，
+     *  用来验证进程级互斥）。 */
+    internal var connectivityProbe: () -> Boolean = { NetworkExecutor.checkConnectivitySync() }
+
     data class SyncResult(
         val success: Boolean,
         val iconCount: Int = 0,
@@ -62,7 +74,7 @@ object SubscriptionManager {
         onResult: (SyncResult) -> Unit
     ) {
         if (!SyncGate.tryAcquire()) {
-            onResult(SyncResult(false, errorMessage = context.getString(R.string.sync_busy), busy = true))
+            onResult(SyncResult(false, errorMessage = context.txt(R.string.sync_busy), busy = true))
             return
         }
         try {
@@ -82,24 +94,26 @@ object SubscriptionManager {
         val activeId = PreferenceManager.getActiveAniaSourceId()
         val url = sourceUrl ?: PreferenceManager.getSourceUrl(activeId)
         if (url == null) {
-            onResult(SyncResult(false, errorMessage = context.getString(R.string.sync_no_source)))
+            onResult(SyncResult(false, errorMessage = context.txt(R.string.sync_no_source)))
             return
         }
         val format = resolveFormat(sourceFormat, url)
         if (format == SourceFormat.UNSPECIFIED) {
-            onResult(SyncResult(false, errorMessage = context.getString(R.string.sync_format_unspecified)))
+            onResult(SyncResult(false, errorMessage = context.txt(R.string.sync_format_unspecified)))
             return
         }
 
-        onProgress?.invoke(context.getString(R.string.sync_preparing))
-        if (!NetworkExecutor.checkConnectivitySync()) {
-            onResult(SyncResult(false, errorMessage = context.getString(R.string.sync_network_unavailable)))
+        onProgress?.invoke(context.txt(R.string.sync_preparing))
+        // 连通性探测只对内置源做：探测地址是上游的 GitHub Raw。自定义镜像可达而 GitHub 不可达时，
+        // 探测只会给出一个错误的「网络不可用」；自定义源直接请求，由 OkHttp 的超时兜底。
+        if (url == AnipSync.BASE && !connectivityProbe()) {
+            onResult(SyncResult(false, errorMessage = context.txt(R.string.sync_network_unavailable)))
             return
         }
 
         // ANIP source (manifest + per-app PNG) — resource-sync, no base64 JSON
         if (format == SourceFormat.ANIP_BUNDLE) {
-            onProgress?.invoke(context.getString(R.string.sync_fetching_manifests))
+            onProgress?.invoke(context.txt(R.string.sync_fetching_manifests))
             val outcome = AnipSync.syncDetailed(
                 File(context.filesDir, IconLibEngine.CACHE_DIR_ACCESSIBLE),
                 onProgress,
@@ -108,7 +122,7 @@ object SubscriptionManager {
                 AnipSync.archiveUrlFor(url)
             )
             if (outcome.count <= 0) {
-                onResult(SyncResult(false, errorMessage = context.getString(R.string.sync_invalid_data)))
+                onResult(SyncResult(false, errorMessage = context.txt(R.string.sync_invalid_data)))
                 return
             }
             File(context.filesDir, HASH_FILE).writeText("${outcome.count}", Charsets.UTF_8)
@@ -127,25 +141,25 @@ object SubscriptionManager {
             // A PICP payload has no place in the ANIA sync flow — the V3
             // list split should make this unreachable; fail honestly if a
             // stale pointer ever lands here.
-            onResult(SyncResult(false, errorMessage = context.getString(R.string.sync_invalid_data)))
+            onResult(SyncResult(false, errorMessage = context.txt(R.string.sync_invalid_data)))
             return
         }
 
-        onProgress?.invoke(context.getString(R.string.sync_downloading))
+        onProgress?.invoke(context.txt(R.string.sync_downloading))
         val json = NetworkExecutor.fetchStringSync(url) { downloaded, total ->
             val kb = downloaded / 1024
             val text = if (total > 0) "$kb / ${total / 1024} KB (${downloaded * 100 / total} %)" else "$kb KB"
-            onProgress?.invoke(context.getString(R.string.sync_downloading_progress, text))
+            onProgress?.invoke(context.txt(R.string.sync_downloading_progress, text))
         }
 
         if (json == null) {
-            onResult(SyncResult(false, errorMessage = context.getString(R.string.sync_download_failed)))
+            onResult(SyncResult(false, errorMessage = context.txt(R.string.sync_download_failed)))
             return
         }
 
         val iconCount = validateAndCountIcons(json)
         if (iconCount <= 0) {
-            onResult(SyncResult(false, errorMessage = context.getString(R.string.sync_invalid_data)))
+            onResult(SyncResult(false, errorMessage = context.txt(R.string.sync_invalid_data)))
             return
         }
 
@@ -154,7 +168,7 @@ object SubscriptionManager {
             return
         }
 
-        onProgress?.invoke(context.getString(R.string.sync_saving, iconCount))
+        onProgress?.invoke(context.txt(R.string.sync_saving, iconCount))
         saveRules(context, json, iconCount)
         onResult(SyncResult(true, iconCount = iconCount, wasChanged = true))
     }

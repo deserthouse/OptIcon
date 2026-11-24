@@ -44,6 +44,14 @@ object PicpEngine {
     @Volatile
     private var packages: Set<String> = emptySet()
 
+    /** 资源文案。生产走 Context.getString；单测换成不依赖 Android 资源的实现
+     *  （android.jar 的桩里 getString 永远返回 null，引擎外壳的接线测试走不通）。 */
+    internal var strings: (Context, Int, Array<out Any?>) -> String = { c, id, args ->
+        if (args.isEmpty()) c.getString(id) else c.getString(id, *args)
+    }
+
+    private fun Context.txt(id: Int, vararg args: Any?): String = strings(this, id, args)
+
     private val indexLock = Any()
 
     /** 进行中的同步的取消信号；没有同步在跑时为 null。 */
@@ -79,23 +87,52 @@ object PicpEngine {
         // 进程级互斥（X-22）：第二次发起直接得到「已有同步在进行」，
         // 不排队，也不去碰另一个同步正在构建的暂存目录。
         if (!SyncGate.tryAcquire()) {
-            onResult(SyncEnd.Busy(context.getString(R.string.sync_busy)))
+            onResult(SyncEnd.Busy(context.txt(R.string.sync_busy)))
             return
         }
         val token = NetworkExecutor.CancelToken()
         activeToken = token
         val cacheDir = File(context.filesDir, CACHE_DIR)
-        Thread {
-            val end = executeSync(context, url, cacheDir, token, onProgress)
-            // 磁盘状态已定（清理在编排函数返回前完成），内存里的包集合与磁盘对齐之后才回调
-            packages = readFromDisk(context).packages
-            activeToken = null
-            SyncGate.release()
+        val worker = Thread {
+            val end: SyncEnd = try {
+                runAndReload(context, url, cacheDir, token, onProgress)
+            } finally {
+                activeToken = null
+                SyncGate.release()
+            }
             if (end is SyncEnd.Success) {
-                onProgress?.invoke(context.getString(R.string.sync_picp_extracted, end.count))
+                onProgress?.invoke(context.txt(R.string.sync_picp_extracted, end.count))
             }
             onResult(end)
-        }.start()
+        }
+        try {
+            worker.start()
+        } catch (t: Throwable) {
+            // 线程都没起来（起不了新线程等）：锁由调用线程放掉，并如实回调
+            TraceLogger.w(TAG, "PICP sync thread could not start: $t")
+            activeToken = null
+            SyncGate.release()
+            onResult(SyncEnd.Failed(context.txt(R.string.picp_fail_generic, t.message ?: "")))
+        }
+    }
+
+    /** 在同步线程上执行编排并让内存里的包集合与磁盘对齐。
+     *  编排层只接 Exception；逃到这里 Throwable（内存不足等 Error、线程体里的任何意外）
+     *  一律兜成「失败」结果——不兜的话回调不发，界面永远停在「同步中」。锁由调用方的 finally 放。 */
+    private fun runAndReload(
+        context: Context,
+        url: String,
+        cacheDir: File,
+        token: NetworkExecutor.CancelToken,
+        onProgress: ((String) -> Unit)?
+    ): SyncEnd = try {
+        val end = executeSync(context, url, cacheDir, token, onProgress)
+        // 磁盘状态已定（清理在编排函数返回前完成），内存里的包集合与磁盘对齐之后才回调
+        packages = readFromDisk(context).packages
+        end
+    } catch (t: Throwable) {
+        TraceLogger.w(TAG, "PICP sync thread died: $t")
+        SyncEnd.Failed(context.txt(R.string.picp_fail_generic, t.message ?: ""))
     }
 
     /** 在同步线程上阻塞执行一次编排，把编排结果翻译成带文案的最终结果。 */
@@ -120,21 +157,21 @@ object PicpEngine {
         when (outcome) {
             is PicpSyncOrchestrator.Outcome.Success -> SyncEnd.Success(outcome.count)
             PicpSyncOrchestrator.Outcome.Empty ->
-                SyncEnd.Failed(context.getString(R.string.picp_fail_empty))
+                SyncEnd.Failed(context.txt(R.string.picp_fail_empty))
             is PicpSyncOrchestrator.Outcome.Invalid ->
-                SyncEnd.Failed(context.getString(R.string.picp_fail_invalid, outcome.detail))
+                SyncEnd.Failed(context.txt(R.string.picp_fail_invalid, outcome.detail))
             PicpSyncOrchestrator.Outcome.DownloadFailed ->
-                SyncEnd.Failed(context.getString(R.string.picp_fail_download))
+                SyncEnd.Failed(context.txt(R.string.picp_fail_download))
             PicpSyncOrchestrator.Outcome.SwitchFailed ->
-                SyncEnd.Failed(context.getString(R.string.picp_fail_switch))
+                SyncEnd.Failed(context.txt(R.string.picp_fail_switch))
             PicpSyncOrchestrator.Outcome.Cancelled ->
-                SyncEnd.Cancelled(context.getString(R.string.picp_fail_cancelled))
+                SyncEnd.Cancelled(context.txt(R.string.picp_fail_cancelled))
             PicpSyncOrchestrator.Outcome.TooLarge ->
-                SyncEnd.Failed(context.getString(R.string.picp_fail_too_large))
+                SyncEnd.Failed(context.txt(R.string.picp_fail_too_large))
         }
     } catch (e: Exception) {
         TraceLogger.w(TAG, "PICP sync error: $e")
-        SyncEnd.Failed(context.getString(R.string.picp_fail_generic, e.message ?: ""))
+        SyncEnd.Failed(context.txt(R.string.picp_fail_generic, e.message ?: ""))
     }
 
     private fun ensureIndex(context: Context) {
@@ -145,11 +182,14 @@ object PicpEngine {
         }
     }
 
-    /** 读路径：收敛中间态；暂存目录与遗留归档只在没有同步在跑时才清。 */
+    /** 读路径：收敛中间态；暂存目录与遗留归档只在没有同步在跑时才清（判断与清理之间不留缝隙）。 */
     private fun readFromDisk(context: Context): PicpLibrary.Loaded {
         val cacheDir = File(context.filesDir, CACHE_DIR)
         val loaded = try {
-            PicpLibrary.readPackages(cacheDir, clearStaging = !SyncGate.isHeld)
+            SyncGate.ifIdle(
+                whenIdle = { PicpLibrary.readPackages(cacheDir, clearStaging = true) },
+                whenBusy = { PicpLibrary.readPackages(cacheDir, clearStaging = false) }
+            )
         } catch (e: Exception) {
             TraceLogger.w(TAG, "PICP library read failed: $e")
             PicpLibrary.Loaded(emptySet(), PicpLibrary.IndexSource.NONE)
@@ -163,18 +203,18 @@ object PicpEngine {
     private fun stageText(context: Context, stage: PicpSyncOrchestrator.Stage): String =
         when (stage) {
             PicpSyncOrchestrator.Stage.Downloading ->
-                context.getString(R.string.sync_picp_streaming)
+                context.txt(R.string.sync_picp_streaming)
             is PicpSyncOrchestrator.Stage.Bytes -> {
                 val total = stage.total
                 val pct = if (total > 0) (stage.downloaded * 100 / total).toInt() else 0
                 val sizeText = "${stage.downloaded / 1024 / 1024}MB" +
                     if (total > 0) " / ${total / 1024 / 1024}MB ($pct %)" else ""
-                context.getString(R.string.sync_picp_bytes, sizeText)
+                context.txt(R.string.sync_picp_bytes, sizeText)
             }
             PicpSyncOrchestrator.Stage.Retrying ->
-                context.getString(R.string.sync_picp_retrying)
+                context.txt(R.string.sync_picp_retrying)
             PicpSyncOrchestrator.Stage.Extracting ->
-                context.getString(R.string.sync_picp_extracting)
+                context.txt(R.string.sync_picp_extracting)
         }
 
     /** Download PICP icon — reads from local cache, trims transparent padding, scales for preview. */

@@ -18,8 +18,14 @@ internal object RuleLibrary {
 
     const val META_FILE = "meta.json"
 
+    /** 同步时归档的临时文件名后缀：`{目录名}.zip.tmp`（AnipSync 写在目录旁边）。 */
+    const val ARCHIVE_TMP_SUFFIX = ".zip.tmp"
+
     /**
      * 读取路径入口：应用侧启动加载（IconLibEngine）、hook 侧首次取目录（HookLibSync.dir）。
+     *
+     * 空闲时（此刻没有同步在跑）顺带清掉没建完的暂存目录和上次中断留下的临时归档；
+     * 有同步在跑时只收敛中间态——暂存目录和归档可能正被构建/下载。
      *
      * @return false = 旧版放不回去，此刻没有可读的库；调用方不得创建空目录。
      */
@@ -28,8 +34,16 @@ internal object RuleLibrary {
         ops: FileSnapshotSwitch.FsOps = FileSnapshotSwitch.FsOps.Default
     ): Boolean {
         val parent = dir.parentFile ?: return dir.isDirectory
-        // 暂存目录只在没有同步在跑时才清（同步构建期间它是活的）
-        return FileSnapshotSwitch.recoverIfInterrupted(parent, dir.name, clearStaging = !SyncGate.isHeld, ops = ops)
+        val name = dir.name
+        return SyncGate.ifIdle(
+            whenIdle = {
+                File(parent, name + ARCHIVE_TMP_SUFFIX).delete()
+                FileSnapshotSwitch.recoverIfInterrupted(parent, name, ops = ops)
+            },
+            whenBusy = {
+                FileSnapshotSwitch.recoverIfInterrupted(parent, name, clearStaging = false, ops = ops)
+            }
+        )
     }
 
     /** 读取 + 确保目录存在（写入方的读取入口）。收敛失败时不创建目录。 */

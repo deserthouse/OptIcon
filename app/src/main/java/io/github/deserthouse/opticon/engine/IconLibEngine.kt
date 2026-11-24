@@ -90,6 +90,15 @@ object IconLibEngine {
         return true
     }
 
+    /** 清空内存索引。磁盘上没有可加载的东西时调用——保证内存里不残留上一次的内容。 */
+    fun clearMemory() {
+        lock.write {
+            metaIndex.clear()
+            l1Cache = null
+            isInitialized = false
+        }
+    }
+
     /** True when a previously synced meta.json exists (ANIP direct-write).
      *  启动时最先被调用的读取入口——在这里收敛上次切换留下的中间态。 */
     fun hasMetaIndex(context: Context): Boolean {

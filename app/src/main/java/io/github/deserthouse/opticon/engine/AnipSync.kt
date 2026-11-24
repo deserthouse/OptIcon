@@ -103,7 +103,7 @@ object AnipSync {
         val parent = dir.parentFile ?: return failed
         // Zip lands OUTSIDE dir — the whole dir is about to be replaced, and
         // this also sweeps legacy in-dir zips on the first snapshot switch.
-        val zipFile = File(parent, "${dir.name}.zip.tmp")
+        val zipFile = File(parent, dir.name + RuleLibrary.ARCHIVE_TMP_SUFFIX)
         val staging = FileSnapshotSwitch.stagingOf(parent, dir.name)
         try {
             progress(io.github.deserthouse.opticon.R.string.sync_anip_bundle)

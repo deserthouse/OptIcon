@@ -26,4 +26,20 @@ internal object SyncGate {
 
     /** 是否有同步正在占用。 */
     val isHeld: Boolean get() = held.get()
+
+    /**
+     * 读取路径用：「此刻没有同步在跑」才执行 [whenIdle]（例如清暂存目录、遗留归档），
+     * 否则执行 [whenBusy]。判断与动作之间没有缝隙——同步要先拿到这把锁才会开始建暂存目录，
+     * 所以不会出现「判断时空闲、动手时同步已经开建」的交错。
+     */
+    inline fun <T> ifIdle(whenIdle: () -> T, whenBusy: () -> T): T =
+        if (tryAcquire()) {
+            try {
+                whenIdle()
+            } finally {
+                release()
+            }
+        } else {
+            whenBusy()
+        }
 }
