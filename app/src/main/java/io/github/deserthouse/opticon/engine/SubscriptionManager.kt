@@ -163,7 +163,7 @@ object SubscriptionManager {
             return
         }
 
-        if (!isDataChanged(context, json)) {
+        if (!needsApply(context, json)) {
             onResult(SyncResult(true, iconCount = iconCount, wasChanged = false))
             return
         }
@@ -189,9 +189,19 @@ object SubscriptionManager {
         } catch (e: Exception) { -1 }
     }
 
-    private fun isDataChanged(context: Context, newJson: String): Boolean {
+    /**
+     * 下载到的旧版（Legacy JSON）规则要不要重新落库。
+     *
+     * 内容没变也可能要：期间规则库（ANIP）同步过，库目录被整个换成了它的快照，旧版图标已经不在
+     * 盘上。旧版落库时会在库目录里留一个来源标记（[IconLibEngine.LEGACY_ORIGIN_FILE]），整目录切换
+     * 时标记随之消失。少了这一条，从规则库切回内容没变的旧版源会直接报「已是最新」——旧版独有的包
+     * 的镜像在上一步被当作撤销删掉之后再也回不来（独立复审 D-03）。
+     */
+    internal fun needsApply(context: Context, newJson: String): Boolean {
         val file = File(context.filesDir, RULES_FILE)
         if (!file.exists()) return true
+        val origin = File(File(context.filesDir, IconLibEngine.CACHE_DIR_ACCESSIBLE), IconLibEngine.LEGACY_ORIGIN_FILE)
+        if (!origin.exists()) return true
         return file.readText() != newJson
     }
 

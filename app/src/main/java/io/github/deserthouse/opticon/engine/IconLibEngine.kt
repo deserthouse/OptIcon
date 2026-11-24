@@ -35,6 +35,9 @@ object IconLibEngine {
     private const val CACHE_DIR = CACHE_DIR_ACCESSIBLE
     private const val META_FILE = "meta.json"
 
+    /** 库目录里的来源标记：存在 = 目录内容来自旧版（Legacy JSON）规则。整目录切换会把它带走。 */
+    const val LEGACY_ORIGIN_FILE = "legacy_rules.origin"
+
     // Lightweight metadata (no Base64)
     data class IconLibMeta(
         val appName: String = "",
@@ -193,6 +196,11 @@ object IconLibEngine {
             // Persist meta index
             val metaJson = JSONObject().apply { put("apps", metaArr) }
             File(dir, META_FILE).writeText(metaJson.toString(), Charsets.UTF_8)
+            // 来源标记：库目录里现在是旧版（Legacy JSON）规则。规则库（ANIP）同步是整目录切换，
+            // 标记随之消失——下一次旧版同步即使内容没变，也知道要重新落库（SubscriptionManager.needsApply）。
+            if (count > 0) {
+                try { File(dir, LEGACY_ORIGIN_FILE).writeText("legacy", Charsets.UTF_8) } catch (_: Exception) { }
+            }
 
             // Rebuild in-memory meta index (lightweight, no Base64)
             lock.write {

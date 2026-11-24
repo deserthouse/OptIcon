@@ -258,11 +258,11 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="cd_cancel_sync">取消同步</string>
     <!-- 修复批 X-09：首次同步应用图标库前的体积确认，只弹一次（替代原先被进度回调立刻覆盖的状态行提示） -->
     <string name="picp_size_confirm_title">同步整个图标库？</string>
-    <string name="picp_size_confirm_body">首次同步会下载完整图标库，体积数百 MB，建议在 Wi-Fi 下进行。此提示只出现一次。</string>
+    <string name="picp_size_confirm_body">每次同步都会下载完整图标库，体积数百 MB，建议在 Wi-Fi 下进行。此提示只出现一次。</string>
     <string name="picp_size_confirm_ok">开始同步</string>
     <!-- 批 SYNC V5：规则库后台自动更新（默认关，需用户开启） -->
     <string name="auto_lib_update_title">规则库自动更新（后台）</string>
-    <string name="auto_lib_update_desc">默认关闭。开启后 SystemUI 进程将定期自动检查并下载规则库更新（模块总开关关闭时不更新）；关闭时仅在手动同步时联网。</string>
+    <string name="auto_lib_update_desc">默认关闭。开启后 SystemUI 进程将定期自动检查并下载上游官方规则库的更新（模块总开关关闭时不更新；下载的是官方规则库，与当前选中的规则源无关）；关闭时仅在手动同步时联网。</string>
 
 
     <!-- UI redesign v0.4.0 -->
@@ -311,6 +311,7 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="sync_download_failed">下载失败，请检查网络或更换订阅源</string>
     <string name="sync_anip_done">ANIP 已同步 %1$d 个规则图标</string>
     <string name="sync_anip_uptodate">已是最新（%1$d 个图标）</string>
+    <string name="sync_anip_done_incomplete">规则库已同步，但发布到通知栏没有完成——请再同步一次</string>
     <string name="sync_picp_streaming">正在流式下载 PICP…</string>
     <string name="sync_picp_bytes">下载中 %1$s</string>
     <string name="sync_picp_icons">正在下载图标 %1$d/%2$d</string>

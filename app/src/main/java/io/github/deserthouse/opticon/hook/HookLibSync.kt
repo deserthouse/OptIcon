@@ -242,6 +242,7 @@ object HookLibSync {
         // 总开关关着：这一轮跳过。不记为「同步过」——总开关一开，下一轮巡检就同步。
         if (!due || !masterEnabled()) return
         val ok = syncNow(context)
+        if (ok) NotificationHook.onHookLibSynced()
         controller.onSyncFinished(ok, android.os.SystemClock.elapsedRealtime())
         TraceLogger.i(
             TAG,

@@ -83,7 +83,7 @@ A: The project is developed against AOSP as the mainline, with OOS (OnePlus 15) 
 
 **Q: Does it phone home?**
 
-A: It only accesses the corresponding repositories when you explicitly sync the rule set or download icon assets; if you enable "Auto lib update (background)" in settings (off by default), the SystemUI process periodically checks and downloads rule-library updates on its own (not while the module's master switch is off). Beyond that it makes no network requests; no subscriptions, no telemetry, no crash reporting, nothing uploaded.
+A: It only accesses the corresponding repositories when you explicitly sync the rule set or download icon assets; if you enable "Auto lib update (background)" in settings (off by default), the SystemUI process periodically checks and downloads updates of the **official upstream rule library** on its own (not while the module's master switch is off; it always uses the official library, whatever rule source is selected). Beyond that it makes no network requests; no subscriptions, no telemetry, no crash reporting, nothing uploaded.
 
 **Q: Why a night heron as the icon?**
 

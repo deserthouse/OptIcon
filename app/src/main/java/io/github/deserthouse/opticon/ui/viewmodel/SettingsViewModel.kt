@@ -417,16 +417,30 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                             _aniaSyncFailed.value = false
                             _aniaSyncStatus.value = r.errorMessage
                                 ?: ctx.getString(io.github.deserthouse.opticon.R.string.sync_failed)
+                        } else if (!r.success) {
+                            _aniaSyncFailed.value = true
+                            _aniaSyncStatus.value = r.errorMessage
+                                ?: ctx.getString(io.github.deserthouse.opticon.R.string.sync_failed)
+                        } else if (!r.wasChanged) {
+                            _aniaSyncFailed.value = false
+                            _aniaSyncStatus.value = ctx.getString(
+                                io.github.deserthouse.opticon.R.string.sync_anip_uptodate, r.iconCount)
                         } else {
-                            _aniaSyncFailed.value = !r.success
-                            _aniaSyncStatus.value = when {
-                                !r.success -> r.errorMessage ?: ctx.getString(io.github.deserthouse.opticon.R.string.sync_failed)
-                                r.wasChanged -> ctx.getString(io.github.deserthouse.opticon.R.string.sync_anip_done, r.iconCount)
-                                else -> ctx.getString(io.github.deserthouse.opticon.R.string.sync_anip_uptodate, r.iconCount)
-                            }
-                            if (r.success && r.wasChanged) {
-                                _aniaIconCount.value = r.iconCount
+                            _aniaIconCount.value = r.iconCount
+                            // 收尾单独兜底（独立复审 D-04）：走到这里规则库已经同步成功，收尾
+                            // （镜像、撤销清理、版本戳）出异常不能报成「同步失败」。状态行也等收尾
+                            // 结束再写——此前状态行先说「已同步」，同步指示却还要转好几秒。
+                            val followUpOk = try {
                                 finishRuleSync(ctx, routedFormat, r.revokedPackages)
+                            } catch (t: Throwable) {
+                                TraceLogger.w(TAG, "rule sync follow-up crashed: $t")
+                                false
+                            }
+                            _aniaSyncFailed.value = !followUpOk
+                            _aniaSyncStatus.value = if (followUpOk) {
+                                ctx.getString(io.github.deserthouse.opticon.R.string.sync_anip_done, r.iconCount)
+                            } else {
+                                ctx.getString(io.github.deserthouse.opticon.R.string.sync_anip_done_incomplete)
                             }
                         }
                         _aniaSyncing.value = false
@@ -452,8 +466,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
      *  - 镜像只往共享目录里写、从不删：上游撤销的包留在原地，通知栏继续显示旧图标。
      *    现在删掉它们的镜像——但只为「用户没有启用自定义」的包删。
      *  - 写规则版本戳，让 hook 侧的图标缓存失效。
+     *
+     * @return false = 规则库已同步，但镜像或撤销清理没有做完（版本戳照写——规则库确实换了，
+     *  hook 的图标缓存必须作废）。独立复审 D-04：这两件事的结果要分开报。
      */
-    private fun finishRuleSync(ctx: Context, routedFormat: io.github.deserthouse.opticon.domain.SourceFormat, revoked: List<String>) {
+    private fun finishRuleSync(ctx: Context, routedFormat: io.github.deserthouse.opticon.domain.SourceFormat, revoked: List<String>): Boolean {
         // 与应用启动入口共用 RuleLibraryLoader：旧版规则文件只在当前源确实是 Legacy JSON 时才导入。
         // 此前这里只看「旧文件还在就导入」，规则库刚同步好的结果会被旧内容覆盖回去（X-21）。
         io.github.deserthouse.opticon.engine.RuleLibraryLoader.load(ctx, routedFormat)
@@ -466,33 +483,45 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             PreferenceManager.isMethodEnabled(pkg) &&
                 PreferenceManager.getStrategy(pkg) != io.github.deserthouse.opticon.ui.state.IconStrategy.FANKES
         }
-        io.github.deserthouse.opticon.engine.publish.PublishCoordinator
-            .withPipelineBlocking("ania-sync-mirror") {
-                io.github.deserthouse.opticon.engine.SharedIconStore.mirrorAllFromDir(
-                    ctx, java.io.File(ctx.filesDir, "fankes_cache"), userAuthored
-                )
-            }
+        var complete = true
+        try {
+            io.github.deserthouse.opticon.engine.publish.PublishCoordinator
+                .withPipelineBlocking("ania-sync-mirror") {
+                    io.github.deserthouse.opticon.engine.SharedIconStore.mirrorAllFromDir(
+                        ctx, java.io.File(ctx.filesDir, "fankes_cache"), userAuthored
+                    )
+                }
+        } catch (t: Throwable) {
+            complete = false
+            TraceLogger.w(TAG, "rule sync follow-up: mirroring failed: $t")
+        }
 
         // 撤销清理：只为没有启用自定义的包删共享目录里的镜像；逐包尽力而为，失败只记日志。
         // 「是否启用自定义」的判定放在流水线锁内求值——判定与删除之间若插进一次
         // 「为同一个包保存自定义」的保存，删掉的会是用户刚保存的图标。
         var removed = 0
         var kept = 0
-        io.github.deserthouse.opticon.engine.publish.PublishCoordinator
-            .withPipelineBlocking("ania-sync-revoke") {
-                val doomed = io.github.deserthouse.opticon.engine.RuleSyncFollowUp
-                    .mirrorsToDelete(revoked) { pkg -> PreferenceManager.isMethodEnabled(pkg) }
-                kept = revoked.size - doomed.size
-                doomed.forEach { pkg ->
-                    runCatching {
-                        io.github.deserthouse.opticon.engine.SharedIconStore.deleteIcon(ctx, pkg)
-                    }.onSuccess { if (it) removed++ }
-                        .onFailure { TraceLogger.w(TAG, "revoke cleanup failed for $pkg: ${it.message}") }
+        try {
+            io.github.deserthouse.opticon.engine.publish.PublishCoordinator
+                .withPipelineBlocking("ania-sync-revoke") {
+                    val doomed = io.github.deserthouse.opticon.engine.RuleSyncFollowUp
+                        .mirrorsToDelete(revoked) { pkg -> PreferenceManager.isMethodEnabled(pkg) }
+                    kept = revoked.size - doomed.size
+                    doomed.forEach { pkg ->
+                        runCatching {
+                            io.github.deserthouse.opticon.engine.SharedIconStore.deleteIcon(ctx, pkg)
+                        }.onSuccess { if (it) removed++ }
+                            .onFailure { TraceLogger.w(TAG, "revoke cleanup failed for $pkg: ${it.message}") }
+                    }
                 }
-            }
+        } catch (t: Throwable) {
+            complete = false
+            TraceLogger.w(TAG, "rule sync follow-up: revoke cleanup failed: $t")
+        }
         TraceLogger.i(
             TAG,
-            "rule sync follow-up: revoked=${revoked.size}, mirrors removed=$removed, kept (customized)=$kept"
+            "rule sync follow-up: revoked=${revoked.size}, mirrors removed=$removed, kept (customized)=$kept" +
+                if (complete) "" else " (incomplete)"
         )
 
         // 撤销清单与规则版本戳（先后不能反）：hook 看到版本戳变化时读清单，删掉它本地
@@ -501,9 +530,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         io.github.deserthouse.opticon.engine.SharedIconStore
             .writeRevokedPackages(ctx, revoked)
             ?: TraceLogger.w(TAG, "revoked list write failed — hook-local cache may keep revoked icons")
-        io.github.deserthouse.opticon.engine.SharedIconStore
+        val stamped = io.github.deserthouse.opticon.engine.SharedIconStore
             .writeRulesStamp(ctx, System.currentTimeMillis())
-            ?: TraceLogger.w(TAG, "rules stamp write failed — hook icon cache may stay stale")
+        if (stamped == null) TraceLogger.w(TAG, "rules stamp write failed — hook icon cache may stay stale")
+        return complete
     }
 
     // ━━━ PICP sync ━━━

@@ -328,6 +328,13 @@ object NotificationHook {
      *  同时按清单删掉 hook 本地缓存里被撤销的包：共享目录的镜像由应用侧删，
      *  本地缓存是独立的一份快照——不清的话，hook 在共享目录未命中后退到本地缓存，
      *  被撤销的图标还会显示出来。只动本地文件，不联网。 */
+    /** hook 自同步完成：本地缓存换了新内容，位图缓存里可能还是旧图——整体作废
+     *  （作废不回收位图，仍在显示的图标不受影响，之后按需重新读取）。 */
+    fun onHookLibSynced() {
+        iconCache.evictAll()
+        TraceLogger.i(TAG, "Icon cache dropped (hook self-sync finished)")
+    }
+
     private fun onRulesStampChanged() {
         iconCache.evictAll()
         TraceLogger.i(TAG, "Rules stamp changed — icon cache dropped")

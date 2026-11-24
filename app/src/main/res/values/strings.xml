@@ -259,11 +259,11 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="cd_cancel_sync">Cancel sync</string>
     <!-- 修复批 X-09：首次同步应用图标库前的体积确认，只弹一次（替代原先被进度回调立刻覆盖的状态行提示） -->
     <string name="picp_size_confirm_title">Sync the full icon library?</string>
-    <string name="picp_size_confirm_body">The first sync downloads the whole library — several hundred MB. Wi-Fi is recommended. You will only be asked once.</string>
+    <string name="picp_size_confirm_body">Every sync downloads the whole library — several hundred MB. Wi-Fi is recommended. You will only be asked once.</string>
     <string name="picp_size_confirm_ok">Start sync</string>
     <!-- batch SYNC V5: hook-side background lib update (opt-in, default off) -->
     <string name="auto_lib_update_title">Auto lib update (background)</string>
-    <string name="auto_lib_update_desc">Off by default. When enabled, the SystemUI process periodically checks and downloads rule-library updates in the background (not while the master switch is off); otherwise the network is only used when you sync manually.</string>
+    <string name="auto_lib_update_desc">Off by default. When enabled, the SystemUI process periodically checks and downloads updates of the official upstream rule library in the background (not while the master switch is off; it always uses the official library, whatever rule source is selected); otherwise the network is only used when you sync manually.</string>
 
     <!-- v0.3.0-alpha ModernAppCard + AppListScreen -->
     <string name="refresh">Refresh</string>
@@ -318,6 +318,7 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="sync_download_failed">Download failed — check network or switch source</string>
     <string name="sync_anip_done">ANIP synced %1$d rule icons</string>
     <string name="sync_anip_uptodate">Already up to date (%1$d icons)</string>
+    <string name="sync_anip_done_incomplete">Rule library synced, but publishing to the notification bar did not finish — sync again</string>
     <string name="sync_picp_streaming">Downloading PICP (streaming)…</string>
     <string name="sync_picp_bytes">Downloading %1$s</string>
     <string name="sync_picp_icons">Downloading icons %1$d/%2$d</string>

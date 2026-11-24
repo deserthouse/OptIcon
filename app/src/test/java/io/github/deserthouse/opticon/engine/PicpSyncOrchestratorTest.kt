@@ -59,7 +59,10 @@ class PicpSyncOrchestratorTest {
 
     private class Step(val payload: ByteArray?, val result: PicpSyncOrchestrator.FetchResult)
 
-    /** 脚本化下载器：按调用次序给出各次的载荷与结果；载荷非空就原样写进目标文件。 */
+    /** 脚本化下载器：按调用次序给出各次的载荷与结果；载荷非空就原样写进目标文件。
+     *  载荷为空而结果不是 OK（失败 / 取消 / 超限）时，照样往目标文件里写半截数据——真实的下载器
+     *  在这种情况下会留下写到一半的归档。此前这里什么都不写，「无半截归档残留」的断言因此
+     *  永远为真（独立复审 G5）。 */
     private class ScriptedDownloader(private val script: List<Step>) : PicpSyncOrchestrator.Downloader {
         var calls = 0
 
@@ -69,9 +72,12 @@ class PicpSyncOrchestratorTest {
         ): PicpSyncOrchestrator.FetchResult {
             val step = script[calls]
             calls++
-            step.payload?.let {
-                dest.writeBytes(it)
-                onProgress(it.size.toLong(), it.size.toLong())
+            val payload = step.payload
+            if (payload != null) {
+                dest.writeBytes(payload)
+                onProgress(payload.size.toLong(), payload.size.toLong())
+            } else if (step.result != PicpSyncOrchestrator.FetchResult.OK) {
+                dest.writeBytes("half-written archive".toByteArray())
             }
             return step.result
         }
