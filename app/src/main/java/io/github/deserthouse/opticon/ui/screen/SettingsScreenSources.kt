@@ -91,6 +91,7 @@ internal fun SourceFormatPicker(
             // 修复批（X-11 / X-20）：圆圈中心对齐标题**首行**，不随描述占几行而漂移——
             // 此前整行垂直居中，描述一换行圆圈就落到描述文字那几行上。
             // 行的最小高度 48dp（原为 44dp，低于项目的触摸目标纪律）。
+            // 第二轮复审（视觉）：选项之间加留白、大字体下标题不越出本行（见下）。
             Layout(
                 content = {
                     RadioButton(selected = selectedHere, onClick = null, enabled = enabled)
@@ -109,7 +110,10 @@ internal fun SourceFormatPicker(
                         enabled = enabled,
                         onClick = { onSelect(format) }
                     )
-                    .padding(horizontal = 4.dp)
+                    // 上下各留一点：描述一换行，下一项的标题就紧贴着上一项描述的末行，
+                    // 比那项描述自己的行距还近，各项的归属只能靠圆圈和字重分辨。
+                    // 留白在 selectable 之内，波纹与点击区仍是整行。
+                    .padding(horizontal = 4.dp, vertical = 4.dp)
             ) { measurables, constraints ->
                 val textStart = 8.dp.roundToPx()
                 val descGap = 2.dp.roundToPx()
@@ -117,14 +121,18 @@ internal fun SourceFormatPicker(
                 val textWidth = (constraints.maxWidth - radio.width - textStart).coerceAtLeast(0)
                 val title = measurables[1].measure(Constraints(maxWidth = textWidth))
                 val description = measurables[2].measure(Constraints(maxWidth = textWidth))
-                // 圆圈在自己的触摸区里居中；把标题首行的中心放到同一高度上
-                val textTop = (radio.height - title.height) / 2
+                // 圆圈在自己的触摸区里居中；把标题首行的中心放到同一高度上。
+                // 字体放大后标题比圆圈的触摸区还高：这时反过来把圆圈对到标题的中部，
+                // 标题不再越出本行的上边界（越出的部分会落进上一行的点击区）。
+                val titleTaller = title.height > radio.height
+                val textTop = if (titleTaller) 0 else (radio.height - title.height) / 2
+                val radioTop = if (titleTaller) (title.height - radio.height) / 2 else 0
                 val contentHeight = maxOf(
-                    radio.height,
+                    radioTop + radio.height,
                     textTop + title.height + descGap + description.height
                 )
                 layout(constraints.maxWidth, maxOf(contentHeight, constraints.minHeight)) {
-                    radio.placeRelative(0, 0)
+                    radio.placeRelative(0, radioTop)
                     title.placeRelative(radio.width + textStart, textTop)
                     description.placeRelative(radio.width + textStart, textTop + title.height + descGap)
                 }

@@ -454,11 +454,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
      *  - 写规则版本戳，让 hook 侧的图标缓存失效。
      */
     private fun finishRuleSync(ctx: Context, routedFormat: io.github.deserthouse.opticon.domain.SourceFormat, revoked: List<String>) {
-        if (io.github.deserthouse.opticon.engine.RuleSyncFollowUp.shouldIngestLegacyRules(routedFormat)) {
-            SubscriptionManager.readRulesJson(ctx)?.let { IconLibEngine.ingestJson(ctx, it) }
-        } else {
-            IconLibEngine.initializeFromFiles(ctx, emptyList())
-        }
+        // 与应用启动入口共用 RuleLibraryLoader：旧版规则文件只在当前源确实是 Legacy JSON 时才导入。
+        // 此前这里只看「旧文件还在就导入」，规则库刚同步好的结果会被旧内容覆盖回去（X-21）。
+        io.github.deserthouse.opticon.engine.RuleLibraryLoader.load(ctx, routedFormat)
 
         // OI-02: skip apps the user has configured with a non-rules strategy —
         // a rules update must never silently replace their authored icon.
@@ -475,28 +473,34 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 )
             }
 
-        // 撤销清理：只为没有启用自定义的包删镜像；逐包尽力而为，失败只记日志
-        val doomed = io.github.deserthouse.opticon.engine.RuleSyncFollowUp
-            .mirrorsToDelete(revoked) { pkg -> PreferenceManager.isMethodEnabled(pkg) }
+        // 撤销清理：只为没有启用自定义的包删共享目录里的镜像；逐包尽力而为，失败只记日志。
+        // 「是否启用自定义」的判定放在流水线锁内求值——判定与删除之间若插进一次
+        // 「为同一个包保存自定义」的保存，删掉的会是用户刚保存的图标。
         var removed = 0
-        if (doomed.isNotEmpty()) {
-            io.github.deserthouse.opticon.engine.publish.PublishCoordinator
-                .withPipelineBlocking("ania-sync-revoke") {
-                    doomed.forEach { pkg ->
-                        runCatching {
-                            io.github.deserthouse.opticon.engine.SharedIconStore.deleteIcon(ctx, pkg)
-                        }.onSuccess { if (it) removed++ }
-                            .onFailure { TraceLogger.w(TAG, "revoke cleanup failed for $pkg: ${it.message}") }
-                    }
+        var kept = 0
+        io.github.deserthouse.opticon.engine.publish.PublishCoordinator
+            .withPipelineBlocking("ania-sync-revoke") {
+                val doomed = io.github.deserthouse.opticon.engine.RuleSyncFollowUp
+                    .mirrorsToDelete(revoked) { pkg -> PreferenceManager.isMethodEnabled(pkg) }
+                kept = revoked.size - doomed.size
+                doomed.forEach { pkg ->
+                    runCatching {
+                        io.github.deserthouse.opticon.engine.SharedIconStore.deleteIcon(ctx, pkg)
+                    }.onSuccess { if (it) removed++ }
+                        .onFailure { TraceLogger.w(TAG, "revoke cleanup failed for $pkg: ${it.message}") }
                 }
-        }
+            }
         TraceLogger.i(
             TAG,
-            "rule sync follow-up: revoked=${revoked.size}, mirrors removed=$removed, " +
-                "kept (customized)=${revoked.size - doomed.size}"
+            "rule sync follow-up: revoked=${revoked.size}, mirrors removed=$removed, kept (customized)=$kept"
         )
 
-        // 规则版本戳：hook 侧看到它变化就清图标缓存（不依赖共享目录的观察者）
+        // 撤销清单与规则版本戳（先后不能反）：hook 看到版本戳变化时读清单，删掉它本地
+        // 缓存里对应的文件——本地缓存是独立的一份快照，不随应用侧的手动同步更新；
+        // 只清共享目录的话，hook 退到本地缓存还会把被撤销的图标显示出来。
+        io.github.deserthouse.opticon.engine.SharedIconStore
+            .writeRevokedPackages(ctx, revoked)
+            ?: TraceLogger.w(TAG, "revoked list write failed — hook-local cache may keep revoked icons")
         io.github.deserthouse.opticon.engine.SharedIconStore
             .writeRulesStamp(ctx, System.currentTimeMillis())
             ?: TraceLogger.w(TAG, "rules stamp write failed — hook icon cache may stay stale")

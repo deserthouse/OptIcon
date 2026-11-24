@@ -225,20 +225,25 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
     }
 
 
-    /** 从下载的规则文件初始化图标库（需用户先同步） */
+    /** 从磁盘加载规则库（需用户先同步）。
+     *
+     * 与同步收尾共用 RuleLibraryLoader：旧版 base64 规则文件只在当前源确实是 Legacy JSON 时
+     * 才导入。此前这里「只要旧文件还在就导入」，应用进程一重启，刚同步好的规则库就被旧内容
+     * 覆盖（修复批 X-21 的启动入口）。 */
     private fun initializeIconLibEngine() {
         try {
             val context = getApplication<Application>().applicationContext
-            val json = SubscriptionManager.readRulesJson(context)
-            if (json != null) {
-                IconLibEngine.ingestJson(context, json)
-                TraceLogger.i(TAG, "Subscription rules loaded: ${IconLibEngine.getIndexedCount()} entries")
-            } else if (IconLibEngine.hasMetaIndex(context)) {
-                // ANIP source: sync wrote fankes_cache/meta.json directly
-                IconLibEngine.initializeFromFiles(context, emptyList())
-                TraceLogger.i(TAG, "ANIP rules loaded: ${IconLibEngine.getIndexedCount()} entries")
-            } else {
-                TraceLogger.i(TAG, "No rules downloaded yet — visit Settings to sync")
+            val activeId = PreferenceManager.getActiveAniaSourceId()
+            val routedFormat = SubscriptionManager.resolveFormat(
+                null, PreferenceManager.getSourceUrl(activeId) ?: ""
+            )
+            when (io.github.deserthouse.opticon.engine.RuleLibraryLoader.load(context, routedFormat)) {
+                io.github.deserthouse.opticon.engine.RuleSyncFollowUp.Load.INGEST_LEGACY_RULES ->
+                    TraceLogger.i(TAG, "Subscription rules loaded: ${IconLibEngine.getIndexedCount()} entries")
+                io.github.deserthouse.opticon.engine.RuleSyncFollowUp.Load.READ_SNAPSHOT ->
+                    TraceLogger.i(TAG, "ANIP rules loaded: ${IconLibEngine.getIndexedCount()} entries")
+                io.github.deserthouse.opticon.engine.RuleSyncFollowUp.Load.NOTHING ->
+                    TraceLogger.i(TAG, "No rules downloaded yet — visit Settings to sync")
             }
         } catch (e: Exception) {
             TraceLogger.e(TAG, "IconLibEngine UI init failed", e)

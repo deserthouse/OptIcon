@@ -29,7 +29,12 @@ object TraceLogger {
     private var currentLevel = INFO
     private var logFile: File? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
+    // SimpleDateFormat 不是线程安全的，而日志来自同步线程、hook 线程、界面线程等多处：
+    // 并发格式化会搅乱它的内部状态并抛异常（独立复审 A-H1 指出）。每个线程各用一份。
+    private val dateFormat = object : ThreadLocal<SimpleDateFormat>() {
+        override fun initialValue(): SimpleDateFormat =
+            SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
+    }
 
     fun init(context: Context, level: Int = INFO) {
         currentLevel = level
@@ -62,7 +67,7 @@ object TraceLogger {
         }
 
         val line = buildString {
-            append(dateFormat.format(Date()))
+            append(dateFormat.get().format(Date()))
             append(" ")
             append(levelChar)
             append("/")
