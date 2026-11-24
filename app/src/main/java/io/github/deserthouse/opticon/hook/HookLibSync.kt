@@ -3,10 +3,10 @@ package io.github.deserthouse.opticon.hook
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import io.github.deserthouse.opticon.engine.RuleLibrary
 import io.github.deserthouse.opticon.util.TraceLogger
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicLong
 
 /**
  * HookLibSync — ANIP-style in-process icon rules sync (Plan B).
@@ -20,13 +20,16 @@ import java.util.concurrent.atomic.AtomicLong
  * Rules come from AnipSync (ANIP manifests + monochrome PNG resources),
  * producing the same cache layout the App builds via IconLibEngine.
  *
- * Sync triggers:
- *   - once at hook init (background thread, ~30s delay to let the network
- *     settle after boot)
- *   - every SYNC_INTERVAL_MS thereafter while SystemUI lives
- *   - immediately when the App-side sync lands a fresh meta.json — the
- *     hook's FileObserver on that directory calls requestSync() (no Binder;
- *     the observer already watches the dir for cache busts)
+ * 后台自同步是可选项（批 SYNC V5，默认关）。修复批（X-05 / X-13）之后它由一条
+ * **常驻的轻量巡检线程**驱动，而不是「启动时开关开着才建线程」：
+ *
+ *   - 开关关着：线程只是在巡检间隔上醒来读一次本地开关文件，从不联网；
+ *   - 开关打开：宽限期过后同步，之后按周期（失败退避）同步；
+ *   - 开关变化、规则库更新会立刻叫醒它（[WakeSignal]），醒来后重新读状态再决定；
+ *   - 巡检本身是兜底：带锁屏密码的设备首次解锁前共享目录读不到——开关文件读成关、
+ *     观察者也建立不起来——只能靠轮询在解锁之后发现真实状态。
+ *
+ * 是否同步的判定在 [SyncLoopController]（纯 Kotlin、有测试）。
  *
  * Icons land in cacheDir/opticon_hook_icons/{pkg}.png — cacheDir of the
  * SystemUI process, readable without any cross-domain access.
@@ -35,15 +38,26 @@ object HookLibSync {
 
     private const val TAG = "OptIcon/HookLibSync"
     private const val DIR_NAME = "opticon_hook_icons"
+
     /** Full self-sync every 12h while SystemUI is alive. */
     private const val SYNC_INTERVAL_MS = 12L * 60 * 60 * 1000
+
     /** Post-boot grace period before first sync (network settle). */
     private const val BOOT_DELAY_MS = 30_000L
+
     /** Batch SYNC V5: consecutive-failure backoff ceiling. */
     private const val MAX_INTERVAL_MS = 48L * 60 * 60 * 1000
 
+    /** 例行巡检间隔。开关状态的变化、共享目录是否已可读，最终都靠它兜底
+     *  （事件只是让它更及时）。一次巡检 = 读一两个本地文件。 */
+    internal const val POLL_INTERVAL_MS = 60_000L
+
+    /** 事件触发的两次同步之间的最小间隔：反复切换开关不会变成频繁联网。 */
+    internal const val MIN_SYNC_GAP_MS = 5L * 60 * 1000
+
     private val syncing = AtomicBoolean(false)
-    private val lastSyncAt = AtomicLong(0L)
+    private val started = AtomicBoolean(false)
+    private val wakeSignal = WakeSignal()
 
     @Volatile
     private var iconDir: File? = null
@@ -111,7 +125,7 @@ object HookLibSync {
         // 顺序不能反——「旧版在备份里、live 缺失」的中间态下直接建目录，会在完好的
         // prev 旁边造出一个空的 live，下一次收敛就把 prev 当成旧备份删掉。
         // 收敛失败时 ensureDir 不建目录：读方暂时什么都读不到，但完好的旧版还在备份里。
-        io.github.deserthouse.opticon.engine.RuleLibrary.ensureDir(d)
+        RuleLibrary.ensureDir(d)
         iconDir = d
         return d
     }
@@ -125,60 +139,79 @@ object HookLibSync {
     }
 
     /**
-     * Launch the background self-sync loop from hook init. Batch SYNC V5:
-     * opt-in — with the auto-update flag off (the default) no loop thread is
-     * created at all; requestSync() below stays always-available as the
-     * manual-sync extension path.
+     * 启动常驻巡检线程。无论开关当前是开是关都启动——修复批之前开关关着就直接
+     * 返回、不建线程，之后用户打开开关也不会生效，除非重启系统界面进程（X-05）。
+     * 重复调用无副作用。
      */
     fun start(context: Context) {
         appContext = context.applicationContext
-        if (!autoUpdateEnabled()) {
-            TraceLogger.i(TAG, "auto lib update disabled (default) — no background sync loop")
-            return
-        }
-        Thread({
-            Thread.sleep(BOOT_DELAY_MS)
-            var interval = SYNC_INTERVAL_MS
-            while (true) {
-                if (!autoUpdateEnabled()) {
-                    // Flag flipped off at runtime — park quietly, keep checking
-                    // at the base cadence without ever syncing.
-                    TraceLogger.i(TAG, "auto lib update flag off — skipping round")
-                } else if (!masterEnabled()) {
-                    TraceLogger.i(TAG, "master switch off — skipping round")
-                } else {
-                    val ok = syncNow(context)
-                    lastSyncAt.set(System.currentTimeMillis())
-                    interval = nextSyncInterval(interval, ok)
-                    TraceLogger.i(TAG, "self-sync ${if (ok) "ok" else "failed"}, next in ${interval / 3600000}h")
-                }
-                Thread.sleep(interval)
-            }
-        }, "OptIconHookLibSync").apply { isDaemon = true }.start()
+        if (!started.compareAndSet(false, true)) return
+        TraceLogger.i(TAG, "self-sync loop starting (auto update now ${if (autoUpdateEnabled()) "on" else "off"})")
+        Thread({ loop(context) }, "OptIconHookLibSync").apply { isDaemon = true }.start()
     }
 
-    /** App→hook wakeup: the App just published fresh rules (meta.json event).
-     *  Debounced by the syncing flag — a call during an in-flight sync is a
-     *  no-op because that run already sees the new data.
-     *
-     *  注意（X-25）：能触发它的只有模块私有目录 fankes_cache 上的观察者，生产环境下
-     *  SystemUI 读不到那个目录、观察者建立不起来——所以这只是开发 / Root 环境的通道。
-     *  生产环境的规则库变化走 [onRulesChanged]（共享目录里的规则版本戳）。 */
-    fun requestSync() {
-        val ctx = appContext ?: return
-        Thread({ syncNow(ctx) }, "OptIconHookSyncWake").apply { isDaemon = true }.start()
+    private fun loop(context: Context) {
+        val controller = SyncLoopController(
+            baseIntervalMs = SYNC_INTERVAL_MS,
+            minGapMs = MIN_SYNC_GAP_MS,
+            backoff = ::nextSyncInterval
+        )
+        val bootAt = android.os.SystemClock.elapsedRealtime()
+        var wasEnabled = autoUpdateEnabled()
+        while (true) {
+            val byEvent = wakeSignal.await(POLL_INTERVAL_MS)
+            // 共享目录可能到这时才变得可读（带锁屏密码的设备首次解锁之后）：
+            // hook 初始化时没建起来的观察者在这里补上
+            NotificationHook.ensureSharedDirObserver()
+            val enabled = autoUpdateEnabled()
+            if (enabled != wasEnabled) {
+                TraceLogger.i(TAG, "auto lib update is now ${if (enabled) "on" else "off"}")
+                wasEnabled = enabled
+            }
+            val now = android.os.SystemClock.elapsedRealtime()
+            val due = controller.shouldSync(
+                enabled = enabled,
+                bootDelayElapsed = now - bootAt >= BOOT_DELAY_MS,
+                byEvent = byEvent,
+                nowMs = now
+            )
+            // 总开关关着：这一轮跳过。不记为「同步过」——总开关一开，下一轮巡检就同步。
+            if (!due || !masterEnabled()) continue
+            val ok = syncNow(context)
+            controller.onSyncFinished(ok, android.os.SystemClock.elapsedRealtime())
+            TraceLogger.i(
+                TAG,
+                "self-sync ${if (ok) "ok" else "failed"}, next in ${controller.currentIntervalMs / 3600000}h" +
+                    if (byEvent) " (event-triggered)" else ""
+            )
+        }
+    }
+
+    /**
+     * 开关文件变了（共享目录的观察者事件）。只叫醒循环，不在这里决定做不做——
+     * 循环醒来后读的是当下真实的状态。
+     */
+    fun onAutoUpdateFlagChanged() {
+        wakeSignal.wake()
     }
 
     /**
      * 应用侧规则库同步收尾（共享目录里的规则版本戳变化，修复批 X-04）。
-     * 自动更新开着就立刻自同步一次，让 hook 侧的本地规则缓存与共享目录一致——
-     * 被上游撤销的包不再从 hook 本地缓存被读到。关着的时候不做任何联网。
+     * 叫醒循环；自动更新开着且过了最小间隔，它就会同步一次，让 hook 侧的本地
+     * 规则缓存与共享目录一致——被上游撤销的包不再从 hook 本地缓存被读到。
+     * 关着的时候循环醒来只读一次文件，不做任何联网。
      */
     fun onRulesChanged() {
-        if (autoUpdateEnabled()) requestSync()
+        wakeSignal.wake()
     }
 
-    /** One-shot sync: download ANIP manifests + PNGs into cacheDir. */
+    /** 仅限开发 / Root 环境的唤醒通道（模块私有目录 fankes_cache 上的观察者，
+     *  见 NotificationHook 里的说明，X-25）。同样是叫醒循环。 */
+    fun requestSync() {
+        wakeSignal.wake()
+    }
+
+    /** One-shot sync: download ANIP manifests + PNGs into cacheDir. 同一时刻只跑一个。 */
     fun syncNow(context: Context): Boolean {
         if (!syncing.compareAndSet(false, true)) return false
         try {

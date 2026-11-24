@@ -128,10 +128,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 _forceMono.value = counts.third == "force_mono"
                 _forceMonoUnknown.value = counts.third == null
             }
-            // V5 对账：共享目录可能被用户/清理工具删过——prefs 开着而文件缺失
-            // 时 hook 会静默回到默认关，这里幂等写回一次保持两通道一致。
-            if (PreferenceManager.isAutoLibUpdate()) {
-                io.github.deserthouse.opticon.engine.SharedIconStore.writeAutoLibUpdate(app, true)
+            // 自动更新开关两通道对账（修复批：双向，以应用内偏好为事实源）。
+            // 此前只处理「偏好开着而文件缺失」；清除应用数据后「偏好关、文件开」
+            // 没人管——界面显示关，后台却一直在同步。
+            val outcome = withContext(Dispatchers.IO) {
+                PreferenceManager.reconcileAutoLibUpdate(app)
+            }
+            if (outcome != io.github.deserthouse.opticon.engine.AutoUpdateReconcile.Outcome.CONSISTENT) {
+                TraceLogger.i(TAG, "auto lib update reconcile: $outcome")
             }
         }
     }
@@ -270,13 +274,35 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _autoLibUpdate = MutableStateFlow(PreferenceManager.isAutoLibUpdate())
     val autoLibUpdate: StateFlow<Boolean> = _autoLibUpdate.asStateFlow()
 
+    /** 自动更新开关的写互斥——快速连点时磁盘终态 = 最后一次点击 */
+    private val autoLibUpdateMutex = Mutex()
+
+    /**
+     * 修复批（X-12）：写盘移到 IO 线程；共享文件写不进去时回滚界面并提示（与
+     * setForceMono 同一契约）。此前在主线程写、忽略写入结果——界面显示已开，
+     * hook 那边读到的仍是旧值。
+     * 顺序是「先写共享文件、成功才落偏好」：任何结局下偏好、文件、界面三者一致。
+     */
     fun setAutoLibUpdate(enabled: Boolean) {
-        PreferenceManager.setAutoLibUpdate(enabled)
-        // hook 进程读不到模块 prefs——文件通道是它唯一的读取面，两处必须同写。
-        io.github.deserthouse.opticon.engine.SharedIconStore.writeAutoLibUpdate(
-            getApplication<Application>(), enabled
-        )
-        _autoLibUpdate.value = enabled
+        viewModelScope.launch {
+            val written = autoLibUpdateMutex.withLock {
+                withContext(Dispatchers.IO) {
+                    // hook 进程读不到模块 prefs——共享文件是它唯一的读取面
+                    io.github.deserthouse.opticon.engine.SharedIconStore.writeAutoLibUpdate(
+                        getApplication(), enabled
+                    )
+                }
+            }
+            if (written == null) {
+                _autoLibUpdate.value = PreferenceManager.isAutoLibUpdate()
+                _toastEvent.value = getApplication<Application>().getString(
+                    io.github.deserthouse.opticon.R.string.sync_write_failed
+                )
+                return@launch
+            }
+            PreferenceManager.setAutoLibUpdate(enabled)
+            _autoLibUpdate.value = enabled
+        }
     }
 
     private val _easterEggExpanded = MutableStateFlow(false)

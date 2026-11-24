@@ -101,10 +101,21 @@ object SharedIconStore {
     /** Batch SYNC V5: hook-side auto lib update authorization flag.
      *  Absent = OFF (default — README promises no background network traffic
      *  unless the user enables this or syncs manually). Content "true"/"false". */
-    fun autoLibUpdateFile(): File = File(publicDir(), "auto_lib_update.opticon")
+    const val AUTO_LIB_UPDATE_FILE = "auto_lib_update.opticon"
+
+    fun autoLibUpdateFile(): File = File(publicDir(), AUTO_LIB_UPDATE_FILE)
 
     fun writeAutoLibUpdate(context: Context, enabled: Boolean): String? =
-        writeBytes(context, "auto_lib_update.opticon", if (enabled) "true".toByteArray() else "false".toByteArray())
+        writeBytes(context, AUTO_LIB_UPDATE_FILE, if (enabled) "true".toByteArray() else "false".toByteArray())
+
+    /** 共享目录里自动更新开关的当前值：文件不存在 = 关；**读不到 = null**——
+     *  「读不到」不能混同于「关」（带锁屏密码的设备首次解锁前就是读不到）。 */
+    fun readAutoLibUpdate(): Boolean? = try {
+        val f = autoLibUpdateFile()
+        if (f.exists()) f.readText().trim() == "true" else false
+    } catch (_: Exception) {
+        null
+    }
 
     /** 规则版本戳（修复批 X-04）：应用侧规则库同步收尾（镜像 + 撤销清理）之后写入，
      *  内容是时间戳。hook 侧看到它变化就清掉图标缓存——不依赖共享目录的观察者

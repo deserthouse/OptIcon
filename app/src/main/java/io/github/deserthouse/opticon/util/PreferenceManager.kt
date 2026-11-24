@@ -3,6 +3,7 @@ package io.github.deserthouse.opticon.util
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import io.github.deserthouse.opticon.engine.AutoUpdateReconcile
 import io.github.deserthouse.opticon.engine.RedrawParams
 import io.github.deserthouse.opticon.engine.SharedIconStore
 
@@ -79,6 +80,10 @@ object PreferenceManager {
                 if (needWrite) {
                     io.github.deserthouse.opticon.engine.SharedIconStore.writeMasterSwitch(ctx, isModuleEnabled())
                 }
+            } catch (_: Exception) {}
+            // 自动更新开关的对账（修复批 X-05 关联项）：双向，以应用内偏好为事实源
+            try {
+                reconcileAutoLibUpdate(context.applicationContext)
             } catch (_: Exception) {}
         }.start()
     }
@@ -334,13 +339,25 @@ object PreferenceManager {
     // ━━━ 批 SYNC V5：规则库后台自动更新（默认关） ━━━
     // prefs 是 App 侧 UI 的事实源；hook 进程读的是 SharedIconStore 写出的
     // auto_lib_update.opticon 文件（SystemUI 读不到本模块 prefs）。
-    // 文件写入由 SettingsViewModel 在 setAutoLibUpdate 里联动执行。
+    // 两处的写入由 SettingsViewModel.setAutoLibUpdate 联动执行：先写文件、成功才落偏好。
 
     fun isAutoLibUpdate(): Boolean =
         prefs?.getBoolean(KEY_AUTO_LIB_UPDATE, false) ?: false
 
     fun setAutoLibUpdate(enabled: Boolean) {
         prefs?.edit { putBoolean(KEY_AUTO_LIB_UPDATE, enabled) }
+    }
+
+    /**
+     * 自动更新开关两通道对账（判定在 AutoUpdateReconcile）。在后台线程调用——
+     * 读写共享目录。应用启动时与进入设置页时各做一次，幂等。
+     */
+    internal fun reconcileAutoLibUpdate(ctx: Context): AutoUpdateReconcile.Outcome {
+        val shared = io.github.deserthouse.opticon.engine.SharedIconStore.readAutoLibUpdate()
+        val desired = AutoUpdateReconcile.desiredSharedFile(prefEnabled = isAutoLibUpdate(), sharedEnabled = shared)
+            ?: return if (shared == null) AutoUpdateReconcile.Outcome.UNKNOWN else AutoUpdateReconcile.Outcome.CONSISTENT
+        val written = io.github.deserthouse.opticon.engine.SharedIconStore.writeAutoLibUpdate(ctx, desired) != null
+        return if (written) AutoUpdateReconcile.Outcome.FIXED else AutoUpdateReconcile.Outcome.UNKNOWN
     }
 
     /** App 自身主题动态取色（Material You）。默认开；关=品牌靛蓝金色板。 */

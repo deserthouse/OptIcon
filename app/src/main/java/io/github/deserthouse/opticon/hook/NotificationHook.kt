@@ -126,6 +126,10 @@ object NotificationHook {
     @Volatile
     private var worldObserver: FileObserver? = null
 
+    /** 共享目录 Download/OptIcon 的观察者（生产通道）。见 ensureSharedDirObserver。 */
+    @Volatile
+    private var sharedObserver: FileObserver? = null
+
     fun install(xposed: XposedInterface, classLoader: ClassLoader) {
         TraceLogger.i(TAG, "Installing notification icon hooks...")
 
@@ -352,58 +356,76 @@ object NotificationHook {
 
     /** Watch icon dirs so re-baked icons apply without SystemUI restart */
     private fun startIconDirObservers() {
-        val mask = FileObserver.CLOSE_WRITE or FileObserver.MOVED_TO or
-                FileObserver.DELETE or FileObserver.MOVED_FROM or FileObserver.DELETE_SELF
-
-        val watchDirs = mutableListOf<File>()
-        if (SHARED_ICON_DIR.isDirectory) watchDirs.add(SHARED_ICON_DIR)
-        if (WORLD_BAKED_DIR.isDirectory) watchDirs.add(WORLD_BAKED_DIR)
+        ensureSharedDirObserver()
+        if (WORLD_BAKED_DIR.isDirectory && worldObserver == null) worldObserver = startObserver(WORLD_BAKED_DIR)
         val dir = moduleFilesDir
         if (dir != null) {
             for (dirName in listOf(BAKED_DIR, FANKES_DIR)) {
                 val sub = File(dir, dirName)
-                if (sub.isDirectory) watchDirs.add(sub)
+                if (!sub.isDirectory) continue
+                if (dirName == BAKED_DIR && bakedObserver == null) bakedObserver = startObserver(sub)
+                else if (dirName == FANKES_DIR && fankesObserver == null) fankesObserver = startObserver(sub)
             }
         }
+    }
 
-        for (sub in watchDirs) {
-            try {
-                val observer = object : FileObserver(sub.absolutePath, mask) {
-                    override fun onEvent(event: Int, path: String?) {
-                        // Production channel files use .opticon; dev channels
-                        // use .png — both must invalidate the cache.
-                        if (path == null) return
-                        // 规则版本戳（修复批 X-04）：应用侧规则库同步收尾。观察者在的时候
-                        // 立刻处理，不必等热路径的限频检查。
-                        if (sub == SHARED_ICON_DIR && path == SharedIconStore.RULES_STAMP_FILE) {
-                            rulesStamp.observe(readRulesStamp())
-                            return
-                        }
-                        // 仅限开发 / Root 环境：这里的 fankes_cache 是模块私有目录，生产环境下
-                        // SystemUI 读不到它，这个观察者建立不起来（X-25）。生产环境的规则
-                        // 缓存走上面的规则版本戳与共享目录。
-                        if (sub.name == FANKES_DIR && path == "meta.json") {
-                            HookLibSync.requestSync()
-                            return
-                        }
-                        val isIconFile = path.endsWith(SHARED_ICON_EXT) || path.endsWith(".png")
-                        if (!isIconFile) return
-                        val pkg = path.removeSuffix(SHARED_ICON_EXT).removeSuffix(".png")
-                        if (pkg.isNotEmpty()) {
-                            iconCache.remove(pkg)
-                            TraceLogger.d(TAG, "Cache invalidated: $pkg (${sub.name})")
-                        }
+    /**
+     * 共享目录的观察者（修复批）。带锁屏密码的设备上，首次解锁前这个目录读不到，hook
+     * 初始化时建立不起来——而它此前只在那里建立一次，于是整个系统界面进程的生命周期里
+     * 都没有观察者：文件被改、被删，图标缓存都不会失效。HookLibSync 的巡检线程会在
+     * 目录变得可读之后调用这里补建。幂等；可能与 initHook 并发。
+     */
+    fun ensureSharedDirObserver() {
+        if (sharedObserver != null || !SHARED_ICON_DIR.isDirectory) return
+        synchronized(this) {
+            if (sharedObserver != null) return
+            sharedObserver = startObserver(SHARED_ICON_DIR)
+            if (sharedObserver != null) {
+                TraceLogger.i(TAG, "FileObserver established on ${SHARED_ICON_DIR.absolutePath}")
+            }
+        }
+    }
+
+    private fun startObserver(sub: File): FileObserver? {
+        val mask = FileObserver.CLOSE_WRITE or FileObserver.MOVED_TO or
+                FileObserver.DELETE or FileObserver.MOVED_FROM or FileObserver.DELETE_SELF
+        return try {
+            object : FileObserver(sub.absolutePath, mask) {
+                override fun onEvent(event: Int, path: String?) {
+                    // Production channel files use .opticon; dev channels
+                    // use .png — both must invalidate the cache.
+                    if (path == null) return
+                    // 规则版本戳（修复批 X-04）：应用侧规则库同步收尾。观察者在的时候
+                    // 立刻处理，不必等热路径的限频检查。
+                    if (sub == SHARED_ICON_DIR && path == SharedIconStore.RULES_STAMP_FILE) {
+                        rulesStamp.observe(readRulesStamp())
+                        return
+                    }
+                    // 自动更新开关（修复批 X-05 / X-13）：叫醒巡检线程——开关一打开就开始
+                    // 同步，不必等下一次巡检。循环醒来后读的是当下真实的状态。
+                    if (sub == SHARED_ICON_DIR && path == SharedIconStore.AUTO_LIB_UPDATE_FILE) {
+                        HookLibSync.onAutoUpdateFlagChanged()
+                        return
+                    }
+                    // 仅限开发 / Root 环境：这里的 fankes_cache 是模块私有目录，生产环境下
+                    // SystemUI 读不到它，这个观察者建立不起来（X-25）。生产环境的规则
+                    // 缓存走上面的规则版本戳与共享目录。
+                    if (sub.name == FANKES_DIR && path == "meta.json") {
+                        HookLibSync.requestSync()
+                        return
+                    }
+                    val isIconFile = path.endsWith(SHARED_ICON_EXT) || path.endsWith(".png")
+                    if (!isIconFile) return
+                    val pkg = path.removeSuffix(SHARED_ICON_EXT).removeSuffix(".png")
+                    if (pkg.isNotEmpty()) {
+                        iconCache.remove(pkg)
+                        TraceLogger.d(TAG, "Cache invalidated: $pkg (${sub.name})")
                     }
                 }
-                observer.startWatching()
-                if (sub == SHARED_ICON_DIR) worldObserver = observer  // reuse slot: production dir
-                else if (sub == WORLD_BAKED_DIR) worldObserver = observer
-                else if (sub.name == BAKED_DIR) bakedObserver = observer
-                else fankesObserver = observer
-                TraceLogger.i(TAG, "FileObserver started on ${sub.absolutePath}")
-            } catch (e: Throwable) {
-                TraceLogger.w(TAG, "FileObserver(${sub.name}) failed: ${e.message}")
-            }
+            }.apply { startWatching() }
+        } catch (e: Throwable) {
+            TraceLogger.w(TAG, "FileObserver(${sub.name}) failed: ${e.message}")
+            null
         }
     }
 
