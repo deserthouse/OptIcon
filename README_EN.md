@@ -47,7 +47,7 @@ Whenever an app posts a notification, OptIcon automatically evaluates whether it
 - 🎨 **Material You dynamic color** — light & dark themes following the system wallpaper palette
 - ⚡ **Hot reload** — icon changes apply without restarting; monitored by FileObserver
 - 🌐 **Multilingual ready** — Chinese/English out of the box, extensible to any language
-- 🔒 **Optional networking** — rule sets are downloaded on demand only; no subscription, no telemetry, nothing uploaded
+- 🔒 **Optional networking** — rule sets are downloaded on demand, and background auto-update is opt-in; no subscription, no telemetry, nothing uploaded
 
 ## 🚀 Installation
 
@@ -83,7 +83,7 @@ A: The project is developed against AOSP as the mainline, with OOS (OnePlus 15) 
 
 **Q: Does it phone home?**
 
-A: It only accesses the corresponding repositories when you explicitly sync the rule set or download icon assets; if you enable "Auto lib update (background)" in settings (off by default), the SystemUI process periodically checks and downloads rule-library updates on its own. Beyond that it makes no network requests; no subscriptions, no telemetry, no crash reporting, nothing uploaded.
+A: It only accesses the corresponding repositories when you explicitly sync the rule set or download icon assets; if you enable "Auto lib update (background)" in settings (off by default), the SystemUI process periodically checks and downloads rule-library updates on its own (not while the module's master switch is off). Beyond that it makes no network requests; no subscriptions, no telemetry, no crash reporting, nothing uploaded.
 
 **Q: Why a night heron as the icon?**
 

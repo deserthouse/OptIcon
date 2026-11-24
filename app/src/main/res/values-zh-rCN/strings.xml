@@ -262,7 +262,7 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="picp_size_confirm_ok">开始同步</string>
     <!-- 批 SYNC V5：规则库后台自动更新（默认关，需用户开启） -->
     <string name="auto_lib_update_title">规则库自动更新（后台）</string>
-    <string name="auto_lib_update_desc">默认关闭。开启后 SystemUI 进程将定期自动检查并下载规则库更新；关闭时仅在手动同步时联网。</string>
+    <string name="auto_lib_update_desc">默认关闭。开启后 SystemUI 进程将定期自动检查并下载规则库更新（模块总开关关闭时不更新）；关闭时仅在手动同步时联网。</string>
 
 
     <!-- UI redesign v0.4.0 -->
@@ -311,12 +311,10 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="sync_download_failed">下载失败，请检查网络或更换订阅源</string>
     <string name="sync_anip_done">ANIP 已同步 %1$d 个图标 — 重启 SystemUI 生效</string>
     <string name="sync_anip_uptodate">已是最新（%1$d 个图标）</string>
-    <string name="sync_picp_index">正在下载 PICP 索引…</string>
     <string name="sync_picp_streaming">正在流式下载 PICP…</string>
     <string name="sync_picp_bytes">下载中 %1$s</string>
     <string name="sync_picp_icons">正在下载图标 %1$d/%2$d</string>
     <string name="sync_picp_done">已同步 %1$d 个包，缓存 %2$d 个图标</string>
-    <string name="sync_picp_failed">PICP 同步失败</string>
     <string name="sync_failed">同步失败</string>
     <string name="sync_write_failed">设置写入失败，存储不可用</string>
     <string name="force_mono_unknown">状态未知——点按开关可重写</string>
