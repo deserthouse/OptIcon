@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -50,6 +51,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import io.github.deserthouse.opticon.R
 import io.github.deserthouse.opticon.domain.SourceFormat
 import io.github.deserthouse.opticon.ui.theme.OptShapes
@@ -141,6 +143,20 @@ internal fun SourceFormatPicker(
     }
 }
 
+/**
+ * 订阅源对话框的窗口属性：键盘弹出时让内容自己让位，而不是靠系统「平移」。
+ *
+ * Compose 的对话框窗口默认不指定软键盘模式，系统给它选的是平移（adjustPan）：窗口不缩小，
+ * 只在焦点输入框会被键盘盖住时把整个窗口往上挪。焦点在上面的输入框时不挪——「取消 / 添加」
+ * 就留在键盘底下，填完名字要先手动收起键盘才点得到（2026-11-25 设备验证实测，默认字号即如此；
+ * 内容区改成可滚动之前也是这样，只是当时焦点在下面的输入框，窗口被整块挪上去，按钮顺带露出来）。
+ *
+ * decorFitsSystemWindows = false 之后窗口既不缩放也不平移，键盘与系统栏的占位交给内容处理：
+ * 两个对话框都加了 safeDrawingPadding()，对话框始终收在键盘上方，内容区在剩余空间里滚动。
+ * Material 3 的 AlertDialog 自己不处理窗口占位（只有一处固定内边距），不会重复留白。
+ */
+private val SourceDialogProperties = DialogProperties(decorFitsSystemWindows = false)
+
 @Composable
 internal fun AddSourceDialog(onDismiss: () -> Unit, onConfirm: (String, String, String, SourceFormat) -> Unit) {
     // 修复批（X-10）：输入用可保存的状态——界面重建（转屏等）不丢；内容区可滚动。
@@ -153,6 +169,8 @@ internal fun AddSourceDialog(onDismiss: () -> Unit, onConfirm: (String, String, 
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = Modifier.safeDrawingPadding(),
+        properties = SourceDialogProperties,
         title = { Text(stringResource(R.string.add_source_title)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
@@ -209,6 +227,8 @@ internal fun EditSourceDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = Modifier.safeDrawingPadding(),
+        properties = SourceDialogProperties,
         title = { Text(stringResource(R.string.edit_source_title)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
