@@ -48,9 +48,13 @@ object HookLibSync {
     /** Batch SYNC V5: consecutive-failure backoff ceiling. */
     private const val MAX_INTERVAL_MS = 48L * 60 * 60 * 1000
 
-    /** 例行巡检间隔。开关状态的变化、共享目录是否已可读，最终都靠它兜底
-     *  （事件只是让它更及时）。一次巡检 = 读一两个本地文件。 */
+    /** 巡检间隔（共享目录上的观察者还没建立时）：开关状态的变化、共享目录是否已可读，
+     *  最终都靠它兜底（事件只是让它更及时）。一次巡检 = 读一两个本地文件。 */
     internal const val POLL_INTERVAL_MS = 60_000L
+
+    /** 巡检间隔（观察者已建立后）：开关文件的变化会经共享目录的事件立刻叫醒循环，
+     *  轮询只剩兜底作用。放慢到 15 分钟，少唤醒系统界面进程。 */
+    internal const val IDLE_POLL_INTERVAL_MS = 15L * 60 * 1000
 
     /** 事件触发的两次同步之间的最小间隔：反复切换开关不会变成频繁联网。 */
     internal const val MIN_SYNC_GAP_MS = 5L * 60 * 1000
@@ -58,6 +62,10 @@ object HookLibSync {
     private val syncing = AtomicBoolean(false)
     private val started = AtomicBoolean(false)
     private val wakeSignal = WakeSignal()
+
+    /** 上一轮看到的开关状态。巡检自己发现「关 → 开」时按事件处理。 */
+    @Volatile
+    private var lastKnownEnabled: Boolean = false
 
     @Volatile
     private var iconDir: File? = null
@@ -108,6 +116,18 @@ object HookLibSync {
     internal fun testBaseIntervalMs() = SYNC_INTERVAL_MS
     internal fun testMaxIntervalMs() = MAX_INTERVAL_MS
 
+    /** 这一轮等多久：观察者已建立就放慢，否则保持密集巡检（JVM-testable）。 */
+    internal fun pollIntervalMs(sharedDirObserved: Boolean): Long =
+        if (sharedDirObserved) IDLE_POLL_INTERVAL_MS else POLL_INTERVAL_MS
+
+    /**
+     * 这一轮算不算「事件触发」：被事件叫醒，或者巡检自己发现开关刚从关变成开。
+     * 后者也按事件处理——观察者没建立起来的设备上（带锁屏密码的设备解锁后的第一分钟、
+     * 或观察者创建失败），关了再开否则仍要等满一个周期（JVM-testable）。
+     */
+    internal fun countsAsEvent(wokenByEvent: Boolean, enabled: Boolean, wasEnabled: Boolean): Boolean =
+        wokenByEvent || (enabled && !wasEnabled)
+
     /** Directory holding hook-process-local rule icons.
      *  The SystemContext ("android" package) has no accessible cacheDir —
      *  fall back to the real SystemUI Application context when needed. */
@@ -124,8 +144,9 @@ object HookLibSync {
         // 读取路径恢复（修复批 X-07）：先收敛上次切换留下的中间态，再确保目录存在。
         // 顺序不能反——「旧版在备份里、live 缺失」的中间态下直接建目录，会在完好的
         // prev 旁边造出一个空的 live，下一次收敛就把 prev 当成旧备份删掉。
-        // 收敛失败时 ensureDir 不建目录：读方暂时什么都读不到，但完好的旧版还在备份里。
-        RuleLibrary.ensureDir(d)
+        // 收敛失败时不建目录、也不缓存：这一次读不到东西，但完好的旧版还在备份里，
+        // 下一次调用再试。
+        if (!RuleLibrary.ensureDir(d)) return d
         iconDir = d
         return d
     }
@@ -139,6 +160,27 @@ object HookLibSync {
     }
 
     /**
+     * 从 hook 本地缓存里删掉这些包（应用侧的规则库同步判定它们已被上游撤销，
+     * 清单经共享目录传过来）。本地缓存是独立的一份快照，不随应用侧的手动同步更新；
+     * 不删的话，共享目录里的镜像已经没了，hook 退到本地缓存还是会把被撤销的图标显示出来。
+     * 只动本地文件，不联网。
+     */
+    fun dropLocalPackages(context: Context, packages: Collection<String>) {
+        if (packages.isEmpty()) return
+        val dir = dir(context)
+        var dropped = 0
+        for (pkg in packages) {
+            // 文件名由包名拼成：只认安全的包名，其余一律忽略
+            if (!pkg.matches(SAFE_PKG) || pkg.length > 255) continue
+            val f = File(dir, "$pkg.png")
+            if (f.isFile && f.delete()) dropped++
+        }
+        TraceLogger.i(TAG, "dropped $dropped revoked packages from hook-local cache")
+    }
+
+    private val SAFE_PKG = Regex("^[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)*$")
+
+    /**
      * 启动常驻巡检线程。无论开关当前是开是关都启动——修复批之前开关关着就直接
      * 返回、不建线程，之后用户打开开关也不会生效，除非重启系统界面进程（X-05）。
      * 重复调用无副作用。
@@ -146,7 +188,8 @@ object HookLibSync {
     fun start(context: Context) {
         appContext = context.applicationContext
         if (!started.compareAndSet(false, true)) return
-        TraceLogger.i(TAG, "self-sync loop starting (auto update now ${if (autoUpdateEnabled()) "on" else "off"})")
+        lastKnownEnabled = autoUpdateEnabled()
+        TraceLogger.i(TAG, "self-sync loop starting (auto update now ${if (lastKnownEnabled) "on" else "off"})")
         Thread({ loop(context) }, "OptIconHookLibSync").apply { isDaemon = true }.start()
     }
 
@@ -157,34 +200,54 @@ object HookLibSync {
             backoff = ::nextSyncInterval
         )
         val bootAt = android.os.SystemClock.elapsedRealtime()
-        var wasEnabled = autoUpdateEnabled()
         while (true) {
-            val byEvent = wakeSignal.await(POLL_INTERVAL_MS)
-            // 共享目录可能到这时才变得可读（带锁屏密码的设备首次解锁之后）：
-            // hook 初始化时没建起来的观察者在这里补上
-            NotificationHook.ensureSharedDirObserver()
-            val enabled = autoUpdateEnabled()
-            if (enabled != wasEnabled) {
-                TraceLogger.i(TAG, "auto lib update is now ${if (enabled) "on" else "off"}")
-                wasEnabled = enabled
+            // 这是一条常驻线程：任何一轮里的意外都不能让它死掉（死了自动更新就从此失效，
+            // 直到系统界面重启）。每一轮整体兜底。
+            val waitMs = try {
+                pollIntervalMs(NotificationHook.sharedDirObserved())
+            } catch (t: Throwable) {
+                POLL_INTERVAL_MS
             }
-            val now = android.os.SystemClock.elapsedRealtime()
-            val due = controller.shouldSync(
-                enabled = enabled,
-                bootDelayElapsed = now - bootAt >= BOOT_DELAY_MS,
-                byEvent = byEvent,
-                nowMs = now
-            )
-            // 总开关关着：这一轮跳过。不记为「同步过」——总开关一开，下一轮巡检就同步。
-            if (!due || !masterEnabled()) continue
-            val ok = syncNow(context)
-            controller.onSyncFinished(ok, android.os.SystemClock.elapsedRealtime())
-            TraceLogger.i(
-                TAG,
-                "self-sync ${if (ok) "ok" else "failed"}, next in ${controller.currentIntervalMs / 3600000}h" +
-                    if (byEvent) " (event-triggered)" else ""
-            )
+            val woken = try {
+                wakeSignal.await(waitMs)
+            } catch (t: Throwable) {
+                TraceLogger.w(TAG, "sync loop wait failed: $t")
+                true
+            }
+            try {
+                runRound(context, controller, bootAt, woken)
+            } catch (t: Throwable) {
+                TraceLogger.w(TAG, "sync loop round failed: $t")
+            }
         }
+    }
+
+    private fun runRound(context: Context, controller: SyncLoopController, bootAt: Long, woken: Boolean) {
+        // 共享目录可能到这时才变得可读（带锁屏密码的设备首次解锁之后）：
+        // hook 初始化时没建起来的观察者在这里补上
+        NotificationHook.ensureSharedDirObserver()
+        val enabled = autoUpdateEnabled()
+        val byEvent = countsAsEvent(woken, enabled, lastKnownEnabled)
+        if (enabled != lastKnownEnabled) {
+            TraceLogger.i(TAG, "auto lib update is now ${if (enabled) "on" else "off"}")
+            lastKnownEnabled = enabled
+        }
+        val now = android.os.SystemClock.elapsedRealtime()
+        val due = controller.shouldSync(
+            enabled = enabled,
+            bootDelayElapsed = now - bootAt >= BOOT_DELAY_MS,
+            byEvent = byEvent,
+            nowMs = now
+        )
+        // 总开关关着：这一轮跳过。不记为「同步过」——总开关一开，下一轮巡检就同步。
+        if (!due || !masterEnabled()) return
+        val ok = syncNow(context)
+        controller.onSyncFinished(ok, android.os.SystemClock.elapsedRealtime())
+        TraceLogger.i(
+            TAG,
+            "self-sync ${if (ok) "ok" else "failed"}, next in ${controller.currentIntervalMs / 3600000}h" +
+                if (byEvent) " (event-triggered)" else ""
+        )
     }
 
     /**
@@ -198,8 +261,8 @@ object HookLibSync {
     /**
      * 应用侧规则库同步收尾（共享目录里的规则版本戳变化，修复批 X-04）。
      * 叫醒循环；自动更新开着且过了最小间隔，它就会同步一次，让 hook 侧的本地
-     * 规则缓存与共享目录一致——被上游撤销的包不再从 hook 本地缓存被读到。
-     * 关着的时候循环醒来只读一次文件，不做任何联网。
+     * 规则缓存与共享目录一致。关着的时候循环醒来只读一次文件，不做任何联网——
+     * 被撤销的包由 [dropLocalPackages] 经共享目录传来的清单直接删掉，不依赖联网。
      */
     fun onRulesChanged() {
         wakeSignal.wake()
@@ -214,6 +277,12 @@ object HookLibSync {
     /** One-shot sync: download ANIP manifests + PNGs into cacheDir. 同一时刻只跑一个。 */
     fun syncNow(context: Context): Boolean {
         if (!syncing.compareAndSet(false, true)) return false
+        // 也占用进程级同步锁：读路径据此判断「能不能清暂存目录」（RuleLibrary.prepareForRead）。
+        // 同步期间读路径只收敛中间态，不会删掉正在构建的暂存目录。
+        if (!io.github.deserthouse.opticon.engine.SyncGate.tryAcquire()) {
+            syncing.set(false)
+            return false
+        }
         try {
             val count = io.github.deserthouse.opticon.engine.AnipSync.syncTo(dir(context), context = context)
             TraceLogger.i(TAG, "ingested $count rule icons into hook-local cache")
@@ -223,6 +292,7 @@ object HookLibSync {
             return false
         } finally {
             syncing.set(false)
+            io.github.deserthouse.opticon.engine.SyncGate.release()
         }
     }
 }

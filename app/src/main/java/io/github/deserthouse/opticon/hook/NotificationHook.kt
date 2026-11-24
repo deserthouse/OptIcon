@@ -309,12 +309,41 @@ object NotificationHook {
         null
     }
 
+    /** 应用侧规则库同步收尾时写下的「被上游撤销的包」清单（每行一个包名）。
+     *  清单先写、版本戳后写，所以看到版本戳变化时清单已经是完整的。 */
+    private fun readRevokedPackages(): List<String> = try {
+        File(SHARED_ICON_DIR, SharedIconStore.RULES_REVOKED_FILE).takeIf { it.isFile }
+            ?.readLines()?.map { it.trim() }?.filter { it.isNotEmpty() }
+    } catch (_: Exception) {
+        null
+    } ?: emptyList()
+
+    /** 共享目录的观察者是否已建立（HookLibSync 据此决定巡检间隔）。 */
+    fun sharedDirObserved(): Boolean = sharedObserver != null
+
     /** 规则版本戳变了 → 图标缓存整体作废 + 通知 HookLibSync（修复批 X-04）。
      *  带锁屏密码的设备开机时目录读不到，解锁后第一次读到戳算一次变化，
-     *  会多作废一次缓存——无害，图标按需重新加载。 */
+     *  会多作废一次缓存——无害，图标按需重新加载。
+     *
+     *  同时按清单删掉 hook 本地缓存里被撤销的包：共享目录的镜像由应用侧删，
+     *  本地缓存是独立的一份快照——不清的话，hook 在共享目录未命中后退到本地缓存，
+     *  被撤销的图标还会显示出来。只动本地文件，不联网。 */
     private fun onRulesStampChanged() {
         iconCache.evictAll()
         TraceLogger.i(TAG, "Rules stamp changed — icon cache dropped")
+        val revoked = readRevokedPackages()
+        if (revoked.isNotEmpty()) {
+            val ctx = getSystemUiContext()
+            if (ctx != null) {
+                Thread({
+                    try {
+                        HookLibSync.dropLocalPackages(ctx, revoked)
+                    } catch (t: Throwable) {
+                        TraceLogger.w(TAG, "drop revoked packages failed: ${t.message}")
+                    }
+                }, "OptIconDropRevoked").apply { isDaemon = true }.start()
+            }
+        }
         HookLibSync.onRulesChanged()
     }
 
@@ -388,10 +417,21 @@ object NotificationHook {
 
     private fun startObserver(sub: File): FileObserver? {
         val mask = FileObserver.CLOSE_WRITE or FileObserver.MOVED_TO or
-                FileObserver.DELETE or FileObserver.MOVED_FROM or FileObserver.DELETE_SELF
+                FileObserver.DELETE or FileObserver.MOVED_FROM or FileObserver.DELETE_SELF or
+                FileObserver.MOVE_SELF
         return try {
             object : FileObserver(sub.absolutePath, mask) {
                 override fun onEvent(event: Int, path: String?) {
+                    // 监听的目录本身被删或被移走：inotify 的监听随目录一起没了，这个观察者
+                    // 已经失效。把它放掉，巡检线程发现目录回来时会重新建立（独立复审 A-H2：
+                    // 此前字段一直非空，这个进程的生命周期里再也不会有事件）。
+                    if (event and (FileObserver.DELETE_SELF or FileObserver.MOVE_SELF) != 0) {
+                        if (sub == SHARED_ICON_DIR) {
+                            sharedObserver = null
+                            TraceLogger.i(TAG, "shared dir removed — observer dropped, will re-establish")
+                        }
+                        return
+                    }
                     // Production channel files use .opticon; dev channels
                     // use .png — both must invalidate the cache.
                     if (path == null) return
@@ -798,6 +838,9 @@ object NotificationHook {
             xposed.hook(setMethod).setId("opticon:StatusBarIconView.set").intercept(
                 XposedInterface.Hooker { chain ->
                     val result = chain.proceed()
+                    // 与其它取图入口一致：先做限频的总开关 / 规则版本戳检查，
+                    // 否则观察者缺失的设备上这个入口可能用旧缓存
+                    maybeRefreshMasterSwitch()
                     try {
                         if (!initialized || !masterEnabled) return@Hooker result
                         val sbi = chain.getArg(0)
