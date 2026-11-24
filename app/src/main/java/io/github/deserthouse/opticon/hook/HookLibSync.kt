@@ -269,6 +269,15 @@ object HookLibSync {
         wakeSignal.wake()
     }
 
+    /**
+     * 共享目录被移走、观察者已放掉（NotificationHook）。要叫醒循环：不叫的话它按「观察者在」
+     * 时的节奏（15 分钟）睡到下一次巡检，目录回来之后的这段时间里既没有事件也没有轮询。
+     * 醒来后目录还没回来就按 60 秒的节奏轮询，回来即重建观察者。只动本地文件，不联网。
+     */
+    fun onSharedDirGone() {
+        wakeSignal.wake()
+    }
+
     /** 仅限开发 / Root 环境的唤醒通道（模块私有目录 fankes_cache 上的观察者，
      *  见 NotificationHook 里的说明，X-25）。同样是叫醒循环。 */
     fun requestSync() {

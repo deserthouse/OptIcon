@@ -436,6 +436,7 @@ object NotificationHook {
                         if (sub == SHARED_ICON_DIR) {
                             sharedObserver = null
                             TraceLogger.i(TAG, "shared dir removed — observer dropped, will re-establish")
+                            HookLibSync.onSharedDirGone()
                         }
                         return
                     }
