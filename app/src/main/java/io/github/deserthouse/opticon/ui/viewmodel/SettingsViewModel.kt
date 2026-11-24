@@ -108,11 +108,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val rechecking: StateFlow<Boolean> = _rechecking.asStateFlow()
 
     init {
+        // 构造期启动的协程一律用 launchAfterInit：保证协程体在构造完成之后才开始
+        // （见 LaunchAfterInit.kt——就地执行时，下面写到的几个状态属性还是 null）。
         // Run slow checks off main thread (H2 fix)
-        viewModelScope.launch { recheckStatuses() }
+        launchAfterInit { recheckStatuses() }
         // Q2c：构造期文件/MediaStore 读移 IO——订阅计数与强制单色策略位
         // 异步回填（首页/设置首帧用默认值，毫秒级翻转不可感）
-        viewModelScope.launch {
+        launchAfterInit {
             val app = getApplication<Application>()
             val counts = withContext(Dispatchers.IO) {
                 Triple(

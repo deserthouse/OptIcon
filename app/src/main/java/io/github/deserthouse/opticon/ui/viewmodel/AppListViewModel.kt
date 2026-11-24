@@ -51,7 +51,9 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
     val uiState: StateFlow<AppListUiState> = _uiState.asStateFlow()
 
     init {
-        viewModelScope.launch {
+        // launchAfterInit：构造完成之后才开始（见 LaunchAfterInit.kt）——初始化很快、不挂起时，
+        // 后面的 refreshLsposedStatus / scanApps 会在构造函数里就地执行
+        launchAfterInit {
             withContext(Dispatchers.IO) { initializeIconLibEngine() }
             refreshLsposedStatus()
             scanApps()
