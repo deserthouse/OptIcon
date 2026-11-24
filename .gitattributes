@@ -1,0 +1,9 @@
+# 换行与二进制规则
+# 本机 core.autocrlf=true：没有这些规则时，在这台机器上重新检出会把 shell 脚本
+# 转成 CRLF 而无法执行（gradlew 首当其冲）；CI 与其他平台靠这里的规则拿到同样的内容。
+*.sh      text eol=lf
+gradlew   text eol=lf
+*.bat     text eol=crlf
+*.png     binary
+*.webp    binary
+*.jar     binary

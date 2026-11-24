@@ -1,0 +1,56 @@
+name: CI
+
+# 每次 push / PR / 手动触发都跑同一套门禁：单测（强制重跑）、lint、中英文案对齐、版本号一致性。
+# 只发布不维护签名：这里不构建 release 包（签名口令不进 CI）。
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit tests (always re-run)
+        run: ./gradlew :app:testDebugUnitTest --rerun-tasks --no-configuration-cache
+
+      - name: Lint
+        run: ./gradlew :app:lintDebug --no-configuration-cache
+
+      - name: String parity (zh = en, placeholders match)
+        run: python3 scripts/check_strings.py
+
+      - name: Version consistency (build.gradle / CHANGELOG / local notes when present)
+        run: bash scripts/check_doc_sync.sh
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          if-no-files-found: ignore
+          path: |
+            app/build/reports/lint-results-debug.html
+            app/build/test-results/testDebugUnitTest/

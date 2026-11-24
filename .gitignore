@@ -51,3 +51,8 @@ OptIcon_internal_backup/
 
 # Session temp artifacts
 .tmp_*
+
+# Device suite outputs and generated payloads (local only)
+scripts/device/payloads/
+__pycache__/
+*.pyc
