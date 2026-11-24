@@ -111,6 +111,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
     val picpCount by viewModel.picpCount.collectAsState()
     val showAddSource by viewModel.showAddSource.collectAsState()
     val showEditSource by viewModel.showEditSource.collectAsState()
+    val showPicpSizeConfirm by viewModel.showPicpSizeConfirm.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(toastEvent) {
@@ -532,6 +533,25 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                 }
             }
             Spacer(Modifier.height(32.dp))
+        }
+
+        // 首次同步应用图标库前的体积确认（修复批 X-09）——用户确认过之后不再弹
+        if (showPicpSizeConfirm) {
+            AlertDialog(
+                onDismissRequest = viewModel::dismissPicpSizeConfirm,
+                title = { Text(stringResource(R.string.picp_size_confirm_title)) },
+                text = { Text(stringResource(R.string.picp_size_confirm_body)) },
+                confirmButton = {
+                    TextButton(onClick = viewModel::confirmPicpSize) {
+                        Text(stringResource(R.string.picp_size_confirm_ok))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = viewModel::dismissPicpSizeConfirm) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                }
+            )
         }
 
         // Add source dialog

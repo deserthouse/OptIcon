@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
@@ -35,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,8 +47,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import io.github.deserthouse.opticon.R
+import io.github.deserthouse.opticon.domain.SourceFormat
 import io.github.deserthouse.opticon.ui.theme.OptShapes
 import io.github.deserthouse.opticon.util.PreferenceManager
 
@@ -53,23 +59,23 @@ import io.github.deserthouse.opticon.util.PreferenceManager
 
 @Composable
 internal fun SourceFormatPicker(
-    selected: io.github.deserthouse.opticon.domain.SourceFormat?,
+    selected: SourceFormat?,
     enabled: Boolean = true,
-    onSelect: (io.github.deserthouse.opticon.domain.SourceFormat) -> Unit
+    onSelect: (SourceFormat) -> Unit
 ) {
     val options = listOf(
         Triple(
-            io.github.deserthouse.opticon.domain.SourceFormat.ANIP_BUNDLE,
+            SourceFormat.ANIP_BUNDLE,
             stringResource(R.string.source_format_anip),
             stringResource(R.string.source_format_anip_desc)
         ),
         Triple(
-            io.github.deserthouse.opticon.domain.SourceFormat.LEGACY_JSON,
+            SourceFormat.LEGACY_JSON,
             stringResource(R.string.source_format_legacy),
             stringResource(R.string.source_format_legacy_desc)
         ),
         Triple(
-            io.github.deserthouse.opticon.domain.SourceFormat.PICP_ZIPBALL,
+            SourceFormat.PICP_ZIPBALL,
             stringResource(R.string.source_format_picp),
             stringResource(R.string.source_format_picp_desc)
         )
@@ -81,25 +87,46 @@ internal fun SourceFormatPicker(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         options.forEach { (format, label, desc) ->
-            Row(
-                Modifier.fillMaxWidth()
-                    .heightIn(min = 44.dp)
-                    .selectable(
-                        selected = selected == format,
-                        role = Role.RadioButton,
-                        enabled = enabled,
-                        onClick = { onSelect(format) }
-                    )
-                    .padding(horizontal = 4.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                RadioButton(selected = selected == format, onClick = null, enabled = enabled)
-                Column(Modifier.padding(start = 4.dp)) {
+            val selectedHere = selected == format
+            // 修复批（X-11 / X-20）：圆圈中心对齐标题**首行**，不随描述占几行而漂移——
+            // 此前整行垂直居中，描述一换行圆圈就落到描述文字那几行上。
+            // 行的最小高度 48dp（原为 44dp，低于项目的触摸目标纪律）。
+            Layout(
+                content = {
+                    RadioButton(selected = selectedHere, onClick = null, enabled = enabled)
                     Text(label, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
                     Text(
                         desc, style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .selectable(
+                        selected = selectedHere,
+                        role = Role.RadioButton,
+                        enabled = enabled,
+                        onClick = { onSelect(format) }
+                    )
+                    .padding(horizontal = 4.dp)
+            ) { measurables, constraints ->
+                val textStart = 8.dp.roundToPx()
+                val descGap = 2.dp.roundToPx()
+                val radio = measurables[0].measure(Constraints())
+                val textWidth = (constraints.maxWidth - radio.width - textStart).coerceAtLeast(0)
+                val title = measurables[1].measure(Constraints(maxWidth = textWidth))
+                val description = measurables[2].measure(Constraints(maxWidth = textWidth))
+                // 圆圈在自己的触摸区里居中；把标题首行的中心放到同一高度上
+                val textTop = (radio.height - title.height) / 2
+                val contentHeight = maxOf(
+                    radio.height,
+                    textTop + title.height + descGap + description.height
+                )
+                layout(constraints.maxWidth, maxOf(contentHeight, constraints.minHeight)) {
+                    radio.placeRelative(0, 0)
+                    title.placeRelative(radio.width + textStart, textTop)
+                    description.placeRelative(radio.width + textStart, textTop + title.height + descGap)
                 }
             }
         }
@@ -107,19 +134,20 @@ internal fun SourceFormatPicker(
 }
 
 @Composable
-internal fun AddSourceDialog(onDismiss: () -> Unit, onConfirm: (String, String, String, io.github.deserthouse.opticon.domain.SourceFormat) -> Unit) {
-    var name by remember { mutableStateOf("") }
-    var url by remember { mutableStateOf("") }
-    var desc by remember { mutableStateOf("") }
+internal fun AddSourceDialog(onDismiss: () -> Unit, onConfirm: (String, String, String, SourceFormat) -> Unit) {
+    // 修复批（X-10）：输入用可保存的状态——界面重建（转屏等）不丢；内容区可滚动。
+    var name by rememberSaveable { mutableStateOf("") }
+    var url by rememberSaveable { mutableStateOf("") }
+    var desc by rememberSaveable { mutableStateOf("") }
     // V3 (batch SYNC): format is mandatory — the URL does not determine the
     // payload, so nothing is guessed; save stays disabled until chosen.
-    var format by remember { mutableStateOf<io.github.deserthouse.opticon.domain.SourceFormat?>(null) }
+    var format by rememberSaveable { mutableStateOf<SourceFormat?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.add_source_title)) },
         text = {
-            Column {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 OutlinedTextField(
                     value = name, onValueChange = { name = it },
                     label = { Text(stringResource(R.string.source_name_label)) },
@@ -160,19 +188,22 @@ internal fun EditSourceDialog(
     source: PreferenceManager.SubscriptionSource,
     isBuiltin: Boolean,
     onDismiss: () -> Unit,
-    onConfirm: (String, String, String, String, io.github.deserthouse.opticon.domain.SourceFormat) -> Unit,
-    onCopyToCustom: (String, String, String, io.github.deserthouse.opticon.domain.SourceFormat) -> Unit
+    onConfirm: (String, String, String, String, SourceFormat) -> Unit,
+    onCopyToCustom: (String, String, String, SourceFormat) -> Unit
 ) {
-    var name by remember { mutableStateOf(source.name) }
-    var url by remember { mutableStateOf(source.url) }
-    var desc by remember { mutableStateOf(source.description) }
-    var format by remember { mutableStateOf<io.github.deserthouse.opticon.domain.SourceFormat?>(source.format) }
+    var name by rememberSaveable(source.id) { mutableStateOf(source.name) }
+    var url by rememberSaveable(source.id) { mutableStateOf(source.url) }
+    var desc by rememberSaveable(source.id) { mutableStateOf(source.description) }
+    // 待确认格式的源（修复批 X-02）不预选任何格式：用户必须选定一个才能保存。
+    var format by rememberSaveable(source.id) {
+        mutableStateOf<SourceFormat?>(source.format.takeUnless { it == SourceFormat.UNSPECIFIED })
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.edit_source_title)) },
         text = {
-            Column {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 // OI-14: builtin sources silently dropped edits before — the
                 // fields are now read-only and the only write path is
                 // "copy to custom", which actually persists.
@@ -356,12 +387,23 @@ internal fun SourceSection(
                 }
                 // Description + link (aligned under the row text: 16dp indent
                 // + radio 48dp touch target)
-                getSourceDescription(source)?.let { fullDesc ->
+                val description = getSourceDescription(source)
+                // 待确认格式的源（修复批 X-02）：两个列表都显示，带提示等用户选定格式
+                val needsFormat = source.format == SourceFormat.UNSPECIFIED
+                if (needsFormat || description != null) {
+                    val fullDesc = description.orEmpty()
                     val lines = fullDesc.split("\n")
                     val linkUrl = lines.lastOrNull()?.takeIf { it.startsWith("http") }
                     // Q14：描述仅一行 URL 时不再把同一 URL 又当描述文本渲染
                     val descText = lines.filterNot { it == linkUrl }.joinToString("\n")
                     Column(Modifier.padding(start = 68.dp, end = 16.dp)) {
+                        if (needsFormat) {
+                            Text(
+                                stringResource(R.string.source_format_unspecified_hint),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
                         if (descText.isNotBlank()) Text(descText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (linkUrl != null) {
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier

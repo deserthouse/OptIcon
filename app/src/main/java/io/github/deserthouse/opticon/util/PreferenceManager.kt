@@ -33,6 +33,7 @@ object PreferenceManager {
     // global keys
     private const val KEY_GLOBAL_VERBOSE_LOG = "global_verbose_log"
     private const val KEY_AUTO_LIB_UPDATE = "auto_lib_update"
+    private const val KEY_PICP_SIZE_CONFIRMED = "picp_size_confirmed"
     private const val KEY_GLOBAL_PREDICTIVE_BACK = "global_predictive_back"
     private const val KEY_GLOBAL_DYNAMIC_COLOR = "global_dynamic_color"
     private const val KEY_GLOBAL_SHOW_TUNING = "global_show_tuning"
@@ -358,6 +359,16 @@ object PreferenceManager {
             ?: return if (shared == null) AutoUpdateReconcile.Outcome.UNKNOWN else AutoUpdateReconcile.Outcome.CONSISTENT
         val written = io.github.deserthouse.opticon.engine.SharedIconStore.writeAutoLibUpdate(ctx, desired) != null
         return if (written) AutoUpdateReconcile.Outcome.FIXED else AutoUpdateReconcile.Outcome.UNKNOWN
+    }
+
+    // ━━━ 应用图标库首次同步前的体积确认（修复批 X-09）━━━
+    // 用户确认过一次之后不再弹。
+
+    fun isPicpSizeConfirmed(): Boolean =
+        prefs?.getBoolean(KEY_PICP_SIZE_CONFIRMED, false) ?: false
+
+    fun setPicpSizeConfirmed(confirmed: Boolean) {
+        prefs?.edit { putBoolean(KEY_PICP_SIZE_CONFIRMED, confirmed) }
     }
 
     /** App 自身主题动态取色（Material You）。默认开；关=品牌靛蓝金色板。 */

@@ -504,6 +504,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     // ━━━ PICP sync ━━━
 
+    /** 首次同步应用图标库前的体积确认（修复批 X-09）。整库数百 MB。提示原先拼在状态行里，
+     *  被下载线程的第一个进度回调立刻覆盖，用户从未见过。用户确认之后不再弹。 */
+    private val _showPicpSizeConfirm = MutableStateFlow(false)
+    val showPicpSizeConfirm: StateFlow<Boolean> = _showPicpSizeConfirm.asStateFlow()
+
     fun syncPicp() {
         if (_picpSyncing.value) return
         val ctx = getApplication<Application>().applicationContext
@@ -511,19 +516,45 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         if (PreferenceManager.getSourceFormat(_activePicpSource.value) ==
             io.github.deserthouse.opticon.domain.SourceFormat.UNSPECIFIED
         ) {
-            _picpSyncing.value = false
             _picpSyncFailed.value = true
             _picpSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_format_unspecified)
             return
         }
-        _picpSyncing.value = true
-        _picpSyncFailed.value = false
-        val sourceUrl = PreferenceManager.getSourceUrl(_activePicpSource.value)
-        if (sourceUrl == null) {
+        if (PreferenceManager.getSourceUrl(_activePicpSource.value) == null) {
+            _picpSyncFailed.value = false
             _picpSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_no_source)
-            _picpSyncing.value = false
             return
         }
+        if (!PreferenceManager.isPicpSizeConfirmed()) {
+            _showPicpSizeConfirm.value = true
+            return
+        }
+        startPicpSync()
+    }
+
+    fun confirmPicpSize() {
+        PreferenceManager.setPicpSizeConfirmed(true)
+        _showPicpSizeConfirm.value = false
+        startPicpSync()
+    }
+
+    fun dismissPicpSizeConfirm() {
+        _showPicpSizeConfirm.value = false
+    }
+
+    private fun startPicpSync() {
+        if (_picpSyncing.value) return
+        val ctx = getApplication<Application>().applicationContext
+        val sourceUrl = PreferenceManager.getSourceUrl(_activePicpSource.value)
+        if (sourceUrl == null) {
+            // 体积确认对话框开着的时候，选中的源被改掉了
+            _picpSyncFailed.value = false
+            _picpSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_no_source)
+            return
+        }
+        _picpSyncing.value = true
+        _picpSyncFailed.value = false
+        _picpSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_preparing)
         // 取消 / 已有同步在进行：不是失败，状态行不用错误色
         fun settleNeutral(message: String) {
             _picpSyncFailed.value = false

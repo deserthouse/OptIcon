@@ -229,7 +229,7 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="source_name_label">名称</string>
     <string name="source_url_label">URL</string>
     <string name="source_description_label">描述</string>
-    <string name="source_url_placeholder">https://example.com/rules.json</string>
+    <string name="source_url_placeholder">https://example.com/</string>
     <string name="add_btn">添加</string>
     <string name="cancel_btn">取消</string>
     <string name="save_btn">保存</string>
@@ -253,9 +253,13 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="source_format_legacy_desc">旧版 base64 图标规则 JSON 订阅</string>
     <string name="source_format_picp">PICP 整库包</string>
     <string name="source_format_picp_desc">完美图标计划整库归档</string>
+    <!-- 修复批 X-02：待确认格式的自定义源——两个列表都显示，带提示等用户选定 -->
+    <string name="source_format_unspecified_hint">待选择数据格式——同步前请编辑该源，选定它提供的数据格式</string>
     <string name="cd_cancel_sync">取消同步</string>
-    <!-- 批 SYNC V4：PICP 同步发起时展示一次的体积预期 -->
-    <string name="sync_picp_size_hint">整库较大（数百 MB），建议在 Wi-Fi 下同步</string>
+    <!-- 修复批 X-09：首次同步应用图标库前的体积确认，只弹一次（替代原先被进度回调立刻覆盖的状态行提示） -->
+    <string name="picp_size_confirm_title">同步整个图标库？</string>
+    <string name="picp_size_confirm_body">首次同步会下载完整图标库，体积数百 MB，建议在 Wi-Fi 下进行。此提示只出现一次。</string>
+    <string name="picp_size_confirm_ok">开始同步</string>
     <!-- 批 SYNC V5：规则库后台自动更新（默认关，需用户开启） -->
     <string name="auto_lib_update_title">规则库自动更新（后台）</string>
     <string name="auto_lib_update_desc">默认关闭。开启后 SystemUI 进程将定期自动检查并下载规则库更新；关闭时仅在手动同步时联网。</string>

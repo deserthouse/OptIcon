@@ -230,7 +230,7 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="source_name_label">Name</string>
     <string name="source_url_label">URL</string>
     <string name="source_description_label">Description</string>
-    <string name="source_url_placeholder">https://example.com/rules.json</string>
+    <string name="source_url_placeholder">https://example.com/</string>
     <string name="add_btn">Add</string>
     <string name="cancel_btn">Cancel</string>
     <string name="save_btn">Save</string>
@@ -254,9 +254,13 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="source_format_legacy_desc">Old base64 icon-rule JSON subscription</string>
     <string name="source_format_picp">PICP zipball</string>
     <string name="source_format_picp_desc">Perfect Icons full-library archive</string>
+    <!-- 修复批 X-02：待确认格式的自定义源——两个列表都显示，带提示等用户选定 -->
+    <string name="source_format_unspecified_hint">Data format not chosen yet — edit this source and pick its format before syncing</string>
     <string name="cd_cancel_sync">Cancel sync</string>
-    <!-- batch SYNC V4: size expectation shown once when a PICP sync starts -->
-    <string name="sync_picp_size_hint">Full library is large (hundreds of MB) — Wi-Fi recommended</string>
+    <!-- 修复批 X-09：首次同步应用图标库前的体积确认，只弹一次（替代原先被进度回调立刻覆盖的状态行提示） -->
+    <string name="picp_size_confirm_title">Sync the full icon library?</string>
+    <string name="picp_size_confirm_body">The first sync downloads the whole library — several hundred MB. Wi-Fi is recommended. You will only be asked once.</string>
+    <string name="picp_size_confirm_ok">Start sync</string>
     <!-- batch SYNC V5: hook-side background lib update (opt-in, default off) -->
     <string name="auto_lib_update_title">Auto lib update (background)</string>
     <string name="auto_lib_update_desc">Off by default. When enabled, the SystemUI process periodically checks and downloads rule-library updates in the background; otherwise the network is only used when you sync manually.</string>
