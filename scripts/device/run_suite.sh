@@ -343,7 +343,9 @@ d8() {  # 视觉项的采集与几何断言（2.0 倍字体、贴底软键盘、
   check "D8 2.0 倍字体下选项之间的空隙明显大于一项内部的空隙" python "$DIR/radios.py" "$OUT/_ui.xml" "$DENSITY" _grouped
   check "D8 键盘弹出、内容滚动之后按钮仍在键盘上方" buttons_above_ime "${top:-0}"
   tap_node "Cancel"; sleep 2     # 关对话框即可，不用 BACK 收键盘（那会让输入法改显示工具条）
-  dump; tap_row_button "LongDesc" "More options"; sleep 1; tap_node "Edit source"; sleep 2
+  # 对话框关闭后页面位置偶尔会变（见 scroll_to_text 的说明）：先把目标行滚进屏幕，并留证据
+  scroll_to_text "LongDesc"
+  tap_row_button "LongDesc" "More options"; sleep 1; tap_node "Edit source"; sleep 2
   tap_field 1; sleep 3; shot_dialog d8-03-edit-2x-keyboard || true
   local top2; top2=$(ime_top)
   check "D8 前提：编辑对话框里软键盘贴底弹出" test -n "$top2" -a "$top2" -lt 2000

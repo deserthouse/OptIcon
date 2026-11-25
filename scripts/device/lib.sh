@@ -25,6 +25,13 @@ RESULTS="$OUT/results.tsv"
 
 log() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*" >&2; }
 
+# ── adb 服务隔离 ──
+# 多个会话共用默认端口（5037）上的 adb 服务：别的会话重启它，这边的设备操作就会落空
+# （2026-11-25 整跑时 d1 就这样失败过——点「添加」的那一下正赶上服务重启）。套件固定用自己的
+# 服务端口；启动实例时必须带同一个环境变量，实例才会登记到这个服务上：
+#   ANDROID_ADB_SERVER_PORT=5038 emulator -avd OptIcon_A16_root -no-snapshot -no-boot-anim
+export ANDROID_ADB_SERVER_PORT="${ANDROID_ADB_SERVER_PORT:-5038}"
+
 # ── 实例核身 ──
 find_serial() {
   local s n
@@ -36,7 +43,7 @@ find_serial() {
 }
 
 require_avd() {
-  [ -n "$S" ] || { S=$(find_serial) || { echo "找不到 $AVD_NAME（在跑的实例里没有它）" >&2; exit 2; }; }
+  [ -n "$S" ] || { S=$(find_serial) || { echo "在 adb 服务（端口 $ANDROID_ADB_SERVER_PORT）上找不到 $AVD_NAME。实例若登记在默认端口 5037 的服务上，套件看不到它：停掉实例，带 ANDROID_ADB_SERVER_PORT=$ANDROID_ADB_SERVER_PORT 重新启动。" >&2; exit 2; }; }
   local name model
   name=$(adb -s "$S" emu avd name 2>/dev/null | head -1 | tr -d '\r')
   model=$(adb -s "$S" shell getprop ro.product.model 2>/dev/null | tr -d '\r')
@@ -95,6 +102,31 @@ wait_node() {
   while [ "$left" -gt 0 ]; do dump; xy=$(node_xy "$1" "${2:-0}") && { echo "$xy"; return 0; }; sleep 2; left=$((left-2)); done
   return 1
 }
+# scroll_to_text 文字：设置页往下滚，直到这个文字所在的行完整出现在屏幕上（最多 8 次小幅滚动）。
+# 用于「对话框关闭之后页面位置可能变了」的场合——2026-11-25 整跑时 d8 遇到过一次：带键盘的
+# 添加对话框关闭后设置页回到了顶部（低概率，八轮探针未能复现）。返回 0 = 在屏幕上或已滚到。
+scroll_to_text() {
+  local k
+  for k in 1 2 3 4 5 6 7 8; do
+    dump
+    if python - "$OUT/_ui.xml" "$1" <<'ROWPY'; then return 0; fi
+import io, re, sys
+s = io.open(sys.argv[1], encoding="utf-8", errors="replace").read()
+for m in re.finditer(r"<node [^>]*>", s):
+    n = m.group(0)
+    t = (re.search(r'text="([^"]*)"', n) or [None, ""])[1]
+    if t == sys.argv[2]:
+        b = [int(x) for x in re.findall(r"\d+", (re.search(r'bounds="([^"]*)"', n) or [0, ""])[1])]
+        if 330 < b[1] and b[3] < 2200:
+            sys.exit(0)
+sys.exit(1)
+ROWPY
+    [ "$k" = "1" ] && note "D8 页面位置" "关闭添加对话框后「$1」这一行不在屏幕上——页面位置变了"
+    as input swipe 540 2000 540 1100 500; sleep 1.5
+  done
+  return 1
+}
+
 # shot 名称：截图（校验不是坏文件）+ 界面树
 shot() {
   adb -s "$S" exec-out screencap -p > "$OUT/$1.png"
