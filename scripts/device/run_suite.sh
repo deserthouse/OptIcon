@@ -78,7 +78,7 @@ d1() {  # 没有自定义源 → 添加首个 PICP 源
   tap_below "App Icon Sources" "Add Custom"; sleep 2
   tap_field 0; sleep 1; as input text "SuitePICP"; sleep 1            # 0 = 名称，1 = 地址
   tap_field 1; sleep 1; as input text "http://127.0.0.1:$PORT/good.zip"; sleep 1
-  tap_node "PICP zipball"; sleep 1; shot d1-01-add-dialog
+  tap_node "PICP zipball"; sleep 1; shot_dialog d1-01-add-dialog || true
   tap_node "Add"; sleep 3
   goto_picp >/dev/null; shot d1-02-after-add    # 冷启动重进：顺带验证落盘
   check "D1 新源出现在应用图标源分区" placed picp "SuitePICP"
@@ -87,7 +87,7 @@ d1() {  # 没有自定义源 → 添加首个 PICP 源
   check "D1 迁移标记已写入" test -n "$(prefs_cat | prefs_get custom_sources_formats_migrated)"
   note "D1 落盘的自定义源" "$(prefs_cat | prefs_get custom_sub_sources)"
   note "D1 迁移标记" "$(prefs_cat | prefs_get custom_sources_formats_migrated)"
-  tap_row_button "SuitePICP" "More options"; sleep 1; tap_node "Edit source"; sleep 2; shot d1-03-edit-dialog
+  tap_row_button "SuitePICP" "More options"; sleep 1; tap_node "Edit source"; sleep 2; shot_dialog d1-03-edit-dialog || true
   check "D1 编辑对话框回显 PICP 为选中" python "$DIR/radios.py" "$OUT/_ui.xml" "$DENSITY" _picp_checked
   check "D1 选项之间的空隙明显大于一项内部的空隙" python "$DIR/radios.py" "$OUT/_ui.xml" "$DENSITY" _grouped
   check "D1 每个选项的标题都在自己那一行之内" python "$DIR/radios.py" "$OUT/_ui.xml" "$DENSITY" _titles_inside
@@ -123,7 +123,7 @@ d3() {  # 无法判定的旧源
   as input tap "$sx" "$sy"; sleep 3; shot d3-02-sync-refused
   case "$(status_under "$ty")" in *"no data format chosen"*) check "D3 同步被拒并引导编辑" true;; *) check "D3 同步被拒并引导编辑" false;; esac
   check "D3 被拒时没有弹体积确认" no_node "Sync the full icon library?"
-  tap_row_button "Mystery" "More options"; sleep 1; tap_node "Edit source"; sleep 2; shot d3-03-edit-unspecified
+  tap_row_button "Mystery" "More options"; sleep 1; tap_node "Edit source"; sleep 2; shot_dialog d3-03-edit-unspecified || true
   check "D3 编辑对话框不预选任何格式" python "$DIR/radios.py" "$OUT/_ui.xml" "$DENSITY" _none_checked
   tap_node "PICP zipball"; sleep 1; tap_node "Save"; sleep 3
   check_eq "D3 选定格式后才能保存，且已保存" "$(prefs_cat | prefs_get custom_sub_sources | json_field format)" PICP_ZIPBALL
@@ -294,7 +294,7 @@ d7() {  # 首次同步的体积确认；同步中取消
   read -r sx sy ty <<< "$(goto_picp)"
   as input tap "$sx" "$sy"
   check "D7 首次同步弹出体积确认" wait_node "Sync the full icon library?" 0 8
-  shot d7-01-size-dialog
+  shot_dialog d7-01-size-dialog || true
   tap_node "Cancel"; sleep 2; dump
   check "D7 取消确认后没有开始同步" no_node "Cancel sync"
   check "D7 取消确认不算已确认" test -z "$(prefs_cat | prefs_get picp_size_confirmed)"
@@ -327,35 +327,37 @@ d8() {  # 视觉项的采集与几何断言（2.0 倍字体、贴底软键盘、
   as settings put secure show_ime_with_hard_keyboard 1
   goto_picp >/dev/null || { check "D8 进入应用图标源分区" false; return; }
   read -r ax ay <<< "$(scroll_to_add)"
-  as input tap "$ax" "$ay"; sleep 2; dump; shot d8-01-add-2x
+  as input tap "$ax" "$ay"; sleep 2; shot_dialog d8-01-add-2x || true
   check "D8 2.0 倍字体下三个格式选项都可见" test "$(grep -o 'text="PICP zipball"\|text="Legacy JSON"\|text="ANIP bundle"' "$OUT/_ui.xml" | wc -l)" -eq 3
   check "D8 单选行高都不低于 48dp" python "$DIR/radios.py" "$OUT/_ui.xml" "$DENSITY" _min_48
   # 软键盘弹出：对话框要收在键盘上方，按钮还能点到（内容区自己为键盘让位，不是靠系统平移窗口）
-  tap_field 0; sleep 3; dump; shot d8-02-add-2x-keyboard
+  tap_field 0; sleep 3; shot_dialog d8-02-add-2x-keyboard || true
   local top; top=$(ime_top)
   check "D8 前提：软键盘贴底弹出（不是悬浮键盘或侧边工具条）" test -n "$top" -a "$top" -lt 2000
   note "D8 添加对话框：键盘弹出时的键盘上沿" "${top:-（没有贴底键盘）}"
   check "D8 添加对话框：键盘弹出时「取消」「添加」都在键盘上方" buttons_above_ime "${top:-0}"
   check "D8 2.0 倍字体下每个选项的标题都在自己那一行之内" python "$DIR/radios.py" "$OUT/_ui.xml" "$DENSITY" _titles_inside
-  as input swipe 540 1200 540 500 500; sleep 1.5; dump; shot d8-02b-add-2x-scrolled   # 在键盘上方的可滚动区域里滚
+  as input swipe 540 1200 540 500 500; sleep 1.5; shot_dialog d8-02b-add-2x-scrolled || true   # 在键盘上方的可滚动区域里滚
   check "D8 2.0 倍字体滚动后三个格式选项仍都可见" test "$(grep -o 'text="PICP zipball"\|text="Legacy JSON"\|text="ANIP bundle"' "$OUT/_ui.xml" | wc -l)" -eq 3
   check "D8 2.0 倍字体下滚动后的行高都不低于 48dp" python "$DIR/radios.py" "$OUT/_ui.xml" "$DENSITY" _min_48
   check "D8 2.0 倍字体下选项之间的空隙明显大于一项内部的空隙" python "$DIR/radios.py" "$OUT/_ui.xml" "$DENSITY" _grouped
   check "D8 键盘弹出、内容滚动之后按钮仍在键盘上方" buttons_above_ime "${top:-0}"
   tap_node "Cancel"; sleep 2     # 关对话框即可，不用 BACK 收键盘（那会让输入法改显示工具条）
   dump; tap_row_button "LongDesc" "More options"; sleep 1; tap_node "Edit source"; sleep 2
-  tap_field 1; sleep 3; dump; shot d8-03-edit-2x-keyboard
+  tap_field 1; sleep 3; shot_dialog d8-03-edit-2x-keyboard || true
   local top2; top2=$(ime_top)
   check "D8 前提：编辑对话框里软键盘贴底弹出" test -n "$top2" -a "$top2" -lt 2000
   check "D8 编辑对话框：键盘弹出时「取消」「保存」都在键盘上方" buttons_above_ime "${top2:-0}"
   as input keyevent KEYCODE_BACK; sleep 1        # 收起键盘（后面不再需要键盘）
   check "D8 收起键盘后对话框还在" node_xy "Edit Source"
-  dump; shot d8-03-edit-2x-top
-  as input swipe 780 1750 780 1050 600; sleep 1.5; dump; shot d8-04-edit-2x-scrolled
-  as settings put system accelerometer_rotation 0; as settings put system user_rotation 1; sleep 3; dump; shot d8-05-landscape
+  shot_dialog d8-03-edit-2x-top || true
+  as input swipe 780 1750 780 1050 600; sleep 1.5; shot_dialog d8-04-edit-2x-scrolled || true
+  as settings put system accelerometer_rotation 0; as settings put system user_rotation 1; sleep 2
+  check "D8 横屏下对话框底板不透明（不是过渡帧）" shot_dialog d8-05-landscape
   check "D8 旋转（界面重建）后对话框与输入仍在" grep -q 'text="https://example.com/long"' "$OUT/_ui.xml"
-  as settings put system user_rotation 0; sleep 3; dump
-  as cmd uimode night yes; sleep 3; shot d8-06-dark
+  as settings put system user_rotation 0; sleep 2
+  as cmd uimode night yes; sleep 2
+  check "D8 深色模式下对话框底板不透明（不是过渡帧）" shot_dialog d8-06-dark
   check "D8 深色模式下对话框仍在" node_xy "Edit Source"
 }
 
@@ -367,6 +369,8 @@ d9() {  # 共享目录被整体移走再放回：观察者随之作废，巡检�
   check "D9 hook 发现监听的目录没了、放掉观察者" wait_hook "shared dir removed" 30
   su_ "mv $SHARED.removed $SHARED" || { check "D9 放回共享目录" false; return; }
   check "D9 放回共享目录" as test -d "$SHARED"
+  # 放掉监听时要让它停止监听；否则旧监听成了孤儿，目录放回时会再回一声——同一目录上挂两个活着的监听
+  check "D9 移走目录时只放掉一次监听（没有孤儿监听）" test "$(hook_logs | grep -c 'observer dropped')" = 1
   check "D9 目录回来后一个巡检周期内观察者重新建立" wait_hook "FileObserver established" 100
   save_logs d9
 }

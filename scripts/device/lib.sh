@@ -102,6 +102,28 @@ shot() {
   [ "$size" -ge 20000 ] || { log "截图损坏（$size 字节）：$1 —— 是采集侧的问题，不是界面问题"; check "截图 $1 采集完好" false; return 3; }
   dump && cp "$OUT/_ui.xml" "$OUT/$1.xml"   # 界面树在截图之后现取，两者对应同一画面
 }
+# shot_dialog 名称：截对话框，并等到它的底板不透明为止（切换深色模式、旋转之后系统有过渡动画，
+# 过早截图会截到底板透明的过渡帧）。最多 4 轮；仍不透明返回非零——由调用方决定要不要记成检查点。
+# 退出码 0 = 截到的是稳定的画面。
+shot_dialog() {
+  local i size
+  for i in 1 2 3 4; do
+    adb -s "$S" exec-out screencap -p > "$OUT/$1.png"
+    size=$(wc -c < "$OUT/$1.png")
+    [ "$size" -ge 20000 ] || { log "截图损坏（$size 字节）：$1 —— 是采集侧的问题，不是界面问题"; return 3; }
+    dump
+    if python "$DIR/opaque.py" "$OUT/$1.png" "$OUT/_ui.xml" >> "$OUT/debug.log" 2>&1; then
+      cp "$OUT/_ui.xml" "$OUT/$1.xml"
+      [ "$i" -gt 1 ] && note "截图 $1" "第 $i 轮才稳定（对话框底板不透明）"
+      return 0
+    fi
+    sleep 2
+  done
+  cp "$OUT/_ui.xml" "$OUT/$1.xml"
+  note "截图 $1" "$(python "$DIR/opaque.py" "$OUT/$1.png" "$OUT/_ui.xml" 2>&1 | tail -1)"
+  return 1
+}
+
 # status_under 标题y → 标题下方 260px 内的状态行文字
 status_under() {
   python - "$OUT/_ui.xml" "$1" <<'PY'
