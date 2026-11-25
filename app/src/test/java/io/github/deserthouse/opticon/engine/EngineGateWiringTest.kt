@@ -221,6 +221,25 @@ class EngineGateWiringTest {
     }
 
     @Test
+    fun `rule sync - an exception in the body is reported as a failure instead of escaping to the caller`() {
+        val ctx = FakeFilesContext(tmp.newFolder("files"))
+        // 内置源地址：同步会先做连通性探测。让探测抛异常，模拟同步体里的意外（磁盘写失败之类）。
+        // 此前这里不兜：异常一路逃到调用方的协程里，应用直接崩溃。
+        var delivered = 0
+        SubscriptionManager.connectivityProbe = { throw IllegalStateException("simulated failure inside the sync body") }
+
+        val result = CompletableDeferred<SubscriptionManager.SyncResult>()
+        SubscriptionManager.sync(ctx, sourceUrl = AnipSync.BASE, onResult = { delivered++; result.complete(it) })
+
+        val r = result.awaitWithin(5_000)
+        assertFalse("an unexpected failure is an ordinary failure, not busy", r.busy)
+        assertFalse(r.success)
+        assertEquals("#${R.string.sync_failed}", r.errorMessage)
+        assertEquals("the result is delivered exactly once", 1, delivered)
+        assertFalse(SyncGate.isHeld)
+    }
+
+    @Test
     fun `rule sync - an Error escaping the body still releases the gate`() {
         val ctx = FakeFilesContext(tmp.newFolder("files"))
         SubscriptionManager.connectivityProbe = { throw AssertionError("simulated Error in sync body") }

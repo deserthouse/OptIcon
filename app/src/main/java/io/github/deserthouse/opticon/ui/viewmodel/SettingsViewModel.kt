@@ -597,36 +597,53 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             _picpSyncStatus.value = message
             _picpSyncing.value = false
         }
+        // 回调在引擎的后台线程上执行：回调体异常就地兜底（与规则库同步的回调同一纪律，R2-04）——
+        // 不兜的话应用直接崩溃，界面永远停在「同步中」
+        fun settleFailed() {
+            _picpSyncFailed.value = true
+            _picpSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_failed)
+            _picpSyncing.value = false
+        }
         PicpEngine.syncIndex(ctx, sourceUrl,
             onProgress = { _picpSyncFailed.value = false; _picpSyncStatus.value = it },
             onResult = { end ->
-                when (end) {
-                    is PicpEngine.SyncEnd.Success -> {
-                        statusSupersededByUser = true
-                        _picpSyncFailed.value = false
-                        _picpCount.value = end.count
-                        // After index sync, prefetch icons for installed apps
-                        val installed = ctx.packageManager.getInstalledApplications(0)
-                            .map { it.packageName.toString() }
-                            .filter { it != ctx.packageName }
-                        PicpEngine.prefetchForInstalled(ctx, installed,
-                            onProgress = { done, total ->
-                                _picpSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_picp_icons, done, total)
-                            },
-                            onDone = { downloaded ->
-                                _picpSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_picp_done, end.count, downloaded)
-                                _picpSyncing.value = false
-                            }
-                        )
+                runCatching {
+                    when (end) {
+                        is PicpEngine.SyncEnd.Success -> {
+                            statusSupersededByUser = true
+                            _picpSyncFailed.value = false
+                            _picpCount.value = end.count
+                            // After index sync, prefetch icons for installed apps
+                            val installed = ctx.packageManager.getInstalledApplications(0)
+                                .map { it.packageName.toString() }
+                                .filter { it != ctx.packageName }
+                            PicpEngine.prefetchForInstalled(ctx, installed,
+                                onProgress = { done, total ->
+                                    _picpSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_picp_icons, done, total)
+                                },
+                                onDone = { downloaded ->
+                                    _picpSyncStatus.value = ctx.getString(io.github.deserthouse.opticon.R.string.sync_picp_done, end.count, downloaded)
+                                    _picpSyncing.value = false
+                                }
+                            )
+                        }
+                        is PicpEngine.SyncEnd.Failed -> {
+                            _picpSyncFailed.value = true
+                            _picpSyncStatus.value = end.message
+                            _picpSyncing.value = false
+                        }
+                        // 取消 / 已有同步在进行：不是失败，不以错误色显示（X-18）
+                        is PicpEngine.SyncEnd.Cancelled -> settleNeutral(end.message)
+                        is PicpEngine.SyncEnd.Busy -> settleNeutral(end.message)
                     }
-                    is PicpEngine.SyncEnd.Failed -> {
-                        _picpSyncFailed.value = true
-                        _picpSyncStatus.value = end.message
+                }.onFailure { e ->
+                    TraceLogger.w(TAG, "picp sync callback failed: ${e.message}")
+                    // 同步其实已经成功、只是收尾出错时，不把它说成失败
+                    if (end is PicpEngine.SyncEnd.Success) {
                         _picpSyncing.value = false
+                    } else {
+                        settleFailed()
                     }
-                    // 取消 / 已有同步在进行：不是失败，不以错误色显示（X-18）
-                    is PicpEngine.SyncEnd.Cancelled -> settleNeutral(end.message)
-                    is PicpEngine.SyncEnd.Busy -> settleNeutral(end.message)
                 }
             }
         )

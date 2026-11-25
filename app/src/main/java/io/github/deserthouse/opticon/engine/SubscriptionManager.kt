@@ -77,8 +77,19 @@ object SubscriptionManager {
             onResult(SyncResult(false, errorMessage = context.txt(R.string.sync_busy), busy = true))
             return
         }
+        // 同步体里的意外（磁盘写失败、读偏好出错……）如实报失败，不让异常逃到调用方的协程里
+        // 带崩进程；应用图标库那一侧的编排层本来就是这样兜的。结果只送达一次：异常若出自
+        // 回调本身（界面已经拿到结果），不重复送达。
+        var delivered = false
+        fun deliver(result: SyncResult) {
+            delivered = true
+            onResult(result)
+        }
         try {
-            syncHoldingGate(context, sourceUrl, sourceFormat, onProgress, onResult)
+            syncHoldingGate(context, sourceUrl, sourceFormat, onProgress, ::deliver)
+        } catch (e: Exception) {
+            TraceLogger.w(TAG, "sync failed unexpectedly: $e")
+            if (!delivered) deliver(SyncResult(false, errorMessage = context.txt(R.string.sync_failed)))
         } finally {
             SyncGate.release()
         }
