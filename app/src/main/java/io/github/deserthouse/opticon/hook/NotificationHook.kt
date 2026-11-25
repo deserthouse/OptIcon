@@ -415,11 +415,35 @@ object NotificationHook {
         if (sharedObserver != null || !SHARED_ICON_DIR.isDirectory) return
         synchronized(this) {
             if (sharedObserver != null) return
-            sharedObserver = startObserver(SHARED_ICON_DIR)
-            if (sharedObserver != null) {
-                TraceLogger.i(TAG, "FileObserver established on ${SHARED_ICON_DIR.absolutePath}")
+            val observer = startObserver(SHARED_ICON_DIR)
+            if (observer == null) return
+            if (!SHARED_ICON_DIR.isDirectory) {
+                // 开始监听与登记之间目录没了：登记上去的就是一个死的监听，别留
+                dropSharedDirObserver(observer)
+                return
             }
+            sharedObserver = observer
+            TraceLogger.i(TAG, "FileObserver established on ${SHARED_ICON_DIR.absolutePath}")
         }
+    }
+
+    /**
+     * 共享目录被删或移走：监听随目录一起失效，放掉它并叫醒巡检线程（目录回来后重建）。
+     *
+     * 只有**此刻登记着的那个**观察者才能清掉引用——被换下来的旧观察者若还活着，它的事件
+     * 不能动现在的。放掉的同时让旧观察者停止监听：不清引用只置空的话它成了孤儿，仍跟着
+     * 那个目录收事件，下次回声会把当时有效的监听的引用清掉，结果同一目录上挂两个活着的
+     * 监听；目录一去不回时那个监听就一直泄漏（对抗自查，设备套件 d9 的日志里同一次移走
+     * 出现过两次「已放掉」，就是孤儿在回声）。
+     */
+    private fun dropSharedDirObserver(observer: FileObserver) {
+        synchronized(this) {
+            if (sharedObserver !== observer) return
+            sharedObserver = null
+        }
+        try { observer.stopWatching() } catch (_: Throwable) { }
+        TraceLogger.i(TAG, "shared dir removed — observer dropped, will re-establish")
+        HookLibSync.onSharedDirGone()
     }
 
     private fun startObserver(sub: File): FileObserver? {
@@ -433,11 +457,7 @@ object NotificationHook {
                     // 已经失效。把它放掉，巡检线程发现目录回来时会重新建立（独立复审 A-H2：
                     // 此前字段一直非空，这个进程的生命周期里再也不会有事件）。
                     if (event and (FileObserver.DELETE_SELF or FileObserver.MOVE_SELF) != 0) {
-                        if (sub == SHARED_ICON_DIR) {
-                            sharedObserver = null
-                            TraceLogger.i(TAG, "shared dir removed — observer dropped, will re-establish")
-                            HookLibSync.onSharedDirGone()
-                        }
+                        if (sub == SHARED_ICON_DIR) dropSharedDirObserver(this)
                         return
                     }
                     // Production channel files use .opticon; dev channels
