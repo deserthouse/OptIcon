@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # OptIcon 设备验证套件：一条命令跑完发版前应过的设备场景，输出逐项 PASS/FAIL 的报告。
 #
-# 用法（项目根目录；先启动 OptIcon_A16_root、装好被测的调试包、确认 hook 已注入）：
+# 用法（项目根目录；先启动 OptIcon_A16_root、装好被测的调试包；hook 不用管，开跑时会重新加载）：
 #   bash scripts/device/run_suite.sh                  # 全部场景（约 25 分钟，含一次重启）
 #   bash scripts/device/run_suite.sh --only d1,d4     # 只跑指定场景
 #   bash scripts/device/run_suite.sh --skip d6b       # 跳过指定场景（d6b 最慢，d5/d6/d9 需要外网）
 #
-# 前提：调试包（带测试接收器与明文流量声明）、root（su）、宿主空闲内存 ≥ 6GB。
+# 前提：调试包（带测试接收器与明文流量声明）、root（su）、宿主机不忙（CPU < 60%、空闲内存 ≥ 5GB，否则不跑）。
+# 三道闸：宿主机负载、设备状态（有窗口持有焦点、锁屏没有挂着）、场景完整（导航失败即停，不留凭空通过的检查）。
+# 细节见同目录 README.md。
 # 套件自带备份与还原（偏好文件、显示设置、通知权限、图标库；PIN 用完即清），还原失败会在报告里标出。
 # 视觉项（d8）只采集截图与几何数据并做基础断言；审美判读由具备视觉能力的模型或人来做。
 # 报告末尾的「原始证据」一节留有关键日志文件、哈希与目录清单，供复核结论。
@@ -35,8 +37,15 @@ HAD_MIRROR_PLAIN=0; HAD_MIRROR_CUSTOM=0
 # ── 导航 ──
 goto_picp() {  # 设置页滚到「应用图标源」分区，输出 "同步按钮x 同步按钮y 标题y"
   open_settings || return 1
+  local xy
   as input swipe 540 2100 540 1150 500; sleep 2; dump
-  section_sync_xy "App Icon Sources"
+  xy=$(section_sync_xy "App Icon Sources")
+  if [ -z "$xy" ] && node_xy "Notification Icon Sources" >/dev/null 2>&1; then   # 页面还在顶部：那一下滑动没有生效
+    log "滑动没有生效——再滑一次"
+    as input swipe 540 2100 540 1150 500; sleep 2; dump; xy=$(section_sync_xy "App Icon Sources")
+  fi
+  [ -n "$xy" ] || { log "设置页上没找到「应用图标源」分区的同步按钮"; device_diag "picp-section-not-found"; return 1; }
+  echo "$xy"
 }
 scroll_to_add() {  # 大字体下把「应用图标源」分区的添加按钮滚进屏幕，输出其坐标
   local k xy seen=0 sig="" prev=""
@@ -91,6 +100,7 @@ d1() {  # 没有自定义源 → 添加首个 PICP 源
   check "D1 编辑对话框回显 PICP 为选中" python "$DIR/radios.py" "$OUT/_ui.xml" "$DENSITY" _picp_checked
   check "D1 选项之间的空隙明显大于一项内部的空隙" python "$DIR/radios.py" "$OUT/_ui.xml" "$DENSITY" _grouped
   check "D1 每个选项的标题都在自己那一行之内" python "$DIR/radios.py" "$OUT/_ui.xml" "$DENSITY" _titles_inside
+  SCENARIO_DONE=1
 }
 
 d2() {  # 升级前数据：不带格式字段、被选为当前应用图标源的自定义源
@@ -104,6 +114,7 @@ d2() {  # 升级前数据：不带格式字段、被选为当前应用图标源�
   check "D2 它不在通知图标源分区" not_placed notif "OldZip"
   check_eq "D2 迁移判为 PICP 整库包" "$(prefs_cat | prefs_get custom_sub_sources | json_field format)" PICP_ZIPBALL
   check_eq "D2 选中项未被重置" "$(prefs_cat | prefs_get active_picp_source)" custom_1
+  SCENARIO_DONE=1
 }
 
 d3() {  # 无法判定的旧源
@@ -120,6 +131,7 @@ d3() {  # 无法判定的旧源
   check_eq "D3 落盘为待确认" "$(prefs_cat | prefs_get custom_sub_sources | json_field format)" UNSPECIFIED
   tap_below "App Icon Sources" "Mystery"; sleep 1
   read -r sx sy ty <<< "$(section_sync_xy "App Icon Sources")"
+  [ -n "${sx:-}" ] || { check "D3 找到应用图标源的同步按钮" false; return; }
   as input tap "$sx" "$sy"; sleep 3; shot d3-02-sync-refused
   case "$(status_under "$ty")" in *"no data format chosen"*) check "D3 同步被拒并引导编辑" true;; *) check "D3 同步被拒并引导编辑" false;; esac
   check "D3 被拒时没有弹体积确认" no_node "Sync the full icon library?"
@@ -131,6 +143,7 @@ d3() {  # 无法判定的旧源
   check "D3 选定后提示消失" no_node "$hint"
   check "D3 选定后只留在应用图标源分区" not_placed notif "Mystery"
   check "D3 选定后仍在应用图标源分区" placed picp "Mystery"
+  SCENARIO_DONE=1
 }
 
 d4_case() {  # 坏源文件名 期望的状态行片段
@@ -157,6 +170,7 @@ d4() {
   d4_case nomatch.zip "no usable icons"
   d4_case truncated.zip "PICP archive invalid: truncated or not a zip archive"
   d4_case truncated-mid.zip "PICP archive invalid: truncated or not a zip archive"
+  SCENARIO_DONE=1
 }
 
 d5() {  # 上游撤销在通知读取的两条通道上生效（需要外网）
@@ -221,6 +235,7 @@ PY
   check "D5 同步后的新通知不再被替换成旧图标" not hook_has "setSmallIcon replaced"
   save_logs d5-after-notification
   shot d5-01-after
+  SCENARIO_DONE=1
 }
 revokes_both() {  # 撤销清单文件（每行一个包名）里两个测试包都在
   local list; list=$(shared_flag rules_revoked.opticon)
@@ -256,6 +271,7 @@ d6() {  # 自动更新开关（需要外网）。前提：此前 5 分钟内 hoo
   app_launch; sleep 4
   check_eq "D6c 应用启动后共享文件被对齐为关" "$(shared_flag auto_lib_update.opticon)" false
   check "D6c hook 读到关" wait_hook "auto lib update is now off" 30
+  SCENARIO_DONE=1
 }
 
 d6b() {  # 锁屏密码变体：重启后解锁前不工作、解锁后自行恢复
@@ -284,6 +300,7 @@ d6b() {  # 锁屏密码变体：重启后解锁前不工作、解锁后自行恢
   save_logs d6b-after-unlock
   shot d6b-02-after-unlock
   # 重启之后共享目录要等首次解锁才读得到：解锁前观察者在不在，取决于 hook 有没有机会建立它
+  SCENARIO_DONE=1
 }
 
 d7() {  # 首次同步的体积确认；同步中取消
@@ -291,7 +308,9 @@ d7() {  # 首次同步的体积确认；同步中取消
     "custom_sub_sources=[{\"id\":\"custom_slow\",\"name\":\"SlowSource\",\"url\":\"http://127.0.0.1:$PORT/slow.zip\",\"description\":\"\",\"format\":\"PICP_ZIPBALL\"}]" \
     active_picp_source=custom_slow picp_size_confirmed- >/dev/null
   prefs_inject "$OUT/p-d7.xml"
-  read -r sx sy ty <<< "$(goto_picp)"
+  # 导航不成功就停：往下每一步都会落空，而「没有开始同步」「图标库不变」这类检查会凭空通过
+  goto_picp >/dev/null || { check "D7 进入应用图标源分区" false; return; }
+  read -r sx sy ty <<< "$(section_sync_xy "App Icon Sources")"
   as input tap "$sx" "$sy"
   check "D7 首次同步弹出体积确认" wait_node "Sync the full icon library?" 0 8
   shot_dialog d7-01-size-dialog || true
@@ -300,9 +319,11 @@ d7() {  # 首次同步的体积确认；同步中取消
   check "D7 取消确认不算已确认" test -z "$(prefs_cat | prefs_get picp_size_confirmed)"
   as input tap "$sx" "$sy"
   check "D7 尚未确认时再次点击仍会弹" wait_node "Sync the full icon library?" 0 8
+  [ -n "$(node_xy "Start sync")" ] || { check "D7 找到「Start sync」按钮" false; return; }
   tap_node "Start sync"; sleep 6; dump; shot d7-02-syncing
   check "D7 确认后同步开始并显示进度" grep -q "Downloading" "$OUT/_ui.xml"
   check_eq "D7 确认后偏好才记为已确认" "$(prefs_cat | prefs_get picp_size_confirmed)" true
+  [ -n "$(node_xy "Cancel sync")" ] || { check "D7 找到「Cancel sync」按钮" false; return; }
   tap_node "Cancel sync"; wait_sync_end; sleep 1; dump; shot d7-03-cancelled
   local st; st=$(status_under "$ty")
   case "$st" in *"cancelled"*) check "D7 取消后状态行说明已取消并保留旧库" true;; *) check "D7 取消后状态行说明已取消并保留旧库" false;; esac
@@ -313,6 +334,7 @@ d7() {  # 首次同步的体积确认；同步中取消
   check "D7 确认过之后不再弹" no_node "Sync the full icon library?"
   tap_node "Cancel sync"; wait_sync_end   # 收尾：不让慢速源把图标库换掉
   check_eq "D7 图标库逐字节不变" "$(picp_hash)" "$PICP_HASH0"
+  SCENARIO_DONE=1
 }
 
 d8() {  # 视觉项的采集与几何断言（2.0 倍字体、贴底软键盘、旋转、深色）
@@ -327,6 +349,7 @@ d8() {  # 视觉项的采集与几何断言（2.0 倍字体、贴底软键盘、
   as settings put secure show_ime_with_hard_keyboard 1
   goto_picp >/dev/null || { check "D8 进入应用图标源分区" false; return; }
   read -r ax ay <<< "$(scroll_to_add)"
+  [ -n "${ax:-}" ] || { check "D8 找到「应用图标源」分区的添加按钮" false; return; }
   as input tap "$ax" "$ay"; sleep 2; shot_dialog d8-01-add-2x || true
   check "D8 2.0 倍字体下三个格式选项都可见" test "$(grep -o 'text="PICP zipball"\|text="Legacy JSON"\|text="ANIP bundle"' "$OUT/_ui.xml" | wc -l)" -eq 3
   check "D8 单选行高都不低于 48dp" python "$DIR/radios.py" "$OUT/_ui.xml" "$DENSITY" _min_48
@@ -361,6 +384,7 @@ d8() {  # 视觉项的采集与几何断言（2.0 倍字体、贴底软键盘、
   as cmd uimode night yes; sleep 2
   check "D8 深色模式下对话框底板不透明（不是过渡帧）" shot_dialog d8-06-dark
   check "D8 深色模式下对话框仍在" node_xy "Edit Source"
+  SCENARIO_DONE=1
 }
 
 d9() {  # 共享目录被整体移走再放回：观察者随之作废，巡检发现目录回来后重新建立
@@ -375,22 +399,32 @@ d9() {  # 共享目录被整体移走再放回：观察者随之作废，巡检�
   check "D9 移走目录时只放掉一次监听（没有孤儿监听）" test "$(hook_logs | grep -c 'observer dropped')" = 1
   check "D9 目录回来后一个巡检周期内观察者重新建立" wait_hook "FileObserver established" 100
   save_logs d9
+  SCENARIO_DONE=1
 }
 
 # ═══════════════ 备份 / 还原 / 报告 ═══════════════
 
 setup() {
   require_avd
+  adb -s "$S" logcat -c -b all
+  # 宿主负载过高就不跑（见 lib.sh 的「宿主机负载」）：这时跑出来的失败和被测包无关
+  local h; h=$(host_load)
+  note "环境：宿主机负载（开始时）" "CPU ${h%%,*}%，空闲内存 ${h#*,}GB"
+  if [ "${SUITE_ALLOW_LOADED_HOST:-0}" != "1" ]; then
+    check "宿主机负载不高（CPU 低于 60%、空闲内存不少于 5GB）" not host_loaded "$h" \
+      || { log "宿主机负载过高，不跑。等宿主空闲再试；确要跑设 SUITE_ALLOW_LOADED_HOST=1"; return 1; }
+  fi
   check "被测包已安装" as pm path "$PKG"
   # hook 在不在，不能靠日志里翻「安装」那一行——系统界面进程启动几分钟后它就被刷掉了。
-  # 日志里没有就重启系统界面进程，等 hook 随**当前安装的包**重新加载（也保证了跑的是新装的那一版）。
-  adb -s "$S" logcat -c -b all
-  if ! hook_has "Installing notification icon hooks"; then
-    log "日志里没有 hook 的安装记录——重启系统界面进程，让 hook 重新加载"
-    su_ "kill \$(pidof com.android.systemui)"
-    local i; for i in $(seq 1 40); do hook_has "self-sync loop starting" && break; sleep 2; done
-  fi
+  # 每次都重启系统界面进程，让 hook 随**当前安装的包**重新加载（也保证了跑的是新装的那一版）。
+  log "重启系统界面进程，让 hook 随当前安装的包重新加载"
+  su_ "kill \$(pidof com.android.systemui)"
+  local i; for i in $(seq 1 40); do hook_has "self-sync loop starting" && break; sleep 2; done
   check "hook 已注入系统界面" hook_has "self-sync loop starting"
+  # 系统界面进程不在的这段时间里，框架把锁屏置为显示中，新进程起来之后才撤掉。宿主机忙的时候新进程
+  # 起不来，锁屏就一直挂着、点击全被丢——确认它撤掉了再往下跑（见 lib.sh 的「设备状态」）
+  check "重启系统界面之后设备恢复可交互（有窗口持有焦点、锁屏没有挂着）" device_ready 90 \
+    || { device_diag "after-systemui-restart"; log "重启系统界面之后设备没有恢复可交互，终止"; return 1; }
   check "root 可用" test "$(su_ "id -u" | tr -d '\r')" = 0
   app_stop
   prefs_pull "$OUT/backup/optcon_prefs.xml"
@@ -509,9 +543,27 @@ if ! setup; then log "准备阶段失败，终止"; trap on_exit EXIT; restore; 
 trap on_exit EXIT
 for s in d1 d2 d3 d4 d5 d6 d6b d7 d8 d9; do
   want "$s" || continue
+  if [ "$DEVICE_DEAD" = "1" ]; then log "设备已经不接收点击，$s 不跑了"; continue; fi
+  h=$(host_load)
+  if [ "${SUITE_ALLOW_LOADED_HOST:-0}" != "1" ] && host_loaded "$h"; then   # 跑到一半宿主机忙起来也得停
+    note "宿主机负载（$s 之前）" "CPU ${h%%,*}%，空闲内存 ${h#*,}GB"
+    check "宿主机负载不高（$s 之前）" false
+    log "宿主机负载过高，终止。等宿主空闲再跑"
+    break
+  fi
+  # 设备已经不接收点击时后面的场景跑了也白跑（场景里有的导航跑在子 shell 里，DEVICE_DEAD 传不回来，所以在这里再看一眼）
+  if ! device_ready 15; then
+    device_diag "before-$s"
+    check "设备可交互（$s 之前：有窗口持有焦点、锁屏没有挂着）" false
+    log "设备不接收点击，终止。看报告目录 diag-before-$s/ 里的现场"
+    break
+  fi
   log "──── $s ────"
   require_avd
+  SCENARIO_DONE=0
   "$s"
+  # 场景中途返回时，它后面的检查项会凭空消失——这里明确记一笔
+  check "场景 $s 跑到了最后（没有中途返回）" test "$SCENARIO_DONE" = 1
 done
 finish
 exit $?

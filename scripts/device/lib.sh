@@ -80,10 +80,27 @@ note() { printf 'NOTE\t%s\t%s\n' "$1" "$2" >> "$RESULTS"; }
 not() { "$@"; [ $? -ne 0 ]; }
 no_node() { not node_xy "$1"; }
 
+# ── 宿主机负载 ──
+# 2026-11-25：宿主机在跑游戏时（CPU 85%、空闲内存 4.6GB）跑套件，虚拟机里的系统界面进程重启后起不来，
+# 整轮的失败全是环境造成的。宿主负载过高就不跑；确要在这种时候跑，设 SUITE_ALLOW_LOADED_HOST=1。
+host_load() {  # 输出 "CPU%,空闲GB"；读不到时输出空
+  powershell -NoProfile -Command "\$os=Get-CimInstance Win32_OperatingSystem; \$c=(Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average; '{0},{1:N2}' -f \$c, (\$os.FreePhysicalMemory/1MB)" 2>/dev/null | tr -d '\r'
+}
+host_loaded() {  # host_load 的输出 → 负载过高（CPU ≥ 60% 或空闲内存 < 5GB）时退出码 0；读不到时不拦
+  [[ "$1" =~ ^[0-9]+,[0-9.]+$ ]] || return 1
+  [ "${1%%,*}" -ge "${HOST_CPU_MAX:-60}" ] && return 0
+  awk -v m="${1#*,}" -v min="${HOST_MEM_MIN:-5}" 'BEGIN { exit !(m + 0 < min + 0) }'
+}
+
 # ── 界面 ──
+# dump：界面树落到 $OUT/_ui.xml；没采到时把本地文件清空并返回非零。
+# 先删设备上的旧文件：采集失败时 uiautomator 不写新文件，留着旧的就会读到上一次的画面
+# （2026-11-25 排查点击失效时被它骗过——设备没有焦点窗口，界面树却还是旧的设置页）。
+# 采集也可能挂住（系统被饿着的时候），所以带超时。
 dump() {
-  as uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
+  MSYS_NO_PATHCONV=1 timeout "${DUMP_TIMEOUT:-60}" adb -s "$S" shell "rm -f /sdcard/ui.xml; uiautomator dump /sdcard/ui.xml" >/dev/null 2>&1
   as cat /sdcard/ui.xml > "$OUT/_ui.xml" 2>/dev/null
+  [ -s "$OUT/_ui.xml" ]
 }
 # node_xy 文本或content-desc [第几个] → "x y"；找不到时非零
 node_xy() { python "$DIR/find.py" "$OUT/_ui.xml" "$1" "${2:-0}" 2>/dev/null; }
@@ -229,16 +246,61 @@ sys.exit(0 if found and all(v <= top for v in found.values()) else 1)
 PY
 }
 
+# ── 设备状态 ──
+# 2026-11-25 的教训：宿主机被挤占时重启系统界面进程，新进程起不来（启动超时被杀），框架就一直把锁屏
+# 置为显示中——没有窗口持有焦点，之后每一次点击都被输入分发器丢掉（"no touchable window" /
+# "no focused window"），整轮跑完只剩一屏看不懂的失败。所以导航之前先确认设备本身是好的；不好就取证并停。
+focus_state() {  # ok = 有窗口持有焦点且锁屏没有挂着；否则给出原因（nofocus / keyguard / unknown），判定见 focus.py
+  as dumpsys window | tr -d '\r' | python "$DIR/focus.py"   # 一份快照里同时有焦点和锁屏状态
+}
+device_ready() {  # device_ready [超时秒]：设备能接收点击（启动过渡的空档不算）时退出码 0
+  local left=$(( ${1:-30} ))
+  while [ "$left" -gt 0 ]; do
+    [ "$(focus_state)" = "ok" ] && return 0
+    sleep 3; left=$((left-3))
+  done
+  log "设备不接收点击：$(focus_state)"; return 1
+}
+device_diag() {  # device_diag 标签：设备状态不对时留现场，报告里记一条指向它的证据
+  local d="$OUT/diag-$1" i=0
+  while [ -e "$d" ]; do i=$((i+1)); d="$OUT/diag-$1-$i"; done
+  mkdir -p "$d"
+  as dumpsys input > "$d/input.txt" 2>&1 &
+  as dumpsys window > "$d/window.txt" 2>&1 &
+  as dumpsys power > "$d/power.txt" 2>&1 &
+  as dumpsys activity activities > "$d/activities.txt" 2>&1 &
+  as dumpsys dropbox > "$d/dropbox.txt" 2>&1 &
+  adb -s "$S" logcat -d -b all -v time -t 4000 > "$d/logcat.txt" 2>&1 &
+  ( adb -s "$S" exec-out screencap -p > "$d/screen.png" 2>/dev/null ) &
+  wait
+  note "设备现场（$1）" "$(basename "$d")/：$(grep -m1 'mCurrentFocus=' "$d/window.txt" | tr -d '\r' | tr -s ' ')；锁屏 $(grep -m1 -A1 'KeyguardServiceDelegate' "$d/window.txt" | tr -d '\r' | sed -n 2p | tr -d ' ')"
+  log "设备现场已留在 $d"
+}
+
 # ── 应用与偏好 ──
 app_stop()      { as am force-stop "$PKG"; }
-app_launch() {  # 冷启动并回到首页
+DEVICE_DEAD=0   # 1 = 设备已经不接收点击（见 device_ready）；之后的场景不再跑
+app_launch() {  # 冷启动并回到首页；顺带确认设备能接收点击
+  [ "$DEVICE_DEAD" = "0" ] || return 1
   app_stop; as monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
-  wait_node "Settings" 0 30 >/dev/null || { log "应用首页没有就绪"; return 1; }
+  if ! wait_node "Settings" 0 30 >/dev/null; then
+    log "应用首页没有就绪"
+    device_ready 5 && return 1   # 设备是好的，只是应用没起来：留给调用方记失败
+    DEVICE_DEAD=1; device_diag "app-not-ready"; return 1
+  fi
+  device_ready 30 || { DEVICE_DEAD=1; device_diag "device-not-ready"; return 1; }
 }
-open_settings() {  # 设置页顶部（未滚动）
-  app_launch || return 1
-  tap_node "Settings" || return 1; sleep 2
-  wait_node "Notification Icon Sources" 0 15 >/dev/null
+open_settings() {  # 设置页顶部（未滚动）。点了没进去就再点一次（最多两次）。
+  local try
+  for try in 1 2; do
+    app_launch || return 1
+    tap_node "Settings" || return 1
+    wait_node "Notification Icon Sources" 0 20 >/dev/null && return 0
+    [ "$try" = "1" ] && [ "$DEVICE_DEAD" = "0" ] || break
+    log "点了「Settings」但设置页没有出现——再点一次"
+  done
+  device_diag "settings-not-opened"
+  return 1
 }
 prefs_cat()     { su_ "cat $P/shared_prefs/optcon_prefs.xml" 2>/dev/null | tr -d '\r'; }
 prefs_pull()    { prefs_cat > "$1"; }
