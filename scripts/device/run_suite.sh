@@ -347,7 +347,9 @@ d8() {  # 视觉项的采集与几何断言（2.0 倍字体、贴底软键盘、
   # 输入法在实例重启后**头一次**弹出时是贴底键盘；被收起（BACK）之后改为工具条或悬浮键盘。
   # 整跑时 d8 排在会重启的 d6b 之后；单独跑 d8 之前先重启实例。
   as settings put secure show_ime_with_hard_keyboard 1
-  goto_picp >/dev/null || { check "D8 进入应用图标源分区" false; return; }
+  # 这里不用 goto_picp：2.0 倍字体下一下滑动未必把分区标题滑进屏幕，添加按钮交给下面的 scroll_to_add 自己找
+  open_settings || { check "D8 进入设置页" false; return; }
+  as input swipe 540 2100 540 1150 500; sleep 2
   read -r ax ay <<< "$(scroll_to_add)"
   [ -n "${ax:-}" ] || { check "D8 找到「应用图标源」分区的添加按钮" false; return; }
   as input tap "$ax" "$ay"; sleep 2; shot_dialog d8-01-add-2x || true
@@ -411,7 +413,7 @@ setup() {
   local h; h=$(host_load)
   note "环境：宿主机负载（开始时）" "CPU ${h%%,*}%，空闲内存 ${h#*,}GB"
   if [ "${SUITE_ALLOW_LOADED_HOST:-0}" != "1" ]; then
-    check "宿主机负载不高（CPU 低于 60%、空闲内存不少于 5GB）" not host_loaded "$h" \
+    check "宿主机负载不高（CPU 低于 60%、空闲内存不少于 5GB；连续两次采样）" not host_busy \
       || { log "宿主机负载过高，不跑。等宿主空闲再试；确要跑设 SUITE_ALLOW_LOADED_HOST=1"; return 1; }
   fi
   check "被测包已安装" as pm path "$PKG"
@@ -545,7 +547,7 @@ for s in d1 d2 d3 d4 d5 d6 d6b d7 d8 d9; do
   want "$s" || continue
   if [ "$DEVICE_DEAD" = "1" ]; then log "设备已经不接收点击，$s 不跑了"; continue; fi
   h=$(host_load)
-  if [ "${SUITE_ALLOW_LOADED_HOST:-0}" != "1" ] && host_loaded "$h"; then   # 跑到一半宿主机忙起来也得停
+  if [ "${SUITE_ALLOW_LOADED_HOST:-0}" != "1" ] && host_busy; then   # 跑到一半宿主机忙起来也得停
     note "宿主机负载（$s 之前）" "CPU ${h%%,*}%，空闲内存 ${h#*,}GB"
     check "宿主机负载不高（$s 之前）" false
     log "宿主机负载过高，终止。等宿主空闲再跑"

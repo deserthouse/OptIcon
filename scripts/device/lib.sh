@@ -91,6 +91,11 @@ host_loaded() {  # host_load 的输出 → 负载过高（CPU ≥ 60% 或空闲�
   [ "${1%%,*}" -ge "${HOST_CPU_MAX:-60}" ] && return 0
   awk -v m="${1#*,}" -v min="${HOST_MEM_MIN:-5}" 'BEGIN { exit !(m + 0 < min + 0) }'
 }
+host_busy() {  # 连续两次采样都过高才算（避开瞬时尖峰）；退出码 0 = 宿主机忙
+  host_loaded "$(host_load)" || return 1
+  sleep 5
+  host_loaded "$(host_load)"
+}
 
 # ── 界面 ──
 # dump：界面树落到 $OUT/_ui.xml；没采到时把本地文件清空并返回非零。
