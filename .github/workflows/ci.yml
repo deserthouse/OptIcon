@@ -20,22 +20,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # continue-on-error：首个 job 失败不让整次运行直接判红，交给下面的重试 job 决定
+  # 首个 job 失败不让整次运行直接判红，结果写进输出，交给下面的重试 job 决定。这里必须用步骤级
+  # continue-on-error：任务级的会把结果直接报成成功，重试条件永远不成立（2026-11-27 踩过）。
   checks:
     runs-on: ubuntu-latest
     timeout-minutes: 40
-    continue-on-error: true
+    outputs:
+      failed: ${{ steps.verdict.outputs.failed }}
     steps:
-      - uses: ./.github/actions/checks
+      - uses: actions/checkout@v4   # 本地组合动作要先检出仓库才找得到
+      - id: checks
+        continue-on-error: true
+        uses: ./.github/actions/checks
         with:
           reports-name: reports
+      - id: verdict
+        if: always()
+        run: echo "failed=${{ steps.checks.outcome != 'success' }}" >> "$GITHUB_OUTPUT"
 
   checks-retry:
     needs: checks
-    if: needs.checks.result == 'failure'
+    if: needs.checks.outputs.failed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/checks
         with:
           reports-name: reports-retry

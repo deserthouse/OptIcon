@@ -1,7 +1,7 @@
 name: Checks
 description: >-
   发版门禁的检查步骤：单测（强制重跑）、lint、中英文案对齐、版本号一致性。
-  ci.yml 的首个 job 与自动重试 job 共用这一份。
+  ci.yml 的首个 job 与自动重试 job 共用这一份。调用方必须先 actions/checkout（本地组合动作要先检出才找得到）。
 
 inputs:
   reports-name:
@@ -12,8 +12,6 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/checkout@v4
-
     - uses: actions/setup-java@v4
       with:
         distribution: temurin
