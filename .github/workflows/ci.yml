@@ -46,10 +46,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Unit tests (always re-run)
-        run: ./gradlew :app:testDebugUnitTest --rerun-tasks --no-configuration-cache --stacktrace
+        run: bash scripts/ci_gradle.sh :app:testDebugUnitTest --rerun-tasks
 
       - name: Lint
-        run: ./gradlew :app:lintDebug --no-configuration-cache --stacktrace
+        run: bash scripts/ci_gradle.sh :app:lintDebug
 
       - name: String parity (zh = en, placeholders match)
         run: python3 scripts/check_strings.py
