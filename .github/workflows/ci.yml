@@ -34,13 +34,21 @@ jobs:
       - name: Android SDK licenses
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
+      # 依赖仓库的可达性：2026-11-27 有两次运行在解析 Kotlin 插件时被判「找不到」，重跑即过；记录状态码与出口 IP 便于定位
+      - name: Repository reachability
+        run: |
+          for u in "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/maven-metadata.xml"
+                   "https://plugins.gradle.org/m2/org/jetbrains/kotlin/kotlin-stdlib/maven-metadata.xml"
+                   "https://dl.google.com/dl/android/maven2/androidx/core/core/maven-metadata.xml"; do
+            curl -sS -o /dev/null -m 30 -w "%{http_code} %{remote_ip} %{time_total}s $u\n" "$u" || echo "FAILED $u"
+          done
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Unit tests (always re-run)
-        run: ./gradlew :app:testDebugUnitTest --rerun-tasks --no-configuration-cache
+        run: ./gradlew :app:testDebugUnitTest --rerun-tasks --no-configuration-cache --stacktrace
 
       - name: Lint
-        run: ./gradlew :app:lintDebug --no-configuration-cache
+        run: ./gradlew :app:lintDebug --no-configuration-cache --stacktrace
 
       - name: String parity (zh = en, placeholders match)
         run: python3 scripts/check_strings.py
