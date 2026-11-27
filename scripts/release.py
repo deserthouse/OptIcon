@@ -17,6 +17,7 @@
     --lint-base <git-ref>            preflight 时与该提交的 lint 结果逐项对照
     --title "— 短标题"               publish 时附加在 Release 标题后
     --version <x.y.z>                仅 notes 子命令需要
+    --replace-unpublished            build：同版本的构建记录属于另一个提交时，只要远端还没有这个版本的 tag 就顶替
 
 硬约束（写在代码里，不靠人记）：
   - 工作区不干净就不 preflight / 不构建（先提交后构建）；
@@ -346,6 +347,10 @@ def cmd_build(args):
     head = require_unchanged(pf, "preflight")
     version, code = pf["version"], pf["versionCode"]
     wd = work_dir(version)
+    # 先看 archive 里有没有同版本的旧构建记录、这一次顶不顶替它——放到构建之前判断，不为一次注定被拒的构建白跑几分钟
+    old = os.path.join(wd, "build.json")
+    prev = json.load(io.open(old, encoding="utf-8")) if os.path.exists(old) else None
+    history = replacement_history(prev, head, version, args.replace_unpublished, proxy=args.proxy)
     # 先 clean：输出目录里只留这一次的产物（APK 名带构建时间，重复构建会越积越多，没法认出哪个是新的）
     gradle([":app:clean", ":app:assembleRelease"], os.path.join(wd, "build.log"))
     out_dir = os.path.join(ROOT, "app", "build", "outputs", "apk", "release")
@@ -355,14 +360,13 @@ def cmd_build(args):
     src = os.path.join(out_dir, apks[0])
     dest = os.path.join(wd, apks[0])
     sha = sha256_of(src)
-    history = []
-    old = os.path.join(wd, "build.json")
-    if os.path.exists(old):
-        prev = json.load(io.open(old, encoding="utf-8"))
-        if prev.get("head") != head:
-            fail("archive 里已有另一个提交的构建记录（%s）——同一版本号换了提交，先确认版本号是否该递增"
-                 % prev.get("head", "?")[:12])
-        history = prev.get("history", []) + [{"apk": prev["apk"], "sha256": prev["sha256"], "at": prev["built_at"]}]
+    # 顶替之前先把旧产物挪进 replaced/：同一个版本目录的顶层只放这一次要发的包，分不清哪个是要发的
+    if prev:
+        stale = os.path.join(wd, str(prev.get("apk", "")))
+        if os.path.isfile(stale):
+            gone = os.path.join(wd, "replaced")
+            os.makedirs(gone, exist_ok=True)
+            shutil.move(stale, os.path.join(gone, os.path.basename(stale)))
     shutil.copy2(src, dest)
     if sha256_of(dest) != sha:
         fail("复制产物后哈希不一致")
@@ -386,7 +390,43 @@ def cmd_build(args):
     print("已构建 %s\nSHA-256 %s\n大小 %d 字节  ·  版本号/版本代码一致  ·  正式签名  ·  不含调试专有内容"
           % (apks[0], sha, os.path.getsize(dest)))
     for h in history:
-        print("（顶替了同提交的早先构建：%s %s）" % (h["apk"], h["sha256"][:16]))
+        print("（顶替了早先的构建：%s %s · 提交 %s · %s）"
+              % (h["apk"], h["sha256"][:16], str(h.get("head") or "?")[:12], h.get("at", "?")))
+
+
+def remote_has_tag(tag, proxy=None):
+    """远端上有没有这个 tag。查询失败就中止——判断不了的时候宁可拒绝顶替，也不能凭「没查到」顶替一个已发布的版本。"""
+    for extra in ([["-c", "http.proxy=" + proxy]] if proxy else []) + [[]]:
+        rc, out = sh(["git"] + extra + ["ls-remote", "--tags", "origin",
+                                        "refs/tags/" + tag, "refs/tags/" + tag + "^{}"], cwd=ROOT, check=False)
+        if rc == 0:
+            return bool(out.strip())
+    fail("查不到远端的 tag（git ls-remote 失败）——无法确认 %s 是否已发布，不顶替" % tag)
+
+
+def replacement_history(prev, head, version, replace_unpublished, remote_has_tag=remote_has_tag):
+    """archive 里已有这个版本的构建记录时，这一次构建顶替谁。返回新记录里的 history（被顶替的构建，旧在前）；不允许就 fail。
+
+      - 同一个提交的早先构建：直接顶替（发布前的重建属于常规操作）；
+      - 另一个提交的构建：默认拒绝——同一个版本号换了提交，多半是忘了递增版本号；
+        带 replace_unpublished 且远端还没有这个版本的 tag 时才顶替。已发布的版本永远不顶替
+        （发布后禁止同名覆盖，一律新版本 / 新构建）。
+    """
+    if not prev:
+        return []
+    entry = {"apk": prev["apk"], "sha256": prev["sha256"], "at": prev["built_at"], "head": prev.get("head")}
+    if prev.get("head") == head:
+        return prev.get("history", []) + [entry]
+    if not replace_unpublished:
+        fail("archive 里已有另一个提交（%s）的构建记录——同一版本号换了提交，先确认版本号是否该递增；"
+             "这个版本确实还没发布时，用 build --replace-unpublished 顶替它（旧记录留在 history 里）"
+             % str(prev.get("head") or "?")[:12])
+    tag = "v" + version
+    if remote_has_tag(tag):
+        fail("远端已有 %s——这个版本已经发布，同一个版本号不能再换提交；请递增版本号" % tag)
+    print("顶替另一个提交（%s）的未发布构建：%s %s"
+          % (str(prev.get("head") or "?")[:12], prev["apk"], prev["sha256"][:16]))
+    return prev.get("history", []) + [entry]
 
 
 def cmd_tag(args):
@@ -538,6 +578,9 @@ def main():
     ap.add_argument("--lint-base", help="preflight 时与该 git 引用的 lint 结果逐项对照")
     ap.add_argument("--title", help="publish 时附加在 Release 标题后")
     ap.add_argument("--version", help="notes / verify 子命令：要处理的版本号（默认取 build.gradle.kts 里的当前版本）")
+    ap.add_argument("--replace-unpublished", action="store_true",
+                    help="build：archive 里有同一版本、另一个提交的构建记录时，只要远端还没有这个版本的 tag 就顶替它"
+                         "（旧记录写进 history 并打印；已发布的版本永远不顶替）")
     ap.add_argument("--dry-run", action="store_true", help="publish：只打印计划")
     args = ap.parse_args()
     if args.no_proxy:

@@ -47,6 +47,8 @@ MIGRATION_NOTES.md
 PHASE_SUMMARY*.md
 project_status.md
 tests/
+# 发版工具的 Python 单测要入库（上面的 tests/ 会连它一起忽略）
+!scripts/tests/
 OptIcon_internal_backup/
 
 # Session temp artifacts
