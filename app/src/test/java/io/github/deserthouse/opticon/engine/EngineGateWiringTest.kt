@@ -4,6 +4,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -58,6 +59,8 @@ class EngineGateWiringTest {
     @After
     fun gateMustBeFree() {
         assertFalse("a test left the sync gate held", SyncGate.isHeld)
+        SubscriptionManager.anipManifestOverride = { PreferenceManager.anipManifestOverride() }
+        SubscriptionManager.svgRasterizer = SvgRasterizer
     }
 
     private fun <T> CompletableDeferred<T>.awaitWithin(ms: Long): T =
@@ -308,6 +311,7 @@ class EngineGateWiringTest {
         assertTrue("the first sync brings a snapshot in", f.wasChanged)
         assertEquals(2, f.iconCount)
         assertEquals("abc1234", f.tag)
+        assertEquals("the release time reaches the caller for the status line", 1L, f.versionTime)
 
         val second = CompletableDeferred<SubscriptionManager.SyncResult>()
         SubscriptionManager.sync(ctx, sourceUrl = AnipSync.BASE, onResult = { second.complete(it) })
@@ -319,5 +323,86 @@ class EngineGateWiringTest {
         assertEquals(emptyList<String>(), s.revokedPackages)
         assertEquals("the bundle is downloaded only once", 1, downloads)
         assertFalse(SyncGate.isHeld)
+    }
+
+    @Test
+    fun `rule sync - the manifest address follows the debug override`() {
+        // 设备验证套件靠它把内置源指到本机测试源（仅调试包）；清单从哪里取，包就按哪里解析
+        val ctx = FakeFilesContext(tmp.newFolder("files"))
+        val bundle = AnipZipFixtures.build(
+            root = "", iconsDir = false,
+            categories = listOf(AnipZipFixtures.Category("app", listOf(AnipZipFixtures.Declared("com.a"))))
+        )
+        val sha = java.security.MessageDigest.getInstance("SHA-256").digest(bundle).joinToString("") { "%02x".format(it) }
+        val local = "http://127.0.0.1:28765/anip-release.json"
+        val manifests = ArrayList<String>()
+        val bundles = ArrayList<String>()
+        SubscriptionManager.anipManifestOverride = { local }
+        SubscriptionManager.releaseAccess = object : AnipReleaseChannel.Access {
+            override fun fetchSmall(url: String, maxBytes: Long): ByteArray? {
+                manifests += url
+                return """{"schemaVersion":1,"tag":"abc1234","timestamp":1,"assetName":"anip-bundle-abc1234.zip","downloadUrl":"anip-bundle-abc1234.zip","size":${bundle.size},"sha256":"$sha"}""".toByteArray()
+            }
+
+            override fun fetchToFile(url: String, dest: File, maxBytes: Long): Boolean {
+                bundles += url
+                dest.writeBytes(bundle)
+                return true
+            }
+        }
+
+        val done = CompletableDeferred<SubscriptionManager.SyncResult>()
+        SubscriptionManager.sync(ctx, sourceUrl = AnipSync.BASE, onResult = { done.complete(it) })
+        val r = done.awaitWithin(15_000)
+
+        assertTrue(r.success)
+        assertEquals(1, r.iconCount)
+        assertEquals("abc1234", r.tag)
+        assertEquals(listOf(local), manifests)
+        assertEquals(listOf("http://127.0.0.1:28765/anip-bundle-abc1234.zip"), bundles)
+    }
+
+    @Test
+    fun `rule sync - svg entries are rendered by the configured rasterizer`() {
+        // 批 UP：订阅管理器要把渲染器传进规则库同步。传丢了的话 SVG 条目全部按「读不出」处理，
+        // 设备上只看得到「少了几个图标」，看不出是哪一环断了
+        val ctx = FakeFilesContext(tmp.newFolder("files"))
+        val rendered = AnipZipFixtures.pngOf("rendered")
+        val bundle = AnipZipFixtures.build(
+            root = "", iconsDir = false,
+            categories = listOf(AnipZipFixtures.Category("app", listOf(
+                AnipZipFixtures.Declared("com.bitmap"),
+                AnipZipFixtures.Declared("com.vector", ext = "svg", format = "svg", png = AnipZipFixtures.svgOf("com.vector"))
+            )))
+        )
+        val sha = java.security.MessageDigest.getInstance("SHA-256").digest(bundle).joinToString("") { "%02x".format(it) }
+        SubscriptionManager.releaseAccess = object : AnipReleaseChannel.Access {
+            override fun fetchSmall(url: String, maxBytes: Long): ByteArray? =
+                """{"schemaVersion":1,"tag":"abc1234","timestamp":1,"assetName":"anip-bundle-abc1234.zip","downloadUrl":"anip-bundle-abc1234.zip","size":${bundle.size},"sha256":"$sha"}""".toByteArray()
+
+            override fun fetchToFile(url: String, dest: File, maxBytes: Long): Boolean {
+                dest.writeBytes(bundle)
+                return true
+            }
+        }
+        val handed = ArrayList<Pair<String, Int>>()
+        SubscriptionManager.svgRasterizer = AnipSnapshotBuilder.IconRasterizer { svg, max ->
+            handed += String(svg, Charsets.UTF_8) to max
+            rendered
+        }
+
+        val done = CompletableDeferred<SubscriptionManager.SyncResult>()
+        SubscriptionManager.sync(ctx, sourceUrl = AnipSync.BASE, onResult = { done.complete(it) })
+        val r = done.awaitWithin(15_000)
+
+        assertTrue(r.success)
+        assertEquals(2, r.iconCount)
+        assertEquals(
+            listOf("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"72\" height=\"72\"><title>com.vector</title></svg>" to 150),
+            handed
+        )
+        val dir = File(ctx.filesDir, IconLibEngine.CACHE_DIR_ACCESSIBLE)
+        assertArrayEquals(rendered, File(dir, "com.vector.png").readBytes())
+        assertTrue(File(dir, "com.bitmap.png").isFile)
     }
 }

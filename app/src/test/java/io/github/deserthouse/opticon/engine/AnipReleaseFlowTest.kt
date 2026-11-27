@@ -108,6 +108,8 @@ class AnipReleaseFlowTest {
         assertFalse(outcome.unchanged)
         assertEquals(AnipSync.CHANNEL_RELEASE, outcome.channel)
         assertEquals("abc1234", outcome.tag)
+        // 界面上显示的发布日期来自这里
+        assertEquals(1795697528000L, outcome.versionTime)
         assertEquals(listOf(AnipReleaseChannel.MANIFEST_URL to AnipReleaseChannel.MAX_MANIFEST_BYTES), access.small)
         // 只取了官方包，字节上限就是清单里的大小；没有碰整库 zipball
         assertEquals(listOf(bundleUrl to bundle.size.toLong()), access.file)
@@ -137,6 +139,7 @@ class AnipReleaseFlowTest {
         assertTrue(again.unchanged)
         assertEquals(2, again.count)
         assertEquals("abc1234", again.tag)
+        assertEquals(1795697528000L, again.versionTime)
         assertEquals(AnipSync.CHANNEL_RELEASE, again.channel)
         assertEquals("只取了一次清单", 1, access.small.size)
         assertEquals("没有下载任何包", 0, access.file.size)
@@ -177,6 +180,7 @@ class AnipReleaseFlowTest {
         assertFalse(outcome.unchanged)
         assertEquals(AnipSync.CHANNEL_ARCHIVE, outcome.channel)
         assertNull(outcome.tag)
+        assertTrue("整库归档记的是取到它的时间（source.json 的 timestamp），没有上游版本可报", outcome.versionTime > 0L)
         assertEquals(listOf(bundleUrl to bundle.size.toLong(), AnipSync.ZIP_URL to AnipSnapshotBuilder.DEFAULT_LIMITS.archiveBytes), access.file)
         assertEquals(AnipSync.CHANNEL_ARCHIVE, RuleLibrary.readSource(rules)!!.channel)
         assertEquals(sha256(archive), RuleLibrary.readSource(rules)!!.sha256)
@@ -228,6 +232,21 @@ class AnipReleaseFlowTest {
         assertEquals(0, access.small.size)
         assertEquals(listOf(custom to AnipSnapshotBuilder.DEFAULT_LIMITS.archiveBytes), access.file)
         assertEquals(AnipSync.CHANNEL_ARCHIVE, outcome.channel)
+    }
+
+    @Test
+    fun `the manifest address can be pointed elsewhere - the device suite does this with a local source`() {
+        val local = "http://127.0.0.1:28765/anip-release.json"
+        val localBundle = "http://127.0.0.1:28765/anip-bundle-abc1234.zip"
+        access.served[localBundle] = bundle
+
+        val outcome = AnipSync.syncDetailed(rules, url = AnipSync.ZIP_URL, access = access, manifestUrl = local)
+
+        assertTrue(outcome.ok)
+        assertEquals("abc1234", outcome.tag)
+        assertEquals(listOf(local to AnipReleaseChannel.MAX_MANIFEST_BYTES), access.small)
+        assertEquals(listOf(localBundle to bundle.size.toLong()), access.file)
+        assertNoResidue()
     }
 
     @Test

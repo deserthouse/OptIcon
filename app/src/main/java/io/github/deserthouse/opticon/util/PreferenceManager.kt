@@ -446,10 +446,13 @@ object PreferenceManager {
             "", true, io.github.deserthouse.opticon.domain.SourceFormat.ANIP_BUNDLE),
     )
 
-    /** PICP 完美图标计划源 — zipball endpoint */
+    /** PICP 完美图标计划源 — main 分支的整库 zipball。
+     *  地址用普通的归档形式而不是 GitHub API 接口（批 UP）：内容相同，但 API 接口有匿名调用限额
+     *  （60 次 / 小时 / 每 IP），共用出口 IP 的用户会被误拒。扫描器按 `themes/<主题>/icons/<包名>/1.png`
+     *  匹配，不依赖归档外层目录名，所以两种地址下下来的包都能用。 */
     val BUILTIN_PICP_SOURCES = listOf(
         SubscriptionSource("picp_github", "完美图标补全计划（Perfect-Icons-Completion-Project）",
-            "https://api.github.com/repos/pzcn/Perfect-Icons-Completion-Project/zipball/main",
+            "https://github.com/pzcn/Perfect-Icons-Completion-Project/archive/refs/heads/main.zip",
             "", true, io.github.deserthouse.opticon.domain.SourceFormat.PICP_ZIPBALL),
     )
 
@@ -457,6 +460,25 @@ object PreferenceManager {
      *  capability so the edit dialog can go read-only instead of假保存. */
     fun isBuiltinSource(id: String): Boolean =
         BUILTIN_ANIA_SOURCES.any { it.id == id } || BUILTIN_PICP_SOURCES.any { it.id == id }
+
+    // ── 设备验证入口（仅调试包） ──
+    // 设备验证套件（scripts/device）把内置规则源的官方发布清单指到本机测试源，用来控制「有没有新版本」
+    // 「包对不对得上」这些情形。正式包里 [anipManifestOverride] 恒返回 null：BuildConfig.DEBUG 为 false，
+    // 也没有任何界面、接收器会写这个键。
+    private const val KEY_E2E_ANIP_MANIFEST = "e2e_anip_manifest_url"
+
+    /** 内置规则源的清单改用这个地址；null = 用上游官方地址。只认 https，或回环地址上的明文。 */
+    internal fun anipManifestOverride(): String? {
+        if (!io.github.deserthouse.opticon.BuildConfig.DEBUG) return null
+        val url = try {
+            prefs?.getString(KEY_E2E_ANIP_MANIFEST, null)
+        } catch (_: Exception) {
+            null
+        } ?: return null
+        return url.trim().takeIf {
+            it.startsWith("https://") || it.startsWith("http://127.0.0.1:") || it.startsWith("http://10.0.2.2:")
+        }
+    }
 
     private const val KEY_CUSTOM_SOURCES = "custom_sub_sources"
     private const val KEY_ACTIVE_ANIA_SOURCE = "active_ania_source"

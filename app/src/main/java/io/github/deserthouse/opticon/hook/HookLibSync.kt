@@ -3,8 +3,11 @@ package io.github.deserthouse.opticon.hook
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import io.github.deserthouse.opticon.engine.AnipReleaseChannel
+import io.github.deserthouse.opticon.engine.AnipSnapshotBuilder
 import io.github.deserthouse.opticon.engine.AnipSync
 import io.github.deserthouse.opticon.engine.RuleLibrary
+import io.github.deserthouse.opticon.engine.SvgRasterizer
 import io.github.deserthouse.opticon.util.TraceLogger
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
@@ -64,12 +67,20 @@ object HookLibSync {
     private val started = AtomicBoolean(false)
     private val wakeSignal = WakeSignal()
 
+    /** 取字节与 SVG 渲染的注入点（批 UP）。生产都是 null / [SvgRasterizer]；单测换成不联网、不依赖
+     *  Android 图形的实现，用来验证这条接线上「清单从哪取、SVG 交给谁渲染」真的传到了。 */
+    internal var releaseAccess: AnipReleaseChannel.Access? = null
+    internal var svgRasterizer: AnipSnapshotBuilder.IconRasterizer = SvgRasterizer
+
     /** 上一轮看到的开关状态。巡检自己发现「关 → 开」时按事件处理。 */
     @Volatile
     private var lastKnownEnabled: Boolean = false
 
     @Volatile
     private var iconDir: File? = null
+
+    /** 单测用：清掉缓存的缓存目录，让下一个测试用自己的临时目录。 */
+    internal fun forgetDirForTest() { iconDir = null }
 
     @Volatile
     private var appContext: Context? = null
@@ -306,7 +317,9 @@ object HookLibSync {
             return null
         }
         try {
-            val outcome = AnipSync.syncDetailed(dir(context), context = context)
+            val outcome = AnipSync.syncDetailed(
+                dir(context), context = context, access = releaseAccess, rasterizer = svgRasterizer
+            )
             when {
                 // 上游没有新版本：只取了一次清单（260 字节），快照没动。设备验证套件靠日志区分
                 // 「同步过了、没变化」和「没同步」，所以这两种结果各有一句固定的话。

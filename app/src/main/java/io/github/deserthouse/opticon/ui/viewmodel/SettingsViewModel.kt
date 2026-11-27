@@ -395,6 +395,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     // ━━━ ANIA sync ━━━
 
+    private fun ruleSyncStatus(ctx: Context, text: RuleSyncStatus.Text): String =
+        if (text.args.isEmpty()) ctx.getString(text.resId) else ctx.getString(text.resId, *text.args)
+
     fun syncAnia() {
         if (_aniaSyncing.value) return
         val ctx = getApplication<Application>().applicationContext
@@ -425,8 +428,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                                 ?: ctx.getString(io.github.deserthouse.opticon.R.string.sync_failed)
                         } else if (!r.wasChanged) {
                             _aniaSyncFailed.value = false
-                            _aniaSyncStatus.value = ctx.getString(
-                                io.github.deserthouse.opticon.R.string.sync_anip_uptodate, r.iconCount)
+                            // 上游没有新版本：文案带上游版本（批 UP-U4）；旧版规则源没有版本可报，用原来的说法
+                            _aniaSyncStatus.value = ruleSyncStatus(
+                                ctx, RuleSyncStatus.upToDate(r.iconCount, r.tag, r.versionTime))
                         } else {
                             _aniaIconCount.value = r.iconCount
                             // 收尾单独兜底（独立复审 D-04）：走到这里规则库已经同步成功，收尾
@@ -440,7 +444,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                             }
                             _aniaSyncFailed.value = !followUpOk
                             _aniaSyncStatus.value = if (followUpOk) {
-                                ctx.getString(io.github.deserthouse.opticon.R.string.sync_anip_done, r.iconCount)
+                                ruleSyncStatus(ctx, RuleSyncStatus.done(r.iconCount, r.tag, r.versionTime))
                             } else {
                                 ctx.getString(io.github.deserthouse.opticon.R.string.sync_anip_done_incomplete)
                             }

@@ -317,6 +317,8 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="sync_download_failed">Download failed — check network or switch source</string>
     <string name="sync_anip_done">ANIP synced %1$d rule icons</string>
     <string name="sync_anip_uptodate">Already up to date (%1$d icons)</string>
+    <string name="sync_anip_done_upstream">ANIP synced %1$d rule icons · upstream %2$s (%3$s)</string>
+    <string name="sync_anip_uptodate_upstream">Rules already up to date (%1$d icons) · upstream %2$s (%3$s)</string>
     <string name="sync_anip_done_incomplete">Rule library synced, but publishing to the notification bar did not finish — sync again</string>
     <string name="sync_picp_streaming">Downloading PICP (streaming)…</string>
     <string name="sync_picp_bytes">Downloading %1$s</string>

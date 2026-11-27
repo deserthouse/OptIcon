@@ -41,6 +41,14 @@ object SubscriptionManager {
      *  后者不通、前者通的网络里，内置规则源的同步会被误拦（hook 侧的后台同步不探测，反而能成）。 */
     internal var releaseAccess: AnipReleaseChannel.Access? = null
 
+    /** 内置源的清单地址从哪里读。生产读偏好里的设备验证入口（只有调试包写得了，见 PreferenceManager）；
+     *  读不到就是上游官方地址。 */
+    internal var anipManifestOverride: () -> String? = { PreferenceManager.anipManifestOverride() }
+
+    /** SVG → PNG 的渲染器（批 UP）。生产是 [SvgRasterizer]；单测换成不依赖 Android 图形的实现——
+     *  渲染本身在设备上验证。 */
+    internal var svgRasterizer: AnipSnapshotBuilder.IconRasterizer = SvgRasterizer
+
     data class SyncResult(
         val success: Boolean,
         val iconCount: Int = 0,
@@ -51,7 +59,9 @@ object SubscriptionManager {
         /** 被进程级同步互斥拒绝（已有同步在进行）。不是失败，界面不以错误色显示。 */
         val busy: Boolean = false,
         /** 规则库快照的版本标签（来自上游官方发布通道；整库归档没有）。 */
-        val tag: String? = null
+        val tag: String? = null,
+        /** 上游这个版本的发布时间（毫秒时间戳）；没有版本可报时为 0。 */
+        val versionTime: Long = 0L
     )
 
     /** Pre-V3 url-prefix heuristic, kept ONLY as the fallback for legacy
@@ -131,7 +141,9 @@ object SubscriptionManager {
                 context,
                 // 修复批 X-17：自定义「ANIP 资源包」地址从此真的被使用
                 AnipSync.archiveUrlFor(url),
-                access = releaseAccess
+                access = releaseAccess,
+                rasterizer = svgRasterizer,
+                manifestUrl = anipManifestOverride() ?: AnipReleaseChannel.MANIFEST_URL
             )
             if (outcome.count <= 0) {
                 // 没下到、下到了但用不了、本地出了状况——三种原因各有各的提示
@@ -157,7 +169,8 @@ object SubscriptionManager {
                     // 官方通道说上游没有新版本时快照没动：收尾（镜像、撤销清理、版本戳）也不用做
                     wasChanged = !outcome.unchanged,
                     revokedPackages = outcome.revokedPackages,
-                    tag = outcome.tag
+                    tag = outcome.tag,
+                    versionTime = outcome.versionTime
                 )
             )
             return

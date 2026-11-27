@@ -78,6 +78,7 @@ object AnipSync {
      * [revokedPackages]：同步前在库里、新版本里没有的包（上游撤销）——
      * 供调用方在别的读取通道上把它们的图标一并清掉（修复批 X-04）。
      * [unchanged]：官方通道说上游没有新版本——没有下载、没有重建，count 是现有快照的条数。
+     * [versionTime]：上游这个版本的发布时间（毫秒时间戳），界面用它显示日期；没有版本可报时为 0。
      */
     data class SyncOutcome(
         val count: Int,
@@ -85,6 +86,7 @@ object AnipSync {
         val unchanged: Boolean = false,
         val channel: String = CHANNEL_ARCHIVE,
         val tag: String? = null,
+        val versionTime: Long = 0L,
         val failure: Failure? = null
     ) {
         val ok: Boolean get() = count > 0
@@ -104,7 +106,8 @@ object AnipSync {
 
     /**
      * [syncDetailed] 的完整结果（含被撤销的包）。同步是阻塞的，调用方负责线程。
-     *  [ops] / [access] / [rasterizer] 是注入点，生产用默认值。
+     *  [ops] / [access] / [rasterizer] 是注入点，生产用默认值；[manifestUrl] 同理（官方发布清单的地址，
+     *  调试包的设备验证套件把它指到本机测试源）。
      */
     internal fun syncDetailed(
         dir: File,
@@ -114,7 +117,8 @@ object AnipSync {
         ops: FileSnapshotSwitch.FsOps = FileSnapshotSwitch.FsOps.Default,
         access: AnipReleaseChannel.Access? = null,
         rasterizer: AnipSnapshotBuilder.IconRasterizer = AnipSnapshotBuilder.NO_RASTERIZER,
-        limits: AnipSnapshotBuilder.Limits = AnipSnapshotBuilder.DEFAULT_LIMITS
+        limits: AnipSnapshotBuilder.Limits = AnipSnapshotBuilder.DEFAULT_LIMITS,
+        manifestUrl: String = AnipReleaseChannel.MANIFEST_URL
     ): SyncOutcome {
         // Context-free callers (hook self-sync) fall back to locale tables so the
         // progress strings stay single-language on either locale.
@@ -153,7 +157,7 @@ object AnipSync {
             var haveArchive = false
             if (url == ZIP_URL) {
                 // 内置源：先走官方发布通道，用不上再退回整库
-                when (val fetched = AnipReleaseChannel.fetchLatest(net)) {
+                when (val fetched = AnipReleaseChannel.fetchLatest(net, manifestUrl)) {
                     is AnipReleaseChannel.Fetched.Ok -> {
                         val release = fetched.release
                         val live = RuleLibrary.readSource(dir)
@@ -161,7 +165,8 @@ object AnipSync {
                         if (liveCount > 0 && live?.channel == CHANNEL_RELEASE && live.tag == release.tag) {
                             TraceLogger.i(TAG, "ANIP source: release ${release.tag} is already in place ($liveCount icons) — nothing to download")
                             return SyncOutcome(
-                                liveCount, emptyList(), unchanged = true, channel = CHANNEL_RELEASE, tag = release.tag
+                                liveCount, emptyList(), unchanged = true, channel = CHANNEL_RELEASE,
+                                tag = release.tag, versionTime = release.timestamp
                             )
                         }
                         progress(io.github.deserthouse.opticon.R.string.sync_anip_bundle)
@@ -240,7 +245,7 @@ object AnipSync {
             )
             return SyncOutcome(
                 built.items.size, revoked,
-                unchanged = false, channel = source.channel, tag = source.tag
+                unchanged = false, channel = source.channel, tag = source.tag, versionTime = source.timestamp
             )
         } catch (e: Exception) {
             TraceLogger.w(TAG, "ANIP sync error: ${e.message}")

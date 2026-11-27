@@ -75,6 +75,26 @@ class PicpZipScannerTest {
     }
 
     @Test
+    fun `the outer directory name does not matter`() {
+        // 批 UP-U3：内置地址从 GitHub API 的 zipball 接口换成普通归档地址，两者解出来的外层目录名不同
+        // （`<用户>-<仓库>-<提交>` 对 `<仓库>-main`）。扫描器按 themes/…/icons/<包名>/1.png 匹配，两种都要能用。
+        var n = 0
+        for (root in listOf("pzcn-Perfect-Icons-Completion-Project-1a2b3c4d", "Perfect-Icons-Completion-Project-main")) {
+            val zip = PicpZipFixtures.write(
+                File(tmp.root, "payload-${n++}.zip"),
+                rawZip(listOf(
+                    "$root/themes/dark/icons/com.a/1.png" to "pngA",
+                    "$root/app/src/main/AndroidManifest.xml" to "<manifest/>"
+                ).map { it.first to it.second.toByteArray() })
+            )
+            val staging = File(tmp.root, "staging-${n}")
+
+            assertEquals(1, PicpZipScanner.extractToStaging(zip, staging))
+            assertEquals("pngA", File(staging, "com.a.png").readText())
+        }
+    }
+
+    @Test
     fun `first theme wins for a package that appears in several themes`() {
         val zip = zipOfEntries(listOf(
             "repo-main/themes/dark/icons/com.a/1.png" to "from-dark",

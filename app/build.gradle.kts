@@ -149,6 +149,9 @@ dependencies {
     // ━━━ Image Loading (Coil 2.x for Compose) ━━━
     implementation("io.coil-kt:coil-compose:2.7.0")
 
+    // ━━━ SVG Rendering (批 UP：上游规则库里的 SVG 图标在同步时渲染成 PNG；与上游 SDK 用的是同一个库) ━━━
+    implementation("com.caverock:androidsvg-aar:1.4")
+
     // ━━━ Coroutines ━━━
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1")
 

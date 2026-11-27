@@ -64,14 +64,15 @@ internal object AnipReleaseChannel {
         fun fetchToFile(url: String, dest: File, maxBytes: Long): Boolean
     }
 
-    /** 取最新版本的清单并校验。任何失败都是 [Fetched.Unavailable]，不抛。 */
-    fun fetchLatest(access: Access): Fetched {
+    /** 取最新版本的清单并校验。任何失败都是 [Fetched.Unavailable]，不抛。
+     *  [manifestUrl] 生产恒为 [MANIFEST_URL]；调试包的设备验证套件把它指到本机测试源（见 SubscriptionManager）。 */
+    fun fetchLatest(access: Access, manifestUrl: String = MANIFEST_URL): Fetched {
         val bytes = try {
-            access.fetchSmall(MANIFEST_URL, MAX_MANIFEST_BYTES)
+            access.fetchSmall(manifestUrl, MAX_MANIFEST_BYTES)
         } catch (e: Exception) {
             return Fetched.Unavailable("manifest request failed (${e.javaClass.simpleName}: ${e.message})")
         } ?: return Fetched.Unavailable("manifest request failed")
-        return parse(bytes.toString(Charsets.UTF_8))
+        return parse(bytes.toString(Charsets.UTF_8), manifestUrl)
     }
 
     fun parse(text: String, manifestUrl: String = MANIFEST_URL): Fetched {
@@ -111,14 +112,20 @@ internal object AnipReleaseChannel {
         return Fetched.Ok(Release(tag.lowercase(Locale.ROOT), timestamp, size, sha256.lowercase(Locale.ROOT), url))
     }
 
-    /** 清单里的下载地址：相对名按清单所在目录解析；绝对地址也必须落在这个目录里。 */
+    /** 清单里的下载地址：相对名按清单所在目录解析；绝对地址也必须落在这个目录里。
+     *  对外一律 https；只有清单自己落在回环地址上时才允许明文（调试包的设备验证用本机测试源）。 */
     fun resolve(manifestUrl: String, downloadUrl: String): String? {
         if (downloadUrl.isEmpty() || downloadUrl.contains("..") || downloadUrl.contains('?') || downloadUrl.contains('#')) return null
         val base = manifestUrl.substringBeforeLast('/', "") + "/"
         val url = if (downloadUrl.startsWith("https://") || downloadUrl.startsWith("http://")) downloadUrl else base + downloadUrl
-        if (!url.startsWith("https://") || !url.startsWith(base)) return null
+        val secure = url.startsWith("https://") ||
+            (LOOPBACK_HTTP.any { base.startsWith(it) } && url.startsWith("http://"))
+        if (!secure || !url.startsWith(base)) return null
         return url
     }
+
+    /** 回环地址上的明文清单：设备自己（127.0.0.1），或模拟器里的宿主机（10.0.2.2）。 */
+    private val LOOPBACK_HTTP = listOf("http://127.0.0.1:", "http://[::1]:", "http://10.0.2.2:")
 
     /** 按清单核对下载下来的包：大小与 SHA-256 都对才算。读不出 → false。 */
     fun verify(file: File, release: Release): Boolean {

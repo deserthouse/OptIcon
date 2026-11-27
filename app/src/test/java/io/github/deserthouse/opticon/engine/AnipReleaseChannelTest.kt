@@ -183,4 +183,37 @@ class AnipReleaseChannelTest {
         assertNull(AnipReleaseChannel.resolve(base + "anip-release.json", "http://github.com/o/r/releases/latest/download/x.zip"))
         assertEquals(base + "x.zip", AnipReleaseChannel.resolve(base + "anip-release.json", "https://github.com/o/r/releases/latest/download/x.zip"))
     }
+
+    @Test
+    fun `cleartext is allowed only when the manifest itself is on a loopback address`() {
+        // 设备验证套件的本机测试源：设备自己（127.0.0.1），或模拟器里的宿主机（10.0.2.2）
+        for (host in listOf("127.0.0.1", "10.0.2.2", "[::1]")) {
+            val base = "http://$host:28765/"
+            assertEquals(base + "anip-bundle-abc.zip", AnipReleaseChannel.resolve(base + "anip-release.json", "anip-bundle-abc.zip"))
+            // 回环清单也不许把下载引到别处
+            assertNull(AnipReleaseChannel.resolve(base + "anip-release.json", "http://evil.example/anip-bundle-abc.zip"))
+            assertNull(AnipReleaseChannel.resolve(base + "anip-release.json", "https://$host:28765/anip-bundle-abc.zip"))
+        }
+        // 对外的明文清单一律不认
+        assertNull(AnipReleaseChannel.resolve("http://example.com/r/anip-release.json", "anip-bundle-abc.zip"))
+        assertNull(AnipReleaseChannel.resolve("http://192.168.1.2:28765/anip-release.json", "anip-bundle-abc.zip"))
+    }
+
+    @Test
+    fun `the manifest is requested from the given address and the bundle resolved against it`() {
+        val access = FakeAccess()
+        access.answer = real.toByteArray()
+        val local = "http://127.0.0.1:28765/anip-release.json"
+
+        val result = AnipReleaseChannel.fetchLatest(access, local)
+
+        assertEquals(listOf(local to AnipReleaseChannel.MAX_MANIFEST_BYTES), access.small)
+        val release = (result as AnipReleaseChannel.Fetched.Ok).release
+        assertEquals("http://127.0.0.1:28765/anip-bundle-e98c906.zip", release.downloadUrl)
+
+        // 不传地址就是上游官方地址
+        access.small.clear()
+        AnipReleaseChannel.fetchLatest(access)
+        assertEquals(listOf(AnipReleaseChannel.MANIFEST_URL to AnipReleaseChannel.MAX_MANIFEST_BYTES), access.small)
+    }
 }
