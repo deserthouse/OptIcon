@@ -6,7 +6,7 @@
 #   bash scripts/device/run_suite.sh --only d1,d4     # 只跑指定场景
 #   bash scripts/device/run_suite.sh --skip d6b       # 跳过指定场景（d6b 最慢，d5/d6/d9 需要外网）
 #
-# 前提：调试包（带测试接收器与明文流量声明）、root（su）、宿主机不忙（CPU < 60%、空闲内存 ≥ 5GB，否则不跑）。
+# 前提：调试包（带测试接收器与明文流量声明）、root（su）、宿主机不忙（CPU 持续低于 60%，否则不跑）。
 # 三道闸：宿主机负载、设备状态（有窗口持有焦点、锁屏没有挂着）、场景完整（导航失败即停，不留凭空通过的检查）。
 # 细节见同目录 README.md。
 # 套件自带备份与还原（偏好文件、显示设置、通知权限、图标库；PIN 用完即清），还原失败会在报告里标出。
@@ -410,10 +410,10 @@ setup() {
   require_avd
   adb -s "$S" logcat -c -b all
   # 宿主负载过高就不跑（见 lib.sh 的「宿主机负载」）：这时跑出来的失败和被测包无关
-  local h; h=$(host_load)
-  note "环境：宿主机负载（开始时）" "CPU ${h%%,*}%，空闲内存 ${h#*,}GB"
+  local h r; h=$(host_load); r="${h#*,}"
+  note "环境：宿主机负载（开始时）" "CPU ${h%%,*}%，提交率 ${r%%,*}%，硬缺页 ${r#*,} 每秒"
   if [ "${SUITE_ALLOW_LOADED_HOST:-0}" != "1" ]; then
-    check "宿主机负载不高（CPU 低于 60%、空闲内存不少于 5GB；连续两次采样）" not host_busy \
+    check "宿主机负载不高（CPU 持续低于 60%；连续三次采样）" not host_busy \
       || { log "宿主机负载过高，不跑。等宿主空闲再试；确要跑设 SUITE_ALLOW_LOADED_HOST=1"; return 1; }
   fi
   check "被测包已安装" as pm path "$PKG"
@@ -546,9 +546,9 @@ trap on_exit EXIT
 for s in d1 d2 d3 d4 d5 d6 d6b d7 d8 d9; do
   want "$s" || continue
   if [ "$DEVICE_DEAD" = "1" ]; then log "设备已经不接收点击，$s 不跑了"; continue; fi
-  h=$(host_load)
+  h=$(host_load); r="${h#*,}"
   if [ "${SUITE_ALLOW_LOADED_HOST:-0}" != "1" ] && host_busy; then   # 跑到一半宿主机忙起来也得停
-    note "宿主机负载（$s 之前）" "CPU ${h%%,*}%，空闲内存 ${h#*,}GB"
+    note "宿主机负载（$s 之前）" "CPU ${h%%,*}%，提交率 ${r%%,*}%，硬缺页 ${r#*,} 每秒"
     check "宿主机负载不高（$s 之前）" false
     log "宿主机负载过高，终止。等宿主空闲再跑"
     break

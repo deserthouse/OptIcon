@@ -199,7 +199,9 @@ def repo_slug():
 
 def credential_token():
     """令牌只在本进程内存里。"""
-    p = subprocess.run(["git", "credential", "fill"], cwd=ROOT, input="protocol=https\nhost=github.com\n\n",
+    # 输入必须是字节：subprocess 不带 text=True 时只接受 bytes（2026-11-27 在 Python 3.14 上实测抛 TypeError，
+    # 而此前的预演只走到 dry-run，没有经过这里）
+    p = subprocess.run(["git", "credential", "fill"], cwd=ROOT, input=b"protocol=https\nhost=github.com\n\n",
                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     out = p.stdout.decode("utf-8", "replace")
     for line in out.splitlines():

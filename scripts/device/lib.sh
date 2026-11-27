@@ -81,20 +81,25 @@ not() { "$@"; [ $? -ne 0 ]; }
 no_node() { not node_xy "$1"; }
 
 # ── 宿主机负载 ──
-# 2026-11-25：宿主机在跑游戏时（CPU 85%、空闲内存 4.6GB）跑套件，虚拟机里的系统界面进程重启后起不来，
-# 整轮的失败全是环境造成的。宿主负载过高就不跑；确要在这种时候跑，设 SUITE_ALLOW_LOADED_HOST=1。
-host_load() {  # 输出 "CPU%,空闲GB"；读不到时输出空
-  powershell -NoProfile -Command "\$os=Get-CimInstance Win32_OperatingSystem; \$c=(Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average; '{0},{1:N2}' -f \$c, (\$os.FreePhysicalMemory/1MB)" 2>/dev/null | tr -d '\r'
+# 2026-11-25：宿主机在跑游戏时（CPU 85%）跑套件，虚拟机里的系统界面进程重启后起不来，整轮的失败全是环境造成的。
+# 宿主机持续忙就不跑；确要在这种时候跑，设 SUITE_ALLOW_LOADED_HOST=1。
+# 只按 CPU 判定——可用内存说明不了问题：游戏占着 34GB 私有内存的那晚可用内存还有 4.6GB，反而比平时
+# 一台虚拟机加构建守护进程跑着的时候（约 3.5GB）多（2026-11-27 实测，那次内存判据把自己的整跑拦下了）。
+# 提交率与硬缺页只为留记录，没有在故障现场标定过，不参与判定。
+host_load() {  # 输出 "CPU%,提交率%,硬缺页每秒"；读不到时输出空
+  powershell -NoProfile -Command "\$m=Get-CimInstance Win32_PerfFormattedData_PerfOS_Memory; \$c=(Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average; '{0},{1},{2}' -f \$c, \$m.PercentCommittedBytesInUse, \$m.PagesPersec" 2>/dev/null | tr -d '\r'
 }
-host_loaded() {  # host_load 的输出 → 负载过高（CPU ≥ 60% 或空闲内存 < 5GB）时退出码 0；读不到时不拦
-  [[ "$1" =~ ^[0-9]+,[0-9.]+$ ]] || return 1
-  [ "${1%%,*}" -ge "${HOST_CPU_MAX:-60}" ] && return 0
-  awk -v m="${1#*,}" -v min="${HOST_MEM_MIN:-5}" 'BEGIN { exit !(m + 0 < min + 0) }'
+host_loaded() {  # host_load 的输出 → CPU ≥ 60% 时退出码 0；读不到时不拦
+  [[ "$1" =~ ^[0-9]+, ]] || return 1
+  [ "${1%%,*}" -ge "${HOST_CPU_MAX:-60}" ]
 }
-host_busy() {  # 连续两次采样都过高才算（避开瞬时尖峰）；退出码 0 = 宿主机忙
-  host_loaded "$(host_load)" || return 1
-  sleep 5
-  host_loaded "$(host_load)"
+host_busy() {  # 连续三次采样（间隔 10 秒）都过高才算——别的实例开机、杀毒扫描这类瞬时尖峰不算；退出码 0 = 宿主机忙
+  local i
+  for i in 1 2 3; do
+    host_loaded "$(host_load)" || return 1
+    [ "$i" = "3" ] || sleep 10
+  done
+  return 0
 }
 
 # ── 界面 ──
