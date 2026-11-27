@@ -129,9 +129,9 @@ def main():
     while True:
         runs = list_runs(tok, sha, args.all_runs)
         states = [describe_run(tok, run) for run in runs]
-        if all(done for done, _ in states) or time.time() >= deadline:
+        if (runs and all(done for done, _ in states)) or time.time() >= deadline:
             break
-        print("…还没跑完，20 秒后再看")
+        print("…%s，20 秒后再看" % ("还没跑完" if runs else "还没有运行"))
         time.sleep(20)
     if not runs:
         print("这个提交还没有 CI 运行")
