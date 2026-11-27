@@ -1,0 +1,66 @@
+name: Checks
+description: >-
+  发版门禁的检查步骤：单测（强制重跑）、lint、中英文案对齐、版本号一致性。
+  ci.yml 的首个 job 与自动重试 job 共用这一份。
+
+inputs:
+  reports-name:
+    description: 上传报告用的附件名（不同 job 要区分开）
+    required: false
+    default: reports
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: "21"
+
+    # 运行器自带 sdkmanager，不用第三方的 setup-android：它替人接受 SDK 许可时只答固定条数，
+    # 未接受的许可一多（2026-11-27 首次运行时有 7 条）就以退出码 1 失败。这里全部接受；
+    # 缺的平台与构建工具由 Gradle 自己下载。
+    - name: Android SDK licenses
+      shell: bash
+      run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
+    # 依赖仓库的可达性：2026-11-27 有两次运行在解析 Kotlin 插件时被判「找不到」，重跑即过；记录状态码与出口 IP 便于定位
+    - name: Repository reachability
+      continue-on-error: true
+      shell: bash
+      run: |
+        for u in https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/maven-metadata.xml \
+                 https://plugins.gradle.org/m2/org/jetbrains/kotlin/kotlin-stdlib/maven-metadata.xml \
+                 https://dl.google.com/dl/android/maven2/androidx/core/core/maven-metadata.xml; do
+          curl -sS -o /dev/null -m 30 -w "%{http_code} %{remote_ip} %{time_total}s $u\n" "$u" || echo "FAILED $u"
+        done
+
+    - uses: gradle/actions/setup-gradle@v4
+
+    - name: Unit tests (always re-run)
+      shell: bash
+      run: bash scripts/ci_gradle.sh :app:testDebugUnitTest --rerun-tasks
+
+    - name: Lint
+      shell: bash
+      run: bash scripts/ci_gradle.sh :app:lintDebug
+
+    - name: String parity (zh = en, placeholders match)
+      shell: bash
+      run: python3 scripts/check_strings.py
+
+    - name: Version consistency (build.gradle / CHANGELOG / local notes when present)
+      shell: bash
+      run: bash scripts/check_doc_sync.sh
+
+    - name: Upload reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.reports-name }}
+        if-no-files-found: ignore
+        path: |
+          app/build/reports/lint-results-debug.html
+          app/build/test-results/testDebugUnitTest/
