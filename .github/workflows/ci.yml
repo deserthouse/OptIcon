@@ -28,7 +28,7 @@ jobs:
     outputs:
       failed: ${{ steps.verdict.outputs.failed }}
     steps:
-      - uses: actions/checkout@v4   # 本地组合动作要先检出仓库才找得到
+      - uses: actions/checkout@v7   # 本地组合动作要先检出仓库才找得到
       - id: checks
         continue-on-error: true
         uses: ./.github/actions/checks
@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/checks
         with:
           reports-name: reports-retry
