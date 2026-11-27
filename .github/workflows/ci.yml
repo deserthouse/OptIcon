@@ -36,10 +36,11 @@ jobs:
 
       # 依赖仓库的可达性：2026-11-27 有两次运行在解析 Kotlin 插件时被判「找不到」，重跑即过；记录状态码与出口 IP 便于定位
       - name: Repository reachability
+        continue-on-error: true
         run: |
-          for u in "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/maven-metadata.xml"
-                   "https://plugins.gradle.org/m2/org/jetbrains/kotlin/kotlin-stdlib/maven-metadata.xml"
-                   "https://dl.google.com/dl/android/maven2/androidx/core/core/maven-metadata.xml"; do
+          for u in https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/maven-metadata.xml \
+                   https://plugins.gradle.org/m2/org/jetbrains/kotlin/kotlin-stdlib/maven-metadata.xml \
+                   https://dl.google.com/dl/android/maven2/androidx/core/core/maven-metadata.xml; do
             curl -sS -o /dev/null -m 30 -w "%{http_code} %{remote_ip} %{time_total}s $u\n" "$u" || echo "FAILED $u"
           done
       - uses: gradle/actions/setup-gradle@v4
