@@ -26,7 +26,7 @@
 - **正式版**：某个 beta 在用户真机上跑满两周、期间没有 P1/P2，方可转正；转正只改版本号与更新日志，不带新功能。真机走查仍按上节（自然观察，不设排期）。
 - **验证范围三栏**（设备上验证过 / 仅 JVM 单测 / 未验证）是报告与 Release 正文的硬格式：没列出的就是没验证，「代码完成」不等于「验收通过」。
 - **发版五步走 `python scripts/release.py`**（`preflight → build → tag → publish → verify`；`notes` 起草 Release 正文与三栏验证范围）。工具里写死了硬约束：工作区干净、版本与签名核对、验证范围文件必须存在才允许发布、令牌只经 `git credential fill` 进内存、发布后重新下载比对摘要且不改旧条目；`verify` 不带令牌也能跑。不手工拼发版命令。
-- **CI**（`.github/workflows/ci.yml`，检查步骤在 `.github/actions/checks`）跑单测、lint、中英字符串齐平与文档同步；CI 红了不发版。**看结果要逐个 job 看**：门禁是「首个 job 失败则自动换一台运行器重试一次，两次都失败才判红」，整次运行的 conclusion 只反映重试之后的结果。`.github/workflows/diagnose.yml` 是只手动触发的依赖解析诊断。
+- **CI**（`.github/workflows/ci.yml`，检查步骤在 `.github/actions/checks`）跑单测、lint、中英字符串齐平与文档同步；CI 红了不发版。**看结果用 `python scripts/ci_status.py main`**（逐个 job 给结论；`--wait` 等结果、`--logs` 取日志、`--rerun` 重跑失败的任务）：门禁是「首个 job 失败则自动换一台运行器重试一次，两次都失败才判红」，整次运行的 conclusion 只反映重试之后的结果。`.github/workflows/diagnose.yml` 是只手动触发的依赖解析诊断。
 - **先等 CI 绿，再构建**（2026-11-27 实证）：并回 main 后先推 main、等 CI 绿，再 preflight → build → tag → publish → verify。CI 的修复算新提交，构建记录随提交作废；顺序反了就得重建（当天为此重建过一次，被顶替的构建从未发布）。
 
 ## 版本与构建
