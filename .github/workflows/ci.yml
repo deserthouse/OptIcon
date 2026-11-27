@@ -29,7 +29,10 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - uses: android-actions/setup-android@v3
+      # 运行器自带 sdkmanager，不用第三方的 setup-android：它替人接受 SDK 许可时只答固定条数，
+      # 未接受的许可一多（2026-11-27 首次运行时有 7 条）就以退出码 1 失败。这里全部接受；缺的平台与构建工具由 Gradle 自己下载。
+      - name: Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
       - uses: gradle/actions/setup-gradle@v4
 
