@@ -26,7 +26,8 @@
 - **正式版**：某个 beta 在用户真机上跑满两周、期间没有 P1/P2，方可转正；转正只改版本号与更新日志，不带新功能。真机走查仍按上节（自然观察，不设排期）。
 - **验证范围三栏**（设备上验证过 / 仅 JVM 单测 / 未验证）是报告与 Release 正文的硬格式：没列出的就是没验证，「代码完成」不等于「验收通过」。
 - **发版五步走 `python scripts/release.py`**（`preflight → build → tag → publish → verify`；`notes` 起草 Release 正文与三栏验证范围）。工具里写死了硬约束：工作区干净、版本与签名核对、验证范围文件必须存在才允许发布、令牌只经 `git credential fill` 进内存、发布后重新下载比对摘要且不改旧条目；`verify` 不带令牌也能跑。不手工拼发版命令。
-- **CI**（`.github/workflows/ci.yml`）跑单测、lint、中英字符串齐平与文档同步；CI 红了不发版。
+- **CI**（`.github/workflows/ci.yml`，检查步骤在 `.github/actions/checks`）跑单测、lint、中英字符串齐平与文档同步；CI 红了不发版。**看结果要逐个 job 看**：门禁是「首个 job 失败则自动换一台运行器重试一次，两次都失败才判红」，整次运行的 conclusion 只反映重试之后的结果。`.github/workflows/diagnose.yml` 是只手动触发的依赖解析诊断。
+- **先等 CI 绿，再构建**（2026-11-27 实证）：并回 main 后先推 main、等 CI 绿，再 preflight → build → tag → publish → verify。CI 的修复算新提交，构建记录随提交作废；顺序反了就得重建（当天为此重建过一次，被顶替的构建从未发布）。
 
 ## 版本与构建
 
@@ -42,6 +43,7 @@
 - **ViewModel 构造期的协程必须在构造完成之后启动（2026-11-24 设备套件实测）**：`viewModelScope` 用的是 `Main.immediate`，init 块里 `launch` 的协程体会**就地执行**；其中的 `withContext(Dispatchers.IO)` 在后台那段完成得足够快时**不挂起**、就地继续往下跑，此时声明在 init 之后的属性还是 null → 空指针崩溃（`SettingsViewModel` 打开设置页崩溃，栈里 `<init>` 直接压着 `invokeSuspend`）。这是线程调度决定的概率事件，宿主或设备负载高时才撞得上，单次手测抓不到。init 块里启动协程一律用 `launchAfterInit`（不带 immediate 的 `Dispatchers.Main`，先投递再执行）；设备套件报告末尾有「全程被测应用 / 系统界面没有崩溃」总闸。
 - **Compose 对话框默认不为软键盘让位（2026-11-25 设备套件实证）**：`Dialog` / `AlertDialog` 默认不指定软键盘模式，系统选的是 `adjustPan`（窗口管理器里看得到 `sim={adjust=pan}`）——窗口不缩小，只在焦点输入框会被键盘盖住时整块上移，焦点在上面的输入框时底部按钮就被键盘盖住。含输入框的对话框要显式 `DialogProperties(decorFitsSystemWindows = false)` + `Modifier.safeDrawingPadding()`（Material 3 1.5.0-alpha22 的 AlertDialog 自己不处理窗口占位）。验证口径：读窗口管理器里输入法的 `type=ime frame=` 上沿，断言按钮都在它上方；「输入法已显示」不够——模拟器挂着实体键盘时输入法可能只是侧边工具条或悬浮键盘，都不占屏幕底部。
 - **设备验证套件的三道闸（2026-11-25 实证）**：①**宿主机忙就不跑**——宿主在跑游戏时（CPU 85%、空闲内存 4.6G）整跑，虚拟机被饿到，系统界面进程重启后起不来（启动超时被杀），整轮的失败与被测包无关；套件开跑前和每个场景前各看一次宿主负载（CPU 连续三次采样都 ≥ 60% 就不跑；**可用内存不能当判据**——游戏占满的那晚它反而比平时高）。②**杀系统界面进程 = 框架立即把锁屏置为显示中**（`wm_set_keyguard_shown`），新进程起来才撤；新进程起不来就「没有窗口持有焦点」，之后每一次点击都被输入分发器丢掉（`Dropping event because there is no touchable window`），截图与界面树却可能看着正常。点击集体失效时先查 `dumpsys window` 的 `mCurrentFocus` 与 `KeyguardServiceDelegate.showing`，不要去猜应用卡顿；导航前断言「有窗口持有焦点 + 锁屏没挂着」，不满足就留现场（报告目录 `diag-*/`）并停。③**界面树采集先删旧文件、带超时**——`uiautomator dump` 失败不写新文件，旧文件会让「点击生效」这类判断凭空为真；场景的导航失败即停，否则「没有开始同步」「图标库不变」这类检查会凭空通过。
+- **GitHub Actions 的「失败后重试」要用步骤级 continue-on-error（2026-11-27 踩过）**：任务级 `continue-on-error` 会把失败报成成功，`needs.<job>.result` 永远是 success，按它写的重试条件永远不成立——那次整次运行显示绿，实际首个 job 失败、重试被跳过。正确做法：组合动作所在的步骤 `continue-on-error`，后一步把 `steps.<id>.outcome` 写进 job 输出，重试 job 按输出决定是否运行。本地组合动作（`./.github/actions/…`）要先 `actions/checkout` 才找得到；标量里带冒号的 `run:` 要加引号。改完这类接线要在一次性分支上演练「首败 → 重试成功」与「两边都败 → 判红」两条路，并逐个 job 核对结论。另：第三方 `android-actions/setup-android` 替人接受 SDK 许可时只答固定条数，许可一多就失败——直接 `yes | sdkmanager --licenses`；依赖仓库（Maven Central / Plugin Portal，均在 Cloudflare 后）的解析会间歇失败，同一提交重跑即过，命中依赖缓存时不会发生。
 - **防御性 hook 反转事故（v0.3.1→A17）**：给"空接口"挂的无条件 hook 在新版本填充真实实现后反转为全局破坏——一切 hook 必须带配置守卫；升级目标 API 后重审全部 hook 点（A17 审计报告在 `docs/A17_HOOK_AUDIT.md`）。
 - **hook 失效排查顺序**：① LSPosed Manager 查作用域勾选（覆盖安装/重启会掉勾选，第一嫌疑）→ ② `/data/adb/lspd/log/modules_*.log` grep 包名（比 logcat 可靠）→ ③ 才轮到内核/SELinux/代码层。直接 SQL 改 modules_config.db 守护进程不感知，必须 Manager UI 操作。
 - **FileObserver 后缀过滤 bug 藏了两个月**：声称生效的功能必须回到代码路径核对（全局规范四.5 的出处）。
