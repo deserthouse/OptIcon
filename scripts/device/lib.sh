@@ -403,3 +403,69 @@ hook_cache_put() {
     su_ "cp $src $HOOK_CACHE/$pkg.png && chown $own $HOOK_CACHE/$pkg.png && chcon $ct $HOOK_CACHE/$pkg.png" || return 1
   done
 }
+
+# ── 杂项 ──
+grep_has() { printf '%s\n' "$1" | grep -q -- "$2"; }   # grep_has 文本 基本正则
+# hook_synced：日志里有一次真正跑过的自同步（不论结果）。批 UP 之后「同步过、上游没变」的日志不带 ingested，
+# 所以「没有同步过」的检查不能只看 ingested。
+hook_synced() { hook_logs | grep -q -e "self-sync ok" -e "self-sync failed" -e "rule icons into hook-local cache" -e "nothing to sync"; }
+
+# ── 本机测试源的请求计数 ──
+# server.log 每个请求一行。server_mark 记下当前行数；server_count 标记 路径 → 两个标记之间该路径的请求数。
+server_mark()  { wc -l < "$OUT/server.log" | tr -d ' '; }
+server_count() { tail -n "+$(( $1 + 1 ))" "$OUT/server.log" | grep -c -- "GET $2 "; }
+
+# ── 规则库（上游 ANIP 快照，应用侧） ──
+RULES=$P/files/fankes_cache
+pull_root()   { MSYS_NO_PATHCONV=1 adb -s "$S" exec-out "su -c 'cat $1'" > "$2" 2>/dev/null; [ -s "$2" ]; }
+rule_source() { su_ "cat $RULES/source.json" 2>/dev/null | tr -d '\r'; }   # 快照的来历（channel / tag / timestamp / sha256）
+rule_count()  { su_ "ls $RULES" 2>/dev/null | tr -d '\r' | grep -c '\.png$'; }
+rule_hash()   { su_ "cd $RULES && sha256sum * | sha256sum" 2>/dev/null | tr -d '\r' | cut -c1-64; }
+built_line()  { hook_logs | grep -m1 "ANIP snapshot built" | sed 's/^.*ANIP snapshot built: //'; }
+anip_mirrored() { local p; for p in "$@"; do as test -f "$SHARED/$p.opticon" || return 1; done; }   # 这些包在共享目录里都有镜像
+rule_residue()  { su_ "test -e $P/files/fankes_cache.zip.tmp -o -d $RULES.staging -o -d $RULES.prev"; }
+
+# rule_sync：设置页上点「通知图标源」的同步按钮。状态行出现的位置留在 RS_TY（之后用 rule_wait 取）。
+rule_sync() {
+  local sx sy
+  open_settings || return 1
+  read -r sx sy RS_TY <<< "$(section_sync_xy "Notification Icon Sources")"
+  [ -n "${sx:-}" ] || { log "没找到通知图标源分区的同步按钮"; device_diag "notif-section-not-found"; return 1; }
+  as input tap "$sx" "$sy"
+}
+# rule_wait [超时秒] → 状态行（出现结论词时）；超时时也输出当时的状态行，但退出码非零
+rule_wait() { wait_status "$RS_TY" "ANIP synced|Already up to date|failed|unavailable|Invalid data|did not finish" "${1:-300}"; }
+
+# plant_mirror 快照里的PNG：把它作为 com.android.shell 的共享镜像（经应用真实的写入链路，应用才删得掉）
+plant_mirror() {
+  local ct; ct=$(label_of "$P/files")
+  su_ "cp $1 $P/files/baked/suite-plant.png && chown \$(stat -c %u:%g $P/files) $P/files/baked/suite-plant.png && chcon $ct $P/files/baked/suite-plant.png" || return 1
+  as am broadcast -a "$PKG.E2E_BAKE" -n "$PKG/.util.E2ETestReceiver" --es pkg "$D5_PLAIN" --es method manual --es branch local --es path "$P/files/baked/suite-plant.png" >/dev/null
+  sleep 4
+  as test -f "$SHARED/$D5_PLAIN.opticon"
+}
+# unplant_mirror：删掉上面放的镜像（经媒体库，与应用自己走的是同一条路）
+unplant_mirror() {
+  note "删除测试镜像 $D5_PLAIN" "$(as content delete --uri content://media/external/downloads --where "\"_display_name='$D5_PLAIN.opticon'\"" 2>&1 | tr -d '\r' | tr '\n' ' ')"
+  not as test -f "$SHARED/$D5_PLAIN.opticon"
+}
+
+# anip_shade 场景 标签 快照里的PNG 截图前缀 [tint]：把这张图当成 com.android.shell 的小图标发一条通知，
+# 留下状态栏与通知栏的截图——审美判读交给具备视觉能力的模型或人。带 tint 时另做一条硬检查：
+# 状态栏里新出现的像素都是无彩色的（彩色位图同样被按单色着色）。
+anip_shade() {
+  local t="suite$(date +%s)$2"
+  clear_logs
+  plant_mirror "$3" || { log "没能把 $3 放成 $D5_PLAIN 的共享镜像"; unplant_mirror; return 1; }
+  shot "$4-1-before"
+  as cmd notification post -S bigtext -t suite "$t" "rule icon $2" >/dev/null; sleep 3
+  check "$1（$2）hook 用这张图替换了通知小图标" hook_has "createIcons: $D5_PLAIN -> setSmallIcon replaced"
+  shot "$4-2-status-bar"
+  [ "${5:-}" = "tint" ] && check "$1（$2）状态栏里的小图标是单色（彩色位图同样被着色）" python "$DIR/tint.py" "$OUT/$4-1-before.png" "$OUT/$4-2-status-bar.png"
+  as cmd statusbar expand-notifications; sleep 2
+  shot "$4-3-shade"
+  as cmd statusbar collapse; sleep 1
+  clear_notifications
+  save_logs "$4-replaced"
+  unplant_mirror
+}

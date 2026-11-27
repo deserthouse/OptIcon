@@ -4,7 +4,7 @@
 # 用法（项目根目录；先启动 OptIcon_A16_root、装好被测的调试包；hook 不用管，开跑时会重新加载）：
 #   bash scripts/device/run_suite.sh                  # 全部场景（约 25 分钟，含一次重启）
 #   bash scripts/device/run_suite.sh --only d1,d4     # 只跑指定场景
-#   bash scripts/device/run_suite.sh --skip d6b       # 跳过指定场景（d6b 最慢，d5/d6/d9 需要外网）
+#   bash scripts/device/run_suite.sh --skip d6b       # 跳过指定场景（d6b 最慢，d5 / d6 / d9 / d10 / d12 / d13 / d14 需要外网）
 #
 # 前提：调试包（带测试接收器与明文流量声明）、root（su）、宿主机不忙（CPU 持续低于 60%，否则不跑）。
 # 三道闸：宿主机负载、设备状态（有窗口持有焦点、锁屏没有挂着）、场景完整（导航失败即停，不留凭空通过的检查）。
@@ -31,7 +31,7 @@ mkdir -p "$OUT/backup"
 source "$ROOT/scripts/device/lib.sh"
 
 SERVER_PID=""; PIN_SET=0; PICP_HASH0=""; RESTORE_FAILED=0
-SYSUI_PID0=""; FONT0=""; NIGHT0=""; ACCEL0=""; IME0=""; COOLDOWN0=""; NOTIF_GRANTED0=""
+SYSUI_PID0=""; FONT0=""; NIGHT0=""; ACCEL0=""; IME0=""; COOLDOWN0=""; NOTIF_GRANTED0=""; PROXY0=""; MASTER0=""
 HAD_MIRROR_PLAIN=0; HAD_MIRROR_CUSTOM=0
 
 # ── 导航 ──
@@ -259,7 +259,7 @@ d6() {  # 自动更新开关（需要外网）。前提：此前 5 分钟内 hoo
   check "D6 关闭后 hook 读到关" wait_hook "auto lib update is now off" 30
   sleep 65
   save_logs d6-after-off
-  check "D6 关闭后一个巡检周期内不再同步" not hook_has "ingested"
+  check "D6 关闭后一个巡检周期内不再同步" not hook_synced
   note "D6 关闭后共享文件" "$(shared_flag auto_lib_update.opticon)"
   check_eq "D6 全程没有重启系统界面" "$(as pidof com.android.systemui | tr -d '\r')" "$SYSUI_PID0"
   # D6c：偏好被重置为关、共享文件仍是开 → 应用启动后自动对齐
@@ -288,7 +288,7 @@ d6b() {  # 锁屏密码变体：重启后解锁前不工作、解锁后自行恢
   local i; for i in $(seq 1 40); do S=$(find_serial) || { sleep 5; continue; }; [ "$(as getprop sys.boot_completed | tr -d '\r')" = "1" ] && break; sleep 5; done
   require_avd
   sleep 100   # 锁屏状态：超过开机宽限期与一个巡检周期
-  check "D6b 解锁前没有同步" not hook_has "ingested"
+  check "D6b 解锁前没有同步" not hook_synced
   check "D6b 解锁前 hook 没能建立共享目录观察者" not hook_has "FileObserver established"
   save_logs d6b-locked
   as input keyevent KEYCODE_WAKEUP; sleep 2   # 熄屏时截屏是黑图：先点亮屏幕（仍然锁着）
@@ -404,6 +404,247 @@ d9() {  # 共享目录被整体移走再放回：观察者随之作废，巡检�
   SCENARIO_DONE=1
 }
 
+# ═══════════════ 规则库：上游对齐（批 UP） ═══════════════
+# 共同的前提：偏好从备份出发，只有内置规则源、自动更新关、不带清单地址的设备验证入口（偏好键
+# e2e_anip_manifest_url，只有调试包读它）。本机清单把「官方发布清单」指到测试源，测试源提供的包就是
+# 上游 2026-11-26 那一份（924 条），只是换了标签 aaaaaaa——所以下面的已知答案对真实上游和本机清单都成立。
+
+anip_prefs() {  # anip_prefs 标签 [mkprefs 的额外参数…]
+  local tag="$1"; shift
+  python "$DIR/mkprefs.py" "$OUT/backup/optcon_prefs.xml" "$OUT/p-$tag.xml" \
+    'custom_sub_sources=[]' active_ania_source- e2e_anip_manifest_url- custom_sources_formats_migrated=1 auto_lib_update=false "$@" >/dev/null
+  prefs_inject "$OUT/p-$tag.xml"
+}
+
+# anip_restore 场景名：回到上游官方地址同步一次，把规则库放回真实上游（用过本机清单的场景收尾用；需要外网）
+anip_restore() {
+  anip_prefs "$1-restore"
+  clear_logs
+  rule_sync || { check "$1 还原：打开设置页并找到同步按钮" false; return; }
+  local st; st=$(rule_wait)
+  note "$1 还原后的状态行" "$st"
+  case "$st" in *"ANIP synced"*|*"Already up to date"*) check "$1 还原到真实上游" true;; *) check "$1 还原到真实上游" false; save_logs "$1-restore-failed"; return;; esac
+  check "$1 还原的收尾完成" wait_hook "rule sync follow-up" 150
+  check "$1 还原后快照的版本记录来自官方发布通道" grep_has "$(rule_source)" '"channel":"release"'
+  check "$1 还原后标签不是本机清单的" not grep_has "$(rule_source)" '"tag":"aaaaaaa"'
+  save_logs "$1-restore"
+}
+
+d10() {  # 真实上游（需要外网）：官方发布通道；别名与 SVG 两类包
+  anip_prefs d10
+  # 这一次一定要真的下载：抹掉快照的版本记录（0.19.7 及之前的快照本来就没有这个文件）
+  su_ "rm -f $RULES/source.json"
+  clear_logs
+  rule_sync || { check "D10 打开设置页并找到规则库的同步按钮" false; return; }
+  local st; st=$(rule_wait)
+  note "D10 规则库同步的状态行" "$st"
+  shot d10-01-after-sync
+  check "D10 状态行带上游版本（标签与日期）" grep_has "$st" "upstream [0-9a-f]\{7\} ([0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\})"
+  case "$st" in *"ANIP synced"*) check "D10 规则库同步成功" true;; *) check "D10 规则库同步成功" false; save_logs d10-sync-failed; return;; esac
+  check "D10 同步收尾完成（镜像 + 撤销清理）" wait_hook "rule sync follow-up" 150
+  check "D10 走的是官方发布通道，包通过了大小与哈希核对" hook_has "sha256 verified)"
+  local tag; tag=$(hook_logs | grep -m1 -o "ANIP source: release [0-9a-f]*" | awk '{print $NF}')
+  note "D10 上游版本" "${tag:-（日志里没有）}"
+  note "D10 快照构成" "$(built_line)"
+  save_logs d10-sync
+  if [ "$tag" = "e98c906" ]; then
+    check "D10 已知答案：924 个规则图标" grep_has "$st" "ANIP synced 924 rule icons"
+    check "D10 已知答案：814 个位图 + 10 个 SVG 渲染 + 100 个别名，缺失与未解析都是 0" \
+      hook_has "ANIP snapshot built: 924 icons (declared 924, written 814, rendered 10, aliased 100, carried over 0, missing 0, unresolved 0)"
+  else
+    note "D10 上游版本已不是已知答案那一份（e98c906）" "条数与构成以上面两行为准"
+  fi
+  check "D10 快照的版本记录：官方发布通道" grep_has "$(rule_source)" '"channel":"release"'
+  check "D10 快照的版本记录：标签与日志一致" grep_has "$(rule_source)" "\"tag\":\"${tag:-none}\""
+  check_eq "D10 快照里的 PNG 数 = 状态行里的条数" "$(rule_count)" "$(printf '%s' "$st" | grep -o 'ANIP synced [0-9]*' | awk '{print $3}')"
+  # 别名与 SVG 两类包
+  check "D10 别名包在快照里（抖音极速版）" su_ "test -f $RULES/com.ss.android.ugc.aweme.lite.png"
+  check "D10 别名包的图与目标包逐字节相同" su_ "cmp -s $RULES/com.ss.android.ugc.aweme.lite.png $RULES/com.ss.android.ugc.aweme.png"
+  check "D10 SVG 包渲染进了快照（理想汽车）" su_ "test -s $RULES/com.chehejia.oc.m01.png"
+  pull_root "$RULES/com.chehejia.oc.m01.png" "$OUT/d10-svg-rendered.png"
+  pull_root "$RULES/com.ss.android.ugc.aweme.png" "$OUT/d10-upstream-bitmap.png"
+  check "D10 渲染出的 PNG：完整、能解码、不超过 150px、有可见像素" python "$DIR/pngstat.py" "$OUT/d10-svg-rendered.png" 150
+  check "D10 取证：上游位图 PNG 完好" python "$DIR/pngstat.py" "$OUT/d10-upstream-bitmap.png"
+  note "D10 渲染出的 PNG" "$(python "$DIR/pngstat.py" "$OUT/d10-svg-rendered.png")"
+  check "D10 两类包都有共享目录的镜像" anip_mirrored com.ss.android.ugc.aweme.lite com.chehejia.oc.m01
+  SYSUI_PID0=$(as pidof com.android.systemui | tr -d '\r')
+  anip_shade D10 svg "$RULES/com.chehejia.oc.m01.png" d10-02
+  anip_shade D10 bitmap "$RULES/com.ss.android.ugc.aweme.png" d10-03
+  check_eq "D10 全程没有重启系统界面" "$(as pidof com.android.systemui | tr -d '\r')" "$SYSUI_PID0"
+  note "D10 视觉判读（需要原生视觉模型）" "对照 d10-02-3-shade.png（SVG 渲染出的图标）与 d10-03-3-shade.png（上游位图）：两者在通知栏里的观感是否一致；d10-svg-rendered.png / d10-upstream-bitmap.png 是原图"
+  SCENARIO_DONE=1
+}
+
+d10b() {  # 彩色 SVG（本机测试源的自定义规则源）：渲染保留原色，通知栏里按单色着色
+  python "$DIR/mkprefs.py" "$OUT/backup/optcon_prefs.xml" "$OUT/p-d10b.xml" \
+    "custom_sub_sources=[{\"id\":\"custom_vector\",\"name\":\"SuiteVector\",\"url\":\"http://127.0.0.1:$PORT/anip-extra.zip\",\"description\":\"\",\"format\":\"ANIP_BUNDLE\"}]" \
+    active_ania_source=custom_vector e2e_anip_manifest_url- custom_sources_formats_migrated=1 auto_lib_update=false >/dev/null
+  prefs_inject "$OUT/p-d10b.xml"
+  clear_logs
+  rule_sync || { check "D10b 打开设置页并找到规则库的同步按钮" false; return; }
+  local st; st=$(rule_wait)
+  note "D10b 规则库同步的状态行" "$st"
+  case "$st" in *"ANIP synced"*) check "D10b 自定义规则源同步成功" true;; *) check "D10b 自定义规则源同步成功" false; save_logs d10b-sync-failed; return;; esac
+  check "D10b 自定义源直接下载归档，状态行不带上游版本" not grep_has "$st" "upstream"
+  check "D10b 同步收尾完成（镜像 + 撤销清理）" wait_hook "rule sync follow-up" 150
+  note "D10b 快照构成" "$(built_line)"
+  save_logs d10b-sync
+  check "D10b 已知答案：926 = 924 + 彩色 SVG + 别名" \
+    hook_has "ANIP snapshot built: 926 icons (declared 926, written 814, rendered 11, aliased 101, carried over 0, missing 0, unresolved 0)"
+  check_eq "D10b 快照里的 PNG 数" "$(rule_count)" 926
+  check "D10b 彩色 SVG 渲染进了快照" su_ "test -s $RULES/com.local.vector.png"
+  pull_root "$RULES/com.local.vector.png" "$OUT/d10b-vector-rendered.png"
+  check "D10b 渲染保留了 SVG 原本的红色（没有重新着色）" python "$DIR/pngstat.py" "$OUT/d10b-vector-rendered.png" 150 --red
+  check "D10b 别名包的图与目标包逐字节相同" su_ "cmp -s $RULES/com.local.alias.png $RULES/com.ss.android.ugc.aweme.png"
+  check "D10b 两类包都有共享目录的镜像" anip_mirrored com.local.vector com.local.alias
+  SYSUI_PID0=$(as pidof com.android.systemui | tr -d '\r')
+  anip_shade D10b vector "$RULES/com.local.vector.png" d10b-01 tint
+  check_eq "D10b 全程没有重启系统界面" "$(as pidof com.android.systemui | tr -d '\r')" "$SYSUI_PID0"
+  note "D10b 视觉判读（需要原生视觉模型）" "d10b-01-3-shade.png：红色圆形图标在通知栏里的观感；d10b-vector-rendered.png 是原图"
+  # 还原：回到内置源。多出来的两个包随这次同步被撤销
+  anip_prefs d10b-back
+  clear_logs
+  rule_sync || { check "D10b 还原：打开设置页并找到同步按钮" false; return; }
+  st=$(rule_wait)
+  note "D10b 还原后的状态行" "$st"
+  case "$st" in *"ANIP synced"*|*"Already up to date"*) check "D10b 还原到内置源（上游）" true;; *) check "D10b 还原到内置源（上游）" false; save_logs d10b-restore-failed; return;; esac
+  check "D10b 还原的收尾完成" wait_hook "rule sync follow-up" 150
+  check "D10b 还原后两个测试包已撤销" not su_ "test -e $RULES/com.local.vector.png -o -e $RULES/com.local.alias.png"
+  check "D10b 还原后两个测试包的镜像已删" not anip_mirrored com.local.vector com.local.alias
+  save_logs d10b-restore
+  SCENARIO_DONE=1
+}
+
+d11() {  # 上游没有新版本：第二次同步只取清单，不下载、不重建（本机清单）
+  anip_prefs d11 "e2e_anip_manifest_url=http://127.0.0.1:$PORT/anip-release.json"
+  local mark; mark=$(server_mark)
+  clear_logs
+  rule_sync || { check "D11 打开设置页并找到规则库的同步按钮" false; return; }
+  local st; st=$(rule_wait)
+  note "D11 第一次同步的状态行" "$st"
+  case "$st" in *"ANIP synced"*) check "D11 第一次同步成功（本机清单指向的包）" true;; *) check "D11 第一次同步成功（本机清单指向的包）" false; save_logs d11-first-failed; return;; esac
+  check "D11 第一次同步的收尾完成" wait_hook "rule sync follow-up" 150
+  save_logs d11-first
+  check "D11 状态行带本机清单的标签与日期" grep_has "$st" "upstream aaaaaaa (2026-11-26)"
+  check_eq "D11 第一次同步：清单 1 次、包 1 次" "$(server_count "$mark" /anip-release.json)/$(server_count "$mark" /anip-bundle-aaaaaaa.zip)" 1/1
+  check "D11 快照的版本记录：官方发布通道 + 标签 aaaaaaa" grep_has "$(rule_source)" '"channel":"release","tag":"aaaaaaa"'
+  local h0; h0=$(rule_hash)
+  shot d11-01-first
+  # 第二次：同一个版本。不冷启动（冷启动会清掉状态行），在同一个页面上再点一次
+  mark=$(server_mark)
+  clear_logs
+  sleep 2
+  read -r sx sy RS_TY <<< "$(section_sync_xy "Notification Icon Sources")"
+  [ -n "${sx:-}" ] || { check "D11 第二次同步：找到同步按钮" false; return; }
+  as input tap "$sx" "$sy"; sleep 2
+  st=$(rule_wait)
+  note "D11 第二次同步的状态行" "$st"
+  shot d11-02-second
+  case "$st" in *"Already up to date"*) check "D11 第二次同步：已是最新" true;; *) check "D11 第二次同步：已是最新" false; save_logs d11-second-failed; return;; esac
+  check "D11 「已是最新」带条数与上游版本" grep_has "$st" "Already up to date (924 icons) · upstream aaaaaaa (2026-11-26)"
+  check_eq "D11 第二次同步：清单 1 次、包 0 次" "$(server_count "$mark" /anip-release.json)/$(server_count "$mark" /anip-bundle-aaaaaaa.zip)" 1/0
+  check "D11 日志：这个版本已经在本机，没有下载" hook_has "ANIP source: release aaaaaaa is already in place (924 icons) — nothing to download"
+  check "D11 快照一个字节都没动" test "$(rule_hash)" = "$h0"
+  check "D11 没有重建快照" not hook_has "ANIP snapshot built"
+  check "D11 没有做收尾（镜像与撤销清理）" not hook_has "rule sync follow-up"
+  check "D11 无暂存与归档残留" not rule_residue
+  save_logs d11-second
+  anip_restore "D11"
+  SCENARIO_DONE=1
+}
+
+d12_body() {  # 包核对不上：退回整库归档，状态行如实（不带上游版本）。整库归档来自真实上游，需要外网
+  echo badsha > "$DIR/payloads/mode.txt"
+  anip_prefs d12 "e2e_anip_manifest_url=http://127.0.0.1:$PORT/anip-release.json"
+  local mark; mark=$(server_mark)
+  clear_logs
+  rule_sync || { check "D12 打开设置页并找到规则库的同步按钮" false; return; }
+  local st; st=$(rule_wait)
+  note "D12 规则库同步的状态行" "$st"
+  case "$st" in *"ANIP synced"*) check "D12 核对失败后同步仍然成功（退回整库）" true;; *) check "D12 核对失败后同步仍然成功（退回整库）" false; save_logs d12-failed; return;; esac
+  check "D12 日志：官方包核对失败、退回整库" hook_has "failed its size / sha256 verification — falling back to the branch archive"
+  check_eq "D12 本机清单取了 1 次、包下载了 1 次（下到了才核对）" "$(server_count "$mark" /anip-release.json)/$(server_count "$mark" /anip-bundle-aaaaaaa.zip)" 1/1
+  check "D12 状态行如实：整库归档没有版本可报" not grep_has "$st" "upstream"
+  check "D12 状态行如实：条数是整库的" grep_has "$st" "ANIP synced 924 rule icons"
+  check "D12 快照的版本记录：整库归档" grep_has "$(rule_source)" '"channel":"archive"'
+  check_eq "D12 快照完整（924 个 PNG）" "$(rule_count)" 924
+  check "D12 同步收尾完成" wait_hook "rule sync follow-up" 150
+  check "D12 核对不过的包没有留下来" not rule_residue
+  shot d12-01-after-sync
+  save_logs d12
+  anip_restore "D12"
+  SCENARIO_DONE=1
+}
+d12() {  # d12_body 跑完（含中途返回）都把测试源改回正常的哈希
+  d12_body
+  echo good > "$DIR/payloads/mode.txt"
+}
+
+d13_probe() { as curl -s -m 12 -o /dev/null -w '%{http_code}\n' "$1/robots.txt" 2>/dev/null | tr -d '\r' | head -1; }
+d13() {  # 没有代理的网络（U1-c）：同步要么成功，要么如实报「下载失败」——批 UP 去掉了前置探测
+  anip_prefs d13
+  PROXY0=$(as settings get global http_proxy | tr -d '\r')
+  check "D13 前提：模拟器带着全局代理" test -n "$PROXY0" -a "$PROXY0" != "null" -a "$PROXY0" != ":0"
+  note "D13 全局代理（开始前）" "$PROXY0"
+  as settings put global http_proxy :0; sleep 3
+  check_eq "D13 已去掉全局代理" "$(as settings get global http_proxy | tr -d '\r')" ":0"
+  note "D13 直连连通性（设备上的 curl 取 robots.txt 的状态码；设备上没有 curl 时为空）" \
+    "github.com=$(d13_probe https://github.com) raw.githubusercontent.com=$(d13_probe https://raw.githubusercontent.com)"
+  clear_logs
+  rule_sync || { check "D13 打开设置页并找到规则库的同步按钮" false; return; }
+  local st; st=$(rule_wait)
+  note "D13 没有代理时同步的状态行" "$st"
+  case "$st" in
+    *"ANIP synced"*|*"Already up to date"*) check "D13 没有代理时同步成功（GitHub 直连可达）" true;;
+    *"Download failed"*) check "D13 没有代理时如实报「下载失败」（不是前置探测的误拦）" true;;
+    *) check "D13 没有代理时同步成功或如实报下载失败" false;;
+  esac
+  check "D13 状态行没有出现前置探测时期的用语（网络不可用）" not grep_has "$st" "unavailable"
+  note "D13 通道日志" "$(hook_logs | grep -e "release channel unavailable" -e "could not be downloaded" -e "ANIP source" | sed 's/^ *[0-9-]* [0-9:.]* *[0-9]* *[0-9]* . //' | head -4 | tr '\n' ';')"
+  shot d13-01-after
+  save_logs d13
+  as settings put global http_proxy "$PROXY0"; sleep 3
+  check_eq "D13 全局代理已恢复" "$(as settings get global http_proxy | tr -d '\r')" "$PROXY0"
+  SCENARIO_DONE=1
+}
+
+d14() {  # 总开关关 + 自动更新开（批 MT M5）：总开关关着时自同步不跑；重新打开后恢复（需要外网）
+  anip_prefs d14
+  check "D14 前提：总开关开着" test "$(shared_flag master_switch.opticon)" = true
+  open_settings || { check "D14 打开设置页" false; return; }
+  clear_logs
+  tap_node "Master Switch"; sleep 2
+  check "D14 关总开关先弹确认" wait_node "Turn off master switch?" 0 10
+  tap_node "Turn off"; sleep 3
+  check_eq "D14 总开关已关（共享文件）" "$(shared_flag master_switch.opticon)" false
+  # 用开关的切换把循环叫醒几轮（事件触发）：总开关关着，这些轮都不该同步
+  tap_node "Auto lib update (background)"
+  check "D14 hook 读到自动更新为开" wait_hook "auto lib update is now on" 30
+  tap_node "Auto lib update (background)"
+  check "D14 hook 读到自动更新为关" wait_hook "auto lib update is now off" 30
+  tap_node "Auto lib update (background)"
+  check "D14 hook 再次读到开（循环活着，被事件叫醒）" wait_hook "auto lib update is now on" 30
+  sleep 90
+  save_logs d14-master-off
+  check "D14 总开关关着时 hook 不自同步（被事件叫醒之后 90 秒内）" not hook_synced
+  check_eq "D14 自动更新的共享文件为开（开关本身是生效的）" "$(shared_flag auto_lib_update.opticon)" true
+  # 总开关重新打开：再给一个事件，自同步照常进行
+  clear_logs
+  tap_node "Master Switch"; sleep 3
+  check_eq "D14 总开关重新打开" "$(shared_flag master_switch.opticon)" true
+  tap_node "Auto lib update (background)"
+  check "D14 hook 读到关" wait_hook "auto lib update is now off" 30
+  tap_node "Auto lib update (background)"
+  check "D14 hook 读到开" wait_hook "auto lib update is now on" 30
+  check "D14 总开关打开后自同步恢复" wait_hook "self-sync ok" 150
+  note "D14 恢复后的同步结果" "$(hook_logs | grep -m1 "self-sync" | sed 's/^.*self-sync //')"
+  save_logs d14-master-on
+  shot d14-01-after
+  tap_node "Auto lib update (background)"; sleep 3
+  check_eq "D14 收尾：自动更新为关" "$(shared_flag auto_lib_update.opticon)" false
+  SCENARIO_DONE=1
+}
+
 # ═══════════════ 备份 / 还原 / 报告 ═══════════════
 
 setup() {
@@ -438,6 +679,7 @@ setup() {
   NOTIF_GRANTED0=$(as dumpsys package "$PKG" | tr -d '\r' | grep -c "POST_NOTIFICATIONS: granted=true")
   as test -f "$SHARED/$D5_PLAIN.opticon" && HAD_MIRROR_PLAIN=1
   as test -f "$SHARED/$D5_CUSTOM.opticon" && HAD_MIRROR_CUSTOM=1
+  MASTER0=$(shared_flag master_switch.opticon)
   PICP_HASH0=$(picp_hash)
   adb -s "$S" logcat -c -b all   # 从干净的状态开始记（崩溃总闸只看本次运行期间）
   note "环境：被测包" "$(as dumpsys package "$PKG" | tr -d '\r' | grep -m1 -E 'versionName' | tr -s ' ' | sed 's/^ //') / $(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null)"
@@ -458,6 +700,7 @@ setup() {
     [ "$(curl --noproxy '*' -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/plain.txt" 2>/dev/null)" = "200" ] && { up=0; break; }
   done
   check "本机测试源已启动（$i 秒后能应答）" test "$up" = 0
+  echo good > "$DIR/payloads/mode.txt"   # 规则库清单的哈希模式：每轮从「正确」开始（d12 会临时改成 badsha）
   [ "$(fails)" -eq 0 ]
 }
 
@@ -474,6 +717,12 @@ restore() {
   [ -n "$IME0" ] && { [ "$IME0" = "null" ] && as settings delete secure show_ime_with_hard_keyboard || as settings put secure show_ime_with_hard_keyboard "$IME0"; }
   [ -n "$COOLDOWN0" ] && as settings put global notification_cooldown_enabled "$COOLDOWN0"
   [ "$NOTIF_GRANTED0" = "0" ] && as pm revoke "$PKG" android.permission.POST_NOTIFICATIONS
+  # d13 临时去掉过模拟器的全局代理：没改回来就改回来
+  if [ -n "${PROXY0:-}" ]; then
+    [ "$(as settings get global http_proxy | tr -d '\r')" = "$PROXY0" ] || as settings put global http_proxy "$PROXY0"
+    check_eq "还原：模拟器的全局代理" "$(as settings get global http_proxy | tr -d '\r')" "$PROXY0" || RESTORE_FAILED=1
+  fi
+  echo good > "$DIR/payloads/mode.txt"
   clear_notifications
   if as test -d "$SHARED.removed"; then    # d9 中途失败时的兜底：目录被移走了就放回去
     su_ "mv $SHARED.removed $SHARED" && check "还原：共享目录已放回" as test -d "$SHARED"
@@ -500,8 +749,12 @@ restore() {
   done
   su_ "rm -f $HOOK_CACHE/$D5_PLAIN.png $HOOK_CACHE/$D5_CUSTOM.png"   # 以防场景中途失败
   su_ "rmdir /data/user/0/com.android.systemui/cache/opticon_hook_icons 2>/dev/null"   # 早期版本误建在普通存储下的空目录
-  su_ "rm -f $P/files/fankes_cache/$D5_PLAIN.png $P/files/fankes_cache/$D5_CUSTOM.png /data/local/tmp/opticon-prefs.xml /data/local/tmp/suite-src.png /data/local/tmp/opticon-suite-picp.tar $P/files/baked/suite-src.png $P/files/baked/$D5_PLAIN.png $P/files/baked/$D5_CUSTOM.png"
-  check "还原：临时文件已清除" not su_ "test -e /data/local/tmp/opticon-prefs.xml -o -e /data/local/tmp/suite-src.png -o -e /data/local/tmp/opticon-suite-picp.tar"
+  su_ "rm -f $P/files/fankes_cache/$D5_PLAIN.png $P/files/fankes_cache/$D5_CUSTOM.png /data/local/tmp/opticon-prefs.xml /data/local/tmp/suite-src.png /data/local/tmp/opticon-suite-picp.tar $P/files/baked/suite-src.png $P/files/baked/suite-plant.png $P/files/baked/$D5_PLAIN.png $P/files/baked/$D5_CUSTOM.png"
+  check "还原：临时文件已清除" not su_ "test -e /data/local/tmp/opticon-prefs.xml -o -e /data/local/tmp/suite-src.png -o -e /data/local/tmp/opticon-suite-picp.tar -o -e $P/files/baked/suite-plant.png"
+  # d14 动过总开关：它不在偏好文件里，备份还原不了，只核对
+  if [ -n "${MASTER0:-}" ]; then
+    check_eq "还原：总开关与开始前一致" "$(shared_flag master_switch.opticon)" "$MASTER0" || RESTORE_FAILED=1
+  fi
   [ -n "$SERVER_PID" ] && kill "$SERVER_PID" 2>/dev/null
   report
   CLEANED=1
@@ -543,7 +796,7 @@ want() {  # 场景是否要跑
 CLEANED=0
 if ! setup; then log "准备阶段失败，终止"; trap on_exit EXIT; restore; exit 1; fi
 trap on_exit EXIT
-for s in d1 d2 d3 d4 d5 d6 d6b d7 d8 d9; do
+for s in d1 d2 d3 d4 d5 d6 d6b d7 d8 d9 d10 d10b d11 d12 d13 d14; do
   want "$s" || continue
   if [ "$DEVICE_DEAD" = "1" ]; then log "设备已经不接收点击，$s 不跑了"; continue; fi
   h=$(host_load); r="${h#*,}"
