@@ -4,6 +4,7 @@ import android.content.Context
 import io.github.deserthouse.opticon.network.NetworkExecutor
 import io.github.deserthouse.opticon.util.TraceLogger
 import java.io.File
+import java.security.MessageDigest
 import java.util.Locale
 
 /**
@@ -14,12 +15,16 @@ import java.util.Locale
  * The old repository's json/ data was removed upstream — the legacy base64
  * subscription format is dead; this adapter speaks the new format instead:
  *
- *   icons/<category>/manifest.json — { "<pkg>": { label, format, color, overlay, contributors } }
- *   icons/<category>/res/<pkg>.png — 72px monochrome (LA) compliant glyph
+ *   <category>/manifest.json — { "<pkg>": { label, format, color, overlay, contributors | target } }
+ *   <category>/res/<pkg>.png | .svg
  *
- * Transport: ONE zipball request (main branch archive, ~3MB) instead of ~870
- * individual raw fetches — direct GitHub connections from constrained networks
- * reset long bursts of small requests (empirically dies after ~50 in a row).
+ * Transport (批 UP): the builtin source speaks the upstream release channel
+ * ([AnipReleaseChannel]) — a 260-byte manifest tells whether there is a new version;
+ * only then is the ~1.8MB bundle downloaded and verified against the manifest's
+ * size and SHA-256. If the channel is unavailable the sync falls back to the
+ * branch archive (~3.7MB zipball of the whole repository), which is also what
+ * custom archive URLs get. One request either way — direct GitHub connections
+ * from constrained networks reset long bursts of small requests.
  *
  * Categories: app, game, system/common, system/coloros, system/mios.
  * Output layout is identical to IconLibEngine.ingestJson (dir/{pkg}.png +
@@ -52,37 +57,64 @@ object AnipSync {
     /** Internal legacy builtin source id (kept stable so stored prefs resolve). */
     const val BUILTIN_SOURCE_ID = "ania_raw"
 
+    /** 快照的来历：官方发布通道 / 整库归档（兜底，或自定义地址）。 */
+    const val CHANNEL_RELEASE = "release"
+    const val CHANNEL_ARCHIVE = "archive"
+
+    /** 同步没做成的原因，调用方据此选提示。 */
+    enum class Failure {
+        /** 本地问题：上一个快照放不回去、来历文件写不进去、切换失败、同步过程中的意外异常。 */
+        LOCAL,
+
+        /** 归档没下载下来。 */
+        NETWORK,
+
+        /** 归档下载到了，但构建被拒绝：不是完整的 zip、清单解析不了、空快照、超过上限。 */
+        INVALID
+    }
+
     /**
-     * 一次规则库同步的结果。count ≤ 0 = 失败，现有目录不动。
+     * 一次规则库同步的结果。count ≤ 0 = 失败（原因见 [failure]），现有目录不动。
      * [revokedPackages]：同步前在库里、新版本里没有的包（上游撤销）——
      * 供调用方在别的读取通道上把它们的图标一并清掉（修复批 X-04）。
+     * [unchanged]：官方通道说上游没有新版本——没有下载、没有重建，count 是现有快照的条数。
      */
-    data class SyncOutcome(val count: Int, val revokedPackages: List<String> = emptyList())
+    data class SyncOutcome(
+        val count: Int,
+        val revokedPackages: List<String> = emptyList(),
+        val unchanged: Boolean = false,
+        val channel: String = CHANNEL_ARCHIVE,
+        val tag: String? = null,
+        val failure: Failure? = null
+    ) {
+        val ok: Boolean get() = count > 0
+    }
 
     /** 内置源的地址是清单基址（历史遗留），不是归档地址；其余地址视为自定义归档地址。 */
     fun archiveUrlFor(sourceUrl: String): String = if (sourceUrl == BASE) ZIP_URL else sourceUrl
 
-    /**
-     * Sync ANIP resources into [dir] using the legacy cache layout
-     * ({pkg}.png + meta.json). Single zipball download; the new version is
-     * built in a staging dir and switched in atomically. Returns the number
-     * of icons in the new snapshot; 0 = failure (live state untouched).
-     */
-    internal fun syncTo(
-        dir: File,
-        onProgress: ((String) -> Unit)? = null,
-        context: Context? = null,
-        url: String = ZIP_URL
-    ): Int = syncDetailed(dir, onProgress, context, url).count
+    /** 走网络的取字节实现。 */
+    private object NetworkAccess : AnipReleaseChannel.Access {
+        override fun fetchSmall(url: String, maxBytes: Long): ByteArray? =
+            NetworkExecutor.fetchBytesBounded(url, maxBytes)
 
-    /** [syncTo] 的完整结果（含被撤销的包）。同步是阻塞的，调用方负责线程。
-     *  [ops] 是测试注入点，生产用默认值。 */
+        override fun fetchToFile(url: String, dest: File, maxBytes: Long): Boolean =
+            NetworkExecutor.fetchToFileBounded(url, dest, maxBytes) == NetworkExecutor.DownloadOutcome.OK
+    }
+
+    /**
+     * [syncDetailed] 的完整结果（含被撤销的包）。同步是阻塞的，调用方负责线程。
+     *  [ops] / [access] / [rasterizer] 是注入点，生产用默认值。
+     */
     internal fun syncDetailed(
         dir: File,
         onProgress: ((String) -> Unit)? = null,
         context: Context? = null,
         url: String = ZIP_URL,
-        ops: FileSnapshotSwitch.FsOps = FileSnapshotSwitch.FsOps.Default
+        ops: FileSnapshotSwitch.FsOps = FileSnapshotSwitch.FsOps.Default,
+        access: AnipReleaseChannel.Access? = null,
+        rasterizer: AnipSnapshotBuilder.IconRasterizer = AnipSnapshotBuilder.NO_RASTERIZER,
+        limits: AnipSnapshotBuilder.Limits = AnipSnapshotBuilder.DEFAULT_LIMITS
     ): SyncOutcome {
         // Context-free callers (hook self-sync) fall back to locale tables so the
         // progress strings stay single-language on either locale.
@@ -91,37 +123,82 @@ object AnipSync {
             else if (Locale.getDefault().language == "zh") ZH_PROGRESS[resId].orEmpty()
             else EN_PROGRESS[resId].orEmpty()
         )
-        val failed = SyncOutcome(0)
         // 入口收敛。旧版放不回去就拒绝同步：绝不能在完好的 prev 旁边建一个空的 live
         // ——下一次收敛会把它当成「新版已上线」而删掉 prev（X-07）。
         if (!RuleLibrary.prepareForSync(dir, ops)) {
             TraceLogger.w(TAG, "ANIP sync refused: previous snapshot cannot be restored")
-            return failed
+            return SyncOutcome(0, failure = Failure.LOCAL)
         }
         dir.setExecutable(true, false)
         dir.setReadable(true, false)
-        val parent = dir.parentFile ?: return failed
+        val parent = dir.parentFile ?: return SyncOutcome(0, failure = Failure.LOCAL)
         // Zip lands OUTSIDE dir — the whole dir is about to be replaced, and
         // this also sweeps legacy in-dir zips on the first snapshot switch.
         val zipFile = File(parent, dir.name + RuleLibrary.ARCHIVE_TMP_SUFFIX)
         val staging = FileSnapshotSwitch.stagingOf(parent, dir.name)
+        val net = access ?: NetworkAccess
         try {
-            progress(io.github.deserthouse.opticon.R.string.sync_anip_bundle)
-            if (!NetworkExecutor.fetchToFile(url, zipFile, null)) {
-                TraceLogger.w(TAG, "ANIP zipball download failed")
-                return failed
+            var source = RuleLibrary.Source(CHANNEL_ARCHIVE, null, 0L, null)
+            // 整库归档：内置源的兜底，或自定义归档地址
+            fun fetchArchive(archiveUrl: String): Boolean {
+                progress(io.github.deserthouse.opticon.R.string.sync_anip_bundle)
+                if (!net.fetchToFile(archiveUrl, zipFile, limits.archiveBytes)) {
+                    TraceLogger.w(TAG, "ANIP archive could not be downloaded: $archiveUrl")
+                    return false
+                }
+                source = RuleLibrary.Source(CHANNEL_ARCHIVE, null, System.currentTimeMillis(), sha256Of(zipFile))
+                return true
             }
+
+            var haveArchive = false
+            if (url == ZIP_URL) {
+                // 内置源：先走官方发布通道，用不上再退回整库
+                when (val fetched = AnipReleaseChannel.fetchLatest(net)) {
+                    is AnipReleaseChannel.Fetched.Ok -> {
+                        val release = fetched.release
+                        val live = RuleLibrary.readSource(dir)
+                        val liveCount = RuleLibrary.packages(dir).size
+                        if (liveCount > 0 && live?.channel == CHANNEL_RELEASE && live.tag == release.tag) {
+                            TraceLogger.i(TAG, "ANIP source: release ${release.tag} is already in place ($liveCount icons) — nothing to download")
+                            return SyncOutcome(
+                                liveCount, emptyList(), unchanged = true, channel = CHANNEL_RELEASE, tag = release.tag
+                            )
+                        }
+                        progress(io.github.deserthouse.opticon.R.string.sync_anip_bundle)
+                        val downloaded = net.fetchToFile(release.downloadUrl, zipFile, release.size)
+                        if (downloaded && AnipReleaseChannel.verify(zipFile, release)) {
+                            source = RuleLibrary.Source(CHANNEL_RELEASE, release.tag, release.timestamp, release.sha256)
+                            TraceLogger.i(TAG, "ANIP source: release ${release.tag} (${release.size} bytes, sha256 verified)")
+                            haveArchive = true
+                        } else {
+                            TraceLogger.w(
+                                TAG,
+                                "ANIP release ${release.tag} " +
+                                    (if (downloaded) "failed its size / sha256 verification" else "could not be downloaded") +
+                                    " — falling back to the branch archive"
+                            )
+                            zipFile.delete()
+                        }
+                    }
+
+                    is AnipReleaseChannel.Fetched.Unavailable ->
+                        TraceLogger.w(TAG, "ANIP release channel unavailable (${fetched.reason}) — falling back to the branch archive")
+                }
+            }
+            if (!haveArchive && !fetchArchive(url)) return SyncOutcome(0, failure = Failure.NETWORK)
+
             progress(io.github.deserthouse.opticon.R.string.sync_unpacking)
             val before = RuleLibrary.packages(dir)
             val built = when (
                 val result = AnipSnapshotBuilder.build(
                     zipFile, oldDir = dir, staging = staging,
-                    preferZh = Locale.getDefault().language == "zh"
+                    preferZh = Locale.getDefault().language == "zh",
+                    rasterizer = rasterizer, limits = limits
                 )
             ) {
                 is AnipSnapshotBuilder.Result.Rejected -> {
                     TraceLogger.w(TAG, "ANIP snapshot rejected (${result.reason}) — keeping live dir")
-                    return failed
+                    return SyncOutcome(0, failure = Failure.INVALID)
                 }
                 is AnipSnapshotBuilder.Result.Built -> result
             }
@@ -133,6 +210,12 @@ object AnipSync {
                     "aliased ${stats.aliased}, carried over ${stats.carriedOver}, missing ${stats.missing}, " +
                     "unresolved ${stats.unresolved})"
             )
+
+            // 来历随快照一起切换：下一次同步据此判断官方通道有没有新版本
+            if (!RuleLibrary.writeSource(staging, source)) {
+                TraceLogger.w(TAG, "ANIP snapshot source record could not be written — keeping live dir")
+                return SyncOutcome(0, failure = Failure.LOCAL)
+            }
 
             // Switch: staging validated, swap atomically. IconLibEngine's
             // cacheDir File is path-keyed (re-resolved per lookup) and the App
@@ -146,21 +229,42 @@ object AnipSync {
                 // switchIn 自己负责恢复：返回前旧版已放回原位，
                 // 或停在读取路径认得的中间态（X-23，调用方不再回滚）。
                 TraceLogger.w(TAG, "ANIP switch failed, live dir restored: ${e.message}")
-                return failed
+                return SyncOutcome(0, failure = Failure.LOCAL)
             }
             val after = HashSet<String>(built.items.size)
             built.items.forEach { after.add(it.pkg) }
             val revoked = before.filter { it !in after }.sorted()
-            TraceLogger.i(TAG, "ANIP sync: ${built.items.size} icons switched in, ${revoked.size} revoked")
-            return SyncOutcome(built.items.size, revoked)
+            TraceLogger.i(
+                TAG,
+                "ANIP sync: ${built.items.size} icons switched in, ${revoked.size} revoked (channel ${source.channel})"
+            )
+            return SyncOutcome(
+                built.items.size, revoked,
+                unchanged = false, channel = source.channel, tag = source.tag
+            )
         } catch (e: Exception) {
             TraceLogger.w(TAG, "ANIP sync error: ${e.message}")
-            return failed
+            return SyncOutcome(0, failure = Failure.LOCAL)
         } finally {
             // 清理先于返回：归档与没上位的暂存目录都不留
             staging.deleteRecursively()
             zipFile.delete()
         }
+    }
+
+    private fun sha256Of(file: File): String? = try {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(256 * 1024)
+            while (true) {
+                val n = input.read(buffer)
+                if (n < 0) break
+                digest.update(buffer, 0, n)
+            }
+        }
+        digest.digest().joinToString("") { "%02x".format(it) }
+    } catch (_: Exception) {
+        null
     }
 
     private val ZH_PROGRESS = mapOf(

@@ -3,6 +3,7 @@ package io.github.deserthouse.opticon.hook
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import io.github.deserthouse.opticon.engine.AnipSync
 import io.github.deserthouse.opticon.engine.RuleLibrary
 import io.github.deserthouse.opticon.util.TraceLogger
 import java.io.File
@@ -241,12 +242,19 @@ object HookLibSync {
         )
         // 总开关关着：这一轮跳过。不记为「同步过」——总开关一开，下一轮巡检就同步。
         if (!due || !masterEnabled()) return
-        val ok = syncNow(context)
-        if (ok) NotificationHook.onHookLibSynced()
+        val outcome = syncNow(context)
+        val ok = outcome?.ok == true
+        // 快照没动（上游没有新版本）就不作废图标缓存——图标一个都没变
+        if (outcome != null && outcome.ok && !outcome.unchanged) NotificationHook.onHookLibSynced()
         controller.onSyncFinished(ok, android.os.SystemClock.elapsedRealtime())
         TraceLogger.i(
             TAG,
-            "self-sync ${if (ok) "ok" else "failed"}, next in ${controller.currentIntervalMs / 3600000}h" +
+            "self-sync " + when {
+                outcome == null -> "skipped (busy)"
+                !outcome.ok -> "failed (${outcome.failure})"
+                outcome.unchanged -> "ok (upstream unchanged, release ${outcome.tag})"
+                else -> "ok"
+            } + ", next in ${controller.currentIntervalMs / 3600000}h" +
                 if (byEvent) " (event-triggered)" else ""
         )
     }
@@ -284,22 +292,35 @@ object HookLibSync {
         wakeSignal.wake()
     }
 
-    /** One-shot sync: download ANIP manifests + PNGs into cacheDir. 同一时刻只跑一个。 */
-    fun syncNow(context: Context): Boolean {
-        if (!syncing.compareAndSet(false, true)) return false
+    /**
+     * One-shot sync: 把规则库同步进 hook 自己的缓存目录。同一时刻只跑一个。
+     *
+     * @return null = 已有一次在跑；否则是这次同步的结果（[AnipSync.SyncOutcome.ok] 为 false 表示没做成）。
+     */
+    fun syncNow(context: Context): AnipSync.SyncOutcome? {
+        if (!syncing.compareAndSet(false, true)) return null
         // 也占用进程级同步锁：读路径据此判断「能不能清暂存目录」（RuleLibrary.prepareForRead）。
         // 同步期间读路径只收敛中间态，不会删掉正在构建的暂存目录。
         if (!io.github.deserthouse.opticon.engine.SyncGate.tryAcquire()) {
             syncing.set(false)
-            return false
+            return null
         }
         try {
-            val count = io.github.deserthouse.opticon.engine.AnipSync.syncTo(dir(context), context = context)
-            TraceLogger.i(TAG, "ingested $count rule icons into hook-local cache")
-            return count > 0
+            val outcome = AnipSync.syncDetailed(dir(context), context = context)
+            when {
+                // 上游没有新版本：只取了一次清单（260 字节），快照没动。设备验证套件靠日志区分
+                // 「同步过了、没变化」和「没同步」，所以这两种结果各有一句固定的话。
+                outcome.ok && outcome.unchanged ->
+                    TraceLogger.i(TAG, "hook rule cache is already at release ${outcome.tag} (${outcome.count} icons) — nothing to sync")
+                outcome.ok ->
+                    TraceLogger.i(TAG, "ingested ${outcome.count} rule icons into hook-local cache")
+                else ->
+                    TraceLogger.w(TAG, "syncNow did not finish: ${outcome.failure}")
+            }
+            return outcome
         } catch (e: Throwable) {
             TraceLogger.w(TAG, "syncNow: ${e.message}")
-            return false
+            return AnipSync.SyncOutcome(0, failure = AnipSync.Failure.LOCAL)
         } finally {
             syncing.set(false)
             io.github.deserthouse.opticon.engine.SyncGate.release()

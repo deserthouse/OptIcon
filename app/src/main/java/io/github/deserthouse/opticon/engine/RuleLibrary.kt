@@ -1,5 +1,6 @@
 package io.github.deserthouse.opticon.engine
 
+import org.json.JSONObject
 import java.io.File
 
 /**
@@ -20,6 +21,10 @@ internal object RuleLibrary {
 
     /** 同步时归档的临时文件名后缀：`{目录名}.zip.tmp`（AnipSync 写在目录旁边）。 */
     const val ARCHIVE_TMP_SUFFIX = ".zip.tmp"
+
+    /** 快照来自哪里的旁车文件（批 UP）：随快照目录一起切换。旧快照没有它 = 没有版本记录。
+     *  只认 .png 的读取方（[packages]、hook 取图）不受影响。 */
+    const val SOURCE_FILE = "source.json"
 
     /**
      * 读取路径入口：应用侧启动加载（IconLibEngine）、hook 侧首次取目录（HookLibSync.dir）。
@@ -75,4 +80,59 @@ internal object RuleLibrary {
             ?.map { it.removeSuffix(".png") }
             ?.toSet()
             ?: emptySet()
+
+    /** 当前这份快照的来历。 */
+    data class Source(
+        /** "release" = 上游官方发布通道；"archive" = 整库 zipball（兜底）或自定义归档。 */
+        val channel: String,
+        /** 官方通道的版本标签；整库通道没有。 */
+        val tag: String?,
+        /** 快照对应的版本时间（官方通道取清单里的；整库通道取下载时刻），毫秒。 */
+        val timestamp: Long,
+        val sha256: String?
+    ) {
+        fun encode(): String = JSONObject()
+            .put("channel", channel)
+            .put("tag", tag ?: JSONObject.NULL)
+            .put("timestamp", timestamp)
+            .put("sha256", sha256 ?: JSONObject.NULL)
+            .toString()
+
+        companion object {
+            fun decode(text: String): Source? = try {
+                val o = JSONObject(text)
+                val channel = o.optString("channel")
+                if (channel.isEmpty()) null
+                else Source(
+                    channel = channel,
+                    tag = if (o.isNull("tag")) null else o.optString("tag"),
+                    timestamp = o.optLong("timestamp", 0L),
+                    sha256 = if (o.isNull("sha256")) null else o.optString("sha256")
+                )
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
+
+    /** 快照的来历；文件不存在、读不出、内容不合法 → null。 */
+    fun readSource(dir: File): Source? {
+        val file = File(dir, SOURCE_FILE)
+        if (!file.isFile) return null
+        return try {
+            Source.decode(file.readText(Charsets.UTF_8))
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** 把来历写进（暂存）目录。 */
+    fun writeSource(dir: File, source: Source): Boolean = try {
+        val file = File(dir, SOURCE_FILE)
+        file.writeText(source.encode(), Charsets.UTF_8)
+        file.setReadable(true, false)
+        true
+    } catch (_: Exception) {
+        false
+    }
 }

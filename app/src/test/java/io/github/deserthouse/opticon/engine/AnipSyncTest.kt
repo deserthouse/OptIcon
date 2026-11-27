@@ -78,10 +78,12 @@ class AnipSyncTest {
 
         assertEquals(3, outcome.count)
         assertEquals(listOf("com.revoked"), outcome.revokedPackages)
+        // source.json 是批 UP 加的来历记录（随快照一起切换）
         assertEquals(
-            setOf("com.a.png", "com.b.png", "com.fresh.png", "meta.json"),
+            setOf("com.a.png", "com.b.png", "com.fresh.png", "meta.json", RuleLibrary.SOURCE_FILE),
             rules.listFiles()!!.map { it.name }.toSet()
         )
+        assertEquals(AnipSync.CHANNEL_ARCHIVE, RuleLibrary.readSource(rules)!!.channel)
         assertNoResidue()
     }
 

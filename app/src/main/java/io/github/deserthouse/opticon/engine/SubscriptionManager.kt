@@ -33,9 +33,13 @@ object SubscriptionManager {
 
     private fun Context.txt(id: Int, vararg args: Any?): String = strings(this, id, args)
 
-    /** 内置源同步前的连通性探测。生产走网络；单测换成不联网的实现（例如把同步卡在探测里，
-     *  用来验证进程级互斥）。 */
-    internal var connectivityProbe: () -> Boolean = { NetworkExecutor.checkConnectivitySync() }
+    /** 规则库同步取字节的通道。生产为 null（走网络）；单测注入不联网的实现——
+     *  例如把同步卡在取清单那一步，用来验证进程级互斥。
+     *
+     *  这里原先是一个「连通性探测」（GET 上游 GitHub Raw 的 README，不通就报网络不可用）。
+     *  批 UP（U1-c）去掉了：下载走的是 github.com，探测的却是 raw.githubusercontent.com，
+     *  后者不通、前者通的网络里，内置规则源的同步会被误拦（hook 侧的后台同步不探测，反而能成）。 */
+    internal var releaseAccess: AnipReleaseChannel.Access? = null
 
     data class SyncResult(
         val success: Boolean,
@@ -45,7 +49,9 @@ object SubscriptionManager {
         /** 上游撤销的包（规则库快照同步）。调用方据此清理别的读取通道上的图标（修复批 X-04）。 */
         val revokedPackages: List<String> = emptyList(),
         /** 被进程级同步互斥拒绝（已有同步在进行）。不是失败，界面不以错误色显示。 */
-        val busy: Boolean = false
+        val busy: Boolean = false,
+        /** 规则库快照的版本标签（来自上游官方发布通道；整库归档没有）。 */
+        val tag: String? = null
     )
 
     /** Pre-V3 url-prefix heuristic, kept ONLY as the fallback for legacy
@@ -115,14 +121,8 @@ object SubscriptionManager {
         }
 
         onProgress?.invoke(context.txt(R.string.sync_preparing))
-        // 连通性探测只对内置源做：探测地址是上游的 GitHub Raw。自定义镜像可达而 GitHub 不可达时，
-        // 探测只会给出一个错误的「网络不可用」；自定义源直接请求，由 OkHttp 的超时兜底。
-        if (url == AnipSync.BASE && !connectivityProbe()) {
-            onResult(SyncResult(false, errorMessage = context.txt(R.string.sync_network_unavailable)))
-            return
-        }
 
-        // ANIP source (manifest + per-app PNG) — resource-sync, no base64 JSON
+        // ANIP source (bundle → snapshot) — resource-sync, no base64 JSON
         if (format == SourceFormat.ANIP_BUNDLE) {
             onProgress?.invoke(context.txt(R.string.sync_fetching_manifests))
             val outcome = AnipSync.syncDetailed(
@@ -130,10 +130,23 @@ object SubscriptionManager {
                 onProgress,
                 context,
                 // 修复批 X-17：自定义「ANIP 资源包」地址从此真的被使用
-                AnipSync.archiveUrlFor(url)
+                AnipSync.archiveUrlFor(url),
+                access = releaseAccess
             )
             if (outcome.count <= 0) {
-                onResult(SyncResult(false, errorMessage = context.txt(R.string.sync_invalid_data)))
+                // 没下到、下到了但用不了、本地出了状况——三种原因各有各的提示
+                onResult(
+                    SyncResult(
+                        false,
+                        errorMessage = context.txt(
+                            when (outcome.failure) {
+                                AnipSync.Failure.NETWORK -> R.string.sync_download_failed
+                                AnipSync.Failure.INVALID -> R.string.sync_invalid_data
+                                else -> R.string.sync_failed
+                            }
+                        )
+                    )
+                )
                 return
             }
             File(context.filesDir, HASH_FILE).writeText("${outcome.count}", Charsets.UTF_8)
@@ -141,8 +154,10 @@ object SubscriptionManager {
                 SyncResult(
                     success = true,
                     iconCount = outcome.count,
-                    wasChanged = true,
-                    revokedPackages = outcome.revokedPackages
+                    // 官方通道说上游没有新版本时快照没动：收尾（镜像、撤销清理、版本戳）也不用做
+                    wasChanged = !outcome.unchanged,
+                    revokedPackages = outcome.revokedPackages,
+                    tag = outcome.tag
                 )
             )
             return

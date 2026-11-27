@@ -102,24 +102,40 @@ object NetworkExecutor {
     }
 
     /**
-     * Quick connectivity check — GET GitHub Raw README, callback with true/false.
+     * 取一个小文件（如上游的发布清单），最多 [maxBytes] 字节。同步调用，只在后台线程用。
+     * 请求失败、不是 2xx、超过上限 → null。
+     *
+     * 这里原先是一个「连通性探测」：GET 上游 GitHub Raw 上的 README，不通就当作断网。
+     * 批 UP（U1-c）去掉了他：下载用的域名是 github.com，探测用的却是 raw.githubusercontent.com，
+     * 后者不通、前者通的网络里（2026-11-28 本机直连实测就是这样），内置规则源的同步会被误报成
+     * 「网络不可用」。下载自己有超时兜底，失败由调用方如实报。
      */
-    fun checkConnectivity(onResult: (Boolean) -> Unit) {
-        fetchStringAsync(CONNECTIVITY_PROBE_URL,
-            onSuccess = { onResult(true) },
-            onFailure = { onResult(false) }
-        )
-    }
-
-    private const val CONNECTIVITY_PROBE_URL =
-        "https://raw.githubusercontent.com/BetterAndroid/android-notification-icon-project/main/README.md"
-
-    /** [checkConnectivity] 的同步版本——给已经在后台线程上的调用方用。 */
-    fun checkConnectivitySync(): Boolean = try {
-        client.newCall(Request.Builder().url(CONNECTIVITY_PROBE_URL).get().build())
-            .execute().use { it.isSuccessful }
-    } catch (e: Exception) {
-        false
+    fun fetchBytesBounded(url: String, maxBytes: Long): ByteArray? {
+        return try {
+            client.newCall(Request.Builder().url(url).get().build()).execute().use { response ->
+                if (!response.isSuccessful) {
+                    android.util.Log.w("OptIcon/Net", "fetchBytesBounded HTTP ${response.code} $url")
+                    return null
+                }
+                val body = response.body ?: return null
+                if (body.contentLength() > maxBytes) return null
+                val out = java.io.ByteArrayOutputStream()
+                body.byteStream().use { input ->
+                    val buffer = ByteArray(8192)
+                    // 多读一个字节，用来分辨「正好到上限」和「超了」
+                    while (out.size() <= maxBytes) {
+                        val n = input.read(buffer)
+                        if (n < 0) break
+                        out.write(buffer, 0, n)
+                    }
+                }
+                val bytes = out.toByteArray()
+                if (bytes.size > maxBytes) null else bytes
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("OptIcon/Net", "fetchBytesBounded failed $url: ${e.message}")
+            null
+        }
     }
 
     /**

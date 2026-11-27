@@ -31,7 +31,7 @@ import com.sun.net.httpserver.HttpServer
  * 跑的是未改动的 PicpEngine.syncIndex 与 SubscriptionManager.sync：真实工作线程、真实的锁，
  * 只把 Context 换成只给目录和文案的假体。不发任何真实网络请求：
  *  - 应用图标库同步指向本机一个没人监听的端口（连接被拒，很快失败）；
- *  - 规则库同步的连通性探测换成可控制的 lambda。
+ *  - 规则库同步取字节的通道换成不联网的实现（批 UP 之前这里是「连通性探测」的接缝）。
  */
 class EngineGateWiringTest {
 
@@ -40,10 +40,16 @@ class EngineGateWiringTest {
 
     private val deadUrl = "http://127.0.0.1:1/never-reachable.zip"
 
+    /** 不联网的取字节通道：清单取不到、什么都下不了。 */
+    private val offline = object : AnipReleaseChannel.Access {
+        override fun fetchSmall(url: String, maxBytes: Long): ByteArray? = null
+        override fun fetchToFile(url: String, dest: File, maxBytes: Long): Boolean = false
+    }
+
     @Before
     fun setUp() {
         PreferenceManager.initForTest(InMemoryPrefs())
-        SubscriptionManager.connectivityProbe = { true }
+        SubscriptionManager.releaseAccess = offline
         // android.jar 的桩里 getString 永远返回 null：文案经接缝给占位值
         SubscriptionManager.strings = { _, id, _ -> "#$id" }
         PicpEngine.strings = { _, id, _ -> "#$id" }
@@ -126,14 +132,19 @@ class EngineGateWiringTest {
         val ctx = FakeFilesContext(tmp.newFolder("files"))
         val probeEntered = CountDownLatch(1)
         val releaseProbe = CountDownLatch(1)
-        SubscriptionManager.connectivityProbe = {
-            probeEntered.countDown()
-            releaseProbe.await(20, TimeUnit.SECONDS)
-            false
+        // 把同步卡在「取上游发布清单」这一步（同步体的第一处联网动作）
+        SubscriptionManager.releaseAccess = object : AnipReleaseChannel.Access {
+            override fun fetchSmall(url: String, maxBytes: Long): ByteArray? {
+                probeEntered.countDown()
+                releaseProbe.await(20, TimeUnit.SECONDS)
+                return null
+            }
+
+            override fun fetchToFile(url: String, dest: File, maxBytes: Long): Boolean = false
         }
         val first = CompletableDeferred<SubscriptionManager.SyncResult>()
         thread { SubscriptionManager.sync(ctx, onResult = { first.complete(it) }) }
-        assertTrue("first sync never reached the probe", probeEntered.await(10, TimeUnit.SECONDS))
+        assertTrue("first sync never reached the network", probeEntered.await(10, TimeUnit.SECONDS))
 
         val second = CompletableDeferred<SubscriptionManager.SyncResult>()
         SubscriptionManager.sync(ctx, onResult = { second.complete(it) })
@@ -143,11 +154,12 @@ class EngineGateWiringTest {
         releaseProbe.countDown()
         val firstResult = await(first)
         assertFalse(firstResult.busy)
-        assertFalse(firstResult.success) // 探测返回 false → 如实报「网络不可用」
+        assertFalse(firstResult.success) // 清单取不到、整库也下不了 → 如实报「下载失败」，不是「数据无效」
+        assertEquals("#${R.string.sync_download_failed}", firstResult.errorMessage)
         assertFalse(SyncGate.isHeld)
 
         // 门已经放掉：再发起一次不会被拒
-        SubscriptionManager.connectivityProbe = { false }
+        SubscriptionManager.releaseAccess = offline
         val third = CompletableDeferred<SubscriptionManager.SyncResult>()
         SubscriptionManager.sync(ctx, onResult = { third.complete(it) })
         assertFalse("the gate must be reusable after a finished sync", await(third).busy)
@@ -207,8 +219,11 @@ class EngineGateWiringTest {
         val ctx = FakeFilesContext(tmp.newFolder("files"))
         val source = PreferenceManager.addCustomSource("mystery", deadUrl, "")   // 默认格式：待确认
         PreferenceManager.setActiveAniaSourceId(source.id)
-        var probes = 0
-        SubscriptionManager.connectivityProbe = { probes++; true }
+        var requests = 0
+        SubscriptionManager.releaseAccess = object : AnipReleaseChannel.Access {
+            override fun fetchSmall(url: String, maxBytes: Long): ByteArray? { requests++; return null }
+            override fun fetchToFile(url: String, dest: File, maxBytes: Long): Boolean { requests++; return false }
+        }
 
         val result = CompletableDeferred<SubscriptionManager.SyncResult>()
         SubscriptionManager.sync(ctx, onResult = { result.complete(it) })
@@ -217,16 +232,21 @@ class EngineGateWiringTest {
         assertFalse("being refused is an ordinary failure, not busy", r.busy)
         assertFalse(r.success)
         assertEquals("#${R.string.sync_format_unspecified}", r.errorMessage)
-        assertEquals("no network use before the format is chosen", 0, probes)
+        assertEquals("no network use before the format is chosen", 0, requests)
     }
 
     @Test
     fun `rule sync - an exception in the body is reported as a failure instead of escaping to the caller`() {
         val ctx = FakeFilesContext(tmp.newFolder("files"))
-        // 内置源地址：同步会先做连通性探测。让探测抛异常，模拟同步体里的意外（磁盘写失败之类）。
+        // 内置源地址：清单取不到之后会去下整库。让下载抛异常，模拟同步体里的意外（磁盘写失败之类）。
+        // （取清单那一步自己兜异常、当作官方通道用不了，所以不能拿它来模拟。）
         // 此前这里不兜：异常一路逃到调用方的协程里，应用直接崩溃。
         var delivered = 0
-        SubscriptionManager.connectivityProbe = { throw IllegalStateException("simulated failure inside the sync body") }
+        SubscriptionManager.releaseAccess = object : AnipReleaseChannel.Access {
+            override fun fetchSmall(url: String, maxBytes: Long): ByteArray? = null
+            override fun fetchToFile(url: String, dest: File, maxBytes: Long): Boolean =
+                throw IllegalStateException("simulated failure inside the sync body")
+        }
 
         val result = CompletableDeferred<SubscriptionManager.SyncResult>()
         SubscriptionManager.sync(ctx, sourceUrl = AnipSync.BASE, onResult = { delivered++; result.complete(it) })
@@ -242,7 +262,11 @@ class EngineGateWiringTest {
     @Test
     fun `rule sync - an Error escaping the body still releases the gate`() {
         val ctx = FakeFilesContext(tmp.newFolder("files"))
-        SubscriptionManager.connectivityProbe = { throw AssertionError("simulated Error in sync body") }
+        SubscriptionManager.releaseAccess = object : AnipReleaseChannel.Access {
+            override fun fetchSmall(url: String, maxBytes: Long): ByteArray? =
+                throw AssertionError("simulated Error in sync body")
+            override fun fetchToFile(url: String, dest: File, maxBytes: Long): Boolean = false
+        }
 
         try {
             SubscriptionManager.sync(ctx, onProgress = null, onResult = { fail("no result expected") })
@@ -250,6 +274,50 @@ class EngineGateWiringTest {
         } catch (_: AssertionError) {
             // expected
         }
+        assertFalse(SyncGate.isHeld)
+    }
+
+    // ━━ 官方发布通道（批 UP） ━━
+
+    @Test
+    fun `rule sync - when upstream has nothing new the result says so and the follow-up is skipped`() {
+        val ctx = FakeFilesContext(tmp.newFolder("files"))
+        val bundle = AnipZipFixtures.build(
+            root = "", iconsDir = false,
+            categories = listOf(
+                AnipZipFixtures.Category("app", listOf(AnipZipFixtures.Declared("com.a"), AnipZipFixtures.Declared("com.b")))
+            )
+        )
+        val sha = java.security.MessageDigest.getInstance("SHA-256").digest(bundle).joinToString("") { "%02x".format(it) }
+        var downloads = 0
+        SubscriptionManager.releaseAccess = object : AnipReleaseChannel.Access {
+            override fun fetchSmall(url: String, maxBytes: Long): ByteArray? =
+                """{"schemaVersion":1,"tag":"abc1234","timestamp":1,"assetName":"anip-bundle-abc1234.zip","downloadUrl":"anip-bundle-abc1234.zip","size":${bundle.size},"sha256":"$sha"}""".toByteArray()
+
+            override fun fetchToFile(url: String, dest: File, maxBytes: Long): Boolean {
+                downloads++
+                dest.writeBytes(bundle)
+                return true
+            }
+        }
+
+        val first = CompletableDeferred<SubscriptionManager.SyncResult>()
+        SubscriptionManager.sync(ctx, sourceUrl = AnipSync.BASE, onResult = { first.complete(it) })
+        val f = first.awaitWithin(15_000)
+        assertTrue(f.success)
+        assertTrue("the first sync brings a snapshot in", f.wasChanged)
+        assertEquals(2, f.iconCount)
+        assertEquals("abc1234", f.tag)
+
+        val second = CompletableDeferred<SubscriptionManager.SyncResult>()
+        SubscriptionManager.sync(ctx, sourceUrl = AnipSync.BASE, onResult = { second.complete(it) })
+        val s = second.awaitWithin(15_000)
+        assertTrue(s.success)
+        assertFalse("upstream has nothing new: the follow-up must be skipped", s.wasChanged)
+        assertEquals(2, s.iconCount)
+        assertEquals("abc1234", s.tag)
+        assertEquals(emptyList<String>(), s.revokedPackages)
+        assertEquals("the bundle is downloaded only once", 1, downloads)
         assertFalse(SyncGate.isHeld)
     }
 }
