@@ -129,8 +129,9 @@ object AnipSync {
             TraceLogger.i(
                 TAG,
                 "ANIP snapshot built: ${built.items.size} icons " +
-                    "(declared ${stats.declared}, written ${stats.written}, " +
-                    "carried over ${stats.carriedOver}, missing ${stats.missing})"
+                    "(declared ${stats.declared}, written ${stats.written}, rendered ${stats.rendered}, " +
+                    "aliased ${stats.aliased}, carried over ${stats.carriedOver}, missing ${stats.missing}, " +
+                    "unresolved ${stats.unresolved})"
             )
 
             // Switch: staging validated, swap atomically. IconLibEngine's

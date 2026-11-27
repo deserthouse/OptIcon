@@ -95,6 +95,18 @@ android {
     }
 }
 
+// ━━━ Unit Tests ━━━
+// 真实上游包的已知答案测试（AnipRealBundleKnownAnswerTest）要指明包的位置，由 scripts/anip_known_answer.sh 传进来。
+// 平时的门禁不跑它：包不入库。这里用「排除」而不是让测试自己跳过，是因为发版预检要求 0 跳过。
+tasks.withType<Test>().configureEach {
+    val bundle = System.getProperty("opticon.anip.bundle")
+    if (bundle.isNullOrBlank()) {
+        filter.excludeTestsMatching("*AnipRealBundleKnownAnswerTest")
+    } else {
+        systemProperty("opticon.anip.bundle", bundle)
+    }
+}
+
 // ━━━ APK Output Naming: OptIcon-vX.Y.Z-YYYYMMDD-HHMMSS.apk ━━━
 androidComponents {
     onVariants(selector().all()) { variant ->
