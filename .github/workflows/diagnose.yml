@@ -1,0 +1,49 @@
+name: Diagnose dependency resolution
+
+# 只手动触发：清掉依赖缓存后反复解析插件与依赖，把每次的结果、运行器区域、仓库可达性与失败堆栈留在日志里。
+# 2026-11-27 起排查用：从零开始的 CI 运行约一半在解析 Kotlin 插件标记时被判「找不到」，重跑即过。
+
+on:
+  workflow_dispatch:
+    inputs:
+      rounds:
+        description: "解析的轮数（每轮都从零开始）"
+        required: false
+        default: "3"
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
+      - name: Resolve plugins and dependencies (cold, repeated)
+        run: |
+          ROUNDS="${{ inputs.rounds }}"
+          [[ "$ROUNDS" =~ ^[0-9]+$ ]] || ROUNDS=3
+          for i in $(seq 1 "$ROUNDS"); do
+            rm -rf "$HOME/.gradle/caches/modules-2"
+            echo "round $i  $(date -u +%H:%M:%S)"
+            for u in https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/maven-metadata.xml \
+                     https://plugins.gradle.org/m2/org/jetbrains/kotlin/kotlin-stdlib/maven-metadata.xml; do
+              curl -sS -o /dev/null -m 30 -w "curl %{http_code} %{remote_ip} %{time_total}s $u\n" "$u" || echo "curl FAILED $u"
+            done
+            if ./gradlew help --refresh-dependencies --no-configuration-cache --stacktrace > "round-$i.log" 2>&1; then
+              echo "round $i: OK"
+            else
+              echo "round $i: FAILED"
+              sed -n '/FAILURE:/,$p' "round-$i.log" | grep -v '^$' | head -80
+            fi
+          done
