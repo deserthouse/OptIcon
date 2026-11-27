@@ -26,6 +26,11 @@ jobs:
           distribution: temurin
           java-version: "21"
 
+      # 与发版门禁同环境（带它的注入脚本）；只读缓存，不把这里解析好的依赖写回去
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: true
+
       - name: Android SDK licenses
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
