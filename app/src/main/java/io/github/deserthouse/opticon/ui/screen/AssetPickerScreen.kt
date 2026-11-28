@@ -350,8 +350,10 @@ private fun IconPackPickerSection(
         val selLabel = state.iconPacks.find { it.packageName == draftPack }?.label
             ?: stringResource(R.string.select_icon_pack_hint)
         ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+            // 只读的文本框：锚点用「不可编辑」类型，与迁移前无参 menuAnchor() 的默认类型相同。
+            // （迁移时凭印象写成了 PrimaryEditable：那是给可编辑输入框用的，读屏的「点击展开」动作会丢。）
             OutlinedTextField(selLabel, {}, readOnly = true, label = { Text(stringResource(R.string.select_icon_pack)) },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }, modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable).fillMaxWidth())
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }, modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth())
             ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 state.iconPacks.forEach { p ->
                     DropdownMenuItem(text = { Text(p.label) }, onClick = { onPickPack(p.packageName); expanded = false })
