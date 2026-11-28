@@ -423,7 +423,7 @@ anip_restore() {
   rule_sync || { check "$1 还原：打开设置页并找到同步按钮" false; return; }
   local st; st=$(rule_wait)
   note "$1 还原后的状态行" "$st"
-  case "$st" in *"ANIP synced"*|*"Already up to date"*) check "$1 还原到真实上游" true;; *) check "$1 还原到真实上游" false; save_logs "$1-restore-failed"; return;; esac
+  case "$st" in *"ANIP synced"*|*"already up to date"*|*"Already up to date"*) check "$1 还原到真实上游" true;; *) check "$1 还原到真实上游" false; save_logs "$1-restore-failed"; return;; esac
   check "$1 还原的收尾完成" wait_hook "rule sync follow-up" 150
   check "$1 还原后快照的版本记录来自官方发布通道" grep_has "$(rule_source)" '"channel":"release"'
   check "$1 还原后标签不是本机清单的" not grep_has "$(rule_source)" '"tag":"aaaaaaa"'
@@ -507,7 +507,7 @@ d10b() {  # 彩色 SVG（本机测试源的自定义规则源）：渲染保留�
   rule_sync || { check "D10b 还原：打开设置页并找到同步按钮" false; return; }
   st=$(rule_wait)
   note "D10b 还原后的状态行" "$st"
-  case "$st" in *"ANIP synced"*|*"Already up to date"*) check "D10b 还原到内置源（上游）" true;; *) check "D10b 还原到内置源（上游）" false; save_logs d10b-restore-failed; return;; esac
+  case "$st" in *"ANIP synced"*|*"already up to date"*|*"Already up to date"*) check "D10b 还原到内置源（上游）" true;; *) check "D10b 还原到内置源（上游）" false; save_logs d10b-restore-failed; return;; esac
   check "D10b 还原的收尾完成" wait_hook "rule sync follow-up" 150
   check "D10b 还原后两个测试包已撤销" not su_ "test -e $RULES/com.local.vector.png -o -e $RULES/com.local.alias.png"
   check "D10b 还原后两个测试包的镜像已删" not anip_mirrored com.local.vector com.local.alias
@@ -540,8 +540,8 @@ d11() {  # 上游没有新版本：第二次同步只取清单，不下载、不
   st=$(rule_wait)
   note "D11 第二次同步的状态行" "$st"
   shot d11-02-second
-  case "$st" in *"Already up to date"*) check "D11 第二次同步：已是最新" true;; *) check "D11 第二次同步：已是最新" false; save_logs d11-second-failed; return;; esac
-  check "D11 「已是最新」带条数与上游版本" grep_has "$st" "Already up to date (924 icons) · upstream aaaaaaa (2026-11-26)"
+  case "$st" in *"already up to date"*|*"Already up to date"*) check "D11 第二次同步：已是最新" true;; *) check "D11 第二次同步：已是最新" false; save_logs d11-second-failed; return;; esac
+  check "D11 「已是最新」带条数与上游版本" grep_has "$st" "[Aa]lready up to date (924 icons) · upstream aaaaaaa (2026-11-26)"
   check_eq "D11 第二次同步：清单 1 次、包 0 次" "$(server_count "$mark" /anip-release.json)/$(server_count "$mark" /anip-bundle-aaaaaaa.zip)" 1/0
   check "D11 日志：这个版本已经在本机，没有下载" hook_has "ANIP source: release aaaaaaa is already in place (924 icons) — nothing to download"
   check "D11 快照一个字节都没动" test "$(rule_hash)" = "$h0"
@@ -595,7 +595,7 @@ d13() {  # 没有代理的网络（U1-c）：同步要么成功，要么如实�
   local st; st=$(rule_wait)
   note "D13 没有代理时同步的状态行" "$st"
   case "$st" in
-    *"ANIP synced"*|*"Already up to date"*) check "D13 没有代理时同步成功（GitHub 直连可达）" true;;
+    *"ANIP synced"*|*"already up to date"*|*"Already up to date"*) check "D13 没有代理时同步成功（GitHub 直连可达）" true;;
     *"Download failed"*) check "D13 没有代理时如实报「下载失败」（不是前置探测的误拦）" true;;
     *) check "D13 没有代理时同步成功或如实报下载失败" false;;
   esac

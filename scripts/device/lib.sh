@@ -434,7 +434,7 @@ rule_sync() {
   as input tap "$sx" "$sy"
 }
 # rule_wait [超时秒] → 状态行（出现结论词时）；超时时也输出当时的状态行，但退出码非零
-rule_wait() { wait_status "$RS_TY" "ANIP synced|Already up to date|failed|unavailable|Invalid data|did not finish" "${1:-300}"; }
+rule_wait() { wait_status "$RS_TY" "ANIP synced|already up to date|Already up to date|failed|unavailable|Invalid data|did not finish" "${1:-300}"; }
 
 # plant_mirror 快照里的PNG：把它作为 com.android.shell 的共享镜像（经应用真实的写入链路，应用才删得掉）
 plant_mirror() {
