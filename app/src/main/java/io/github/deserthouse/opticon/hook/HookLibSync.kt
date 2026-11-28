@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  *     观察者也建立不起来——只能靠轮询在解锁之后发现真实状态。
  *
  * 是否同步的判定在 [SyncLoopController]（纯 Kotlin、有测试）。
+ * 一轮巡检的外围规矩（总开关闸、补建观察者、开关变化算事件）在 [SyncRound]（同样纯 Kotlin、有测试）。
  *
  * Icons land in cacheDir/opticon_hook_icons/{pkg}.png — cacheDir of the
  * SystemUI process, readable without any cross-domain access.
@@ -72,9 +73,9 @@ object HookLibSync {
     internal var releaseAccess: AnipReleaseChannel.Access? = null
     internal var svgRasterizer: AnipSnapshotBuilder.IconRasterizer = SvgRasterizer
 
-    /** 上一轮看到的开关状态。巡检自己发现「关 → 开」时按事件处理。 */
+    /** 巡检的「一轮」：总开关闸、补建观察者、开关变化算事件都在那儿（纯 Kotlin、有测试）。 */
     @Volatile
-    private var lastKnownEnabled: Boolean = false
+    private var round: SyncRound? = null
 
     @Volatile
     private var iconDir: File? = null
@@ -200,8 +201,12 @@ object HookLibSync {
     fun start(context: Context) {
         appContext = context.applicationContext
         if (!started.compareAndSet(false, true)) return
-        lastKnownEnabled = autoUpdateEnabled()
-        TraceLogger.i(TAG, "self-sync loop starting (auto update now ${if (lastKnownEnabled) "on" else "off"})")
+        val initiallyEnabled = autoUpdateEnabled()
+        round = SyncRound(
+            productionEnv(context), initiallyEnabled,
+            log = { TraceLogger.i(TAG, it) }, bootDelayMs = BOOT_DELAY_MS
+        )
+        TraceLogger.i(TAG, "self-sync loop starting (auto update now ${if (initiallyEnabled) "on" else "off"})")
         Thread({ loop(context) }, "OptIconHookLibSync").apply { isDaemon = true }.start()
     }
 
@@ -227,47 +232,26 @@ object HookLibSync {
                 true
             }
             try {
-                runRound(context, controller, bootAt, woken)
+                round?.run(controller, bootAt, woken)
             } catch (t: Throwable) {
                 TraceLogger.w(TAG, "sync loop round failed: $t")
             }
         }
     }
 
-    private fun runRound(context: Context, controller: SyncLoopController, bootAt: Long, woken: Boolean) {
-        // 共享目录可能到这时才变得可读（带锁屏密码的设备首次解锁之后）：
-        // hook 初始化时没建起来的观察者在这里补上
-        NotificationHook.ensureSharedDirObserver()
-        val enabled = autoUpdateEnabled()
-        val byEvent = countsAsEvent(woken, enabled, lastKnownEnabled)
-        if (enabled != lastKnownEnabled) {
-            TraceLogger.i(TAG, "auto lib update is now ${if (enabled) "on" else "off"}")
-            lastKnownEnabled = enabled
-        }
-        val now = android.os.SystemClock.elapsedRealtime()
-        val due = controller.shouldSync(
-            enabled = enabled,
-            bootDelayElapsed = now - bootAt >= BOOT_DELAY_MS,
-            byEvent = byEvent,
-            nowMs = now
-        )
-        // 总开关关着：这一轮跳过。不记为「同步过」——总开关一开，下一轮巡检就同步。
-        if (!due || !masterEnabled()) return
-        val outcome = syncNow(context)
-        val ok = outcome?.ok == true
-        // 快照没动（上游没有新版本）就不作废图标缓存——图标一个都没变
-        if (outcome != null && outcome.ok && !outcome.unchanged) NotificationHook.onHookLibSynced()
-        controller.onSyncFinished(ok, android.os.SystemClock.elapsedRealtime())
-        TraceLogger.i(
-            TAG,
-            "self-sync " + when {
-                outcome == null -> "skipped (busy)"
-                !outcome.ok -> "failed (${outcome.failure})"
-                outcome.unchanged -> "ok (upstream unchanged, release ${outcome.tag})"
-                else -> "ok"
-            } + ", next in ${controller.currentIntervalMs / 3600000}h" +
-                if (byEvent) " (event-triggered)" else ""
-        )
+    /** 生产环境的一轮：读文件、起同步、作废位图缓存。 */
+    private fun productionEnv(context: Context) = object : RoundEnv {
+        override fun ensureSharedDirObserver() = NotificationHook.ensureSharedDirObserver()
+
+        override fun autoUpdateEnabled(): Boolean = this@HookLibSync.autoUpdateEnabled()
+
+        override fun masterEnabled(): Boolean = this@HookLibSync.masterEnabled()
+
+        override fun sync(): AnipSync.SyncOutcome? = syncNow(context)
+
+        override fun onIconsChanged() = NotificationHook.onHookLibSynced()
+
+        override fun now(): Long = android.os.SystemClock.elapsedRealtime()
     }
 
     /**

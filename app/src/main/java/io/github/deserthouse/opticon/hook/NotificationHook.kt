@@ -321,13 +321,6 @@ object NotificationHook {
     /** 共享目录的观察者是否已建立（HookLibSync 据此决定巡检间隔）。 */
     fun sharedDirObserved(): Boolean = sharedObserver != null
 
-    /** 规则版本戳变了 → 图标缓存整体作废 + 通知 HookLibSync（修复批 X-04）。
-     *  带锁屏密码的设备开机时目录读不到，解锁后第一次读到戳算一次变化，
-     *  会多作废一次缓存——无害，图标按需重新加载。
-     *
-     *  同时按清单删掉 hook 本地缓存里被撤销的包：共享目录的镜像由应用侧删，
-     *  本地缓存是独立的一份快照——不清的话，hook 在共享目录未命中后退到本地缓存，
-     *  被撤销的图标还会显示出来。只动本地文件，不联网。 */
     /** hook 自同步完成：本地缓存换了新内容，位图缓存里可能还是旧图——整体作废
      *  （作废不回收位图，仍在显示的图标不受影响，之后按需重新读取）。 */
     fun onHookLibSynced() {
@@ -335,23 +328,35 @@ object NotificationHook {
         TraceLogger.i(TAG, "Icon cache dropped (hook self-sync finished)")
     }
 
-    private fun onRulesStampChanged() {
-        iconCache.evictAll()
-        TraceLogger.i(TAG, "Rules stamp changed — icon cache dropped")
-        val revoked = readRevokedPackages()
-        if (revoked.isNotEmpty()) {
-            val ctx = getSystemUiContext()
-            if (ctx != null) {
-                Thread({
-                    try {
-                        HookLibSync.dropLocalPackages(ctx, revoked)
-                    } catch (t: Throwable) {
-                        TraceLogger.w(TAG, "drop revoked packages failed: ${t.message}")
-                    }
-                }, "OptIconDropRevoked").apply { isDaemon = true }.start()
+    /** 规则版本戳变了之后要做的事。顺序在 [RulesStampReaction]（纯 Kotlin、有测试）：
+     *  位图缓存整体作废 → 按撤销清单删 hook 本地缓存里的包 → 叫醒自同步循环（修复批 X-04）。
+     *
+     *  带锁屏密码的设备开机时目录读不到，解锁后第一次读到戳算一次变化，
+     *  会多作废一次缓存——无害，图标按需重新加载。
+     *
+     *  按清单删本地缓存：共享目录的镜像由应用侧删，本地缓存是独立的一份快照——不清的话，
+     *  hook 在共享目录未命中后退到本地缓存，被撤销的图标还会显示出来。只动本地文件，不联网。 */
+    private val rulesStampReaction = RulesStampReaction(
+        dropIconCache = {
+            iconCache.evictAll()
+            TraceLogger.i(TAG, "Rules stamp changed — icon cache dropped")
+        },
+        dropLocalPackages = { revoked -> dropRevokedPackagesInBackground(revoked) },
+        wakeSyncLoop = { HookLibSync.onRulesChanged() },
+        warn = { TraceLogger.w(TAG, it) }
+    )
+
+    private fun onRulesStampChanged() = rulesStampReaction.onStampChanged(readRevokedPackages())
+
+    private fun dropRevokedPackagesInBackground(revoked: List<String>) {
+        val ctx = getSystemUiContext() ?: return
+        Thread({
+            try {
+                HookLibSync.dropLocalPackages(ctx, revoked)
+            } catch (t: Throwable) {
+                TraceLogger.w(TAG, "drop revoked packages failed: ${t.message}")
             }
-        }
-        HookLibSync.onRulesChanged()
+        }, "OptIconDropRevoked").apply { isDaemon = true }.start()
     }
 
     /** Preload most recent icons into cache (background thread only) */
