@@ -230,7 +230,9 @@ object PicpEngine {
         return IconNormalizer.normalize(src)
     }
 
-    /** Prefetch PICP icons — no-op since zipball extraction already has all icons. */
+    /** Prefetch PICP icons — no-op since zipball extraction already has all icons.
+     *  回调在一条没有调用方兜底的线程上执行（批 MT M4）：查询或 onProgress 抛出异常，线程就带着异常结束、
+     *  onDone 永远不来——界面停在「同步中」。所以先算结果，再逐个回调，每个回调各自兜底，onDone 一定送达。 */
     fun prefetchForInstalled(
         context: Context,
         installedPackages: List<String>,
@@ -238,9 +240,22 @@ object PicpEngine {
         onDone: ((Int) -> Unit)? = null
     ) {
         Thread {
-            val targets = installedPackages.filter { hasIcon(it, context) }
-            onProgress?.invoke(targets.size, targets.size) // all icons already local
-            onDone?.invoke(targets.size)
+            val targets = try {
+                installedPackages.filter { hasIcon(it, context) }
+            } catch (t: Throwable) {
+                TraceLogger.w(TAG, "prefetch lookup failed: $t")
+                emptyList()
+            }
+            try {
+                onProgress?.invoke(targets.size, targets.size) // all icons already local
+            } catch (t: Throwable) {
+                TraceLogger.w(TAG, "prefetch progress callback failed: $t")
+            }
+            try {
+                onDone?.invoke(targets.size)
+            } catch (t: Throwable) {
+                TraceLogger.w(TAG, "prefetch done callback failed: $t")
+            }
         }.start()
     }
 
