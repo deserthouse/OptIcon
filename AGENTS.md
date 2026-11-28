@@ -36,6 +36,7 @@
 - release keystore `~/.android/opticon-release.jks`（SHA-256 指纹记录在 MIGRATION_NOTES）；真机交付一律 assembleRelease（签名混装=INSTALL_FAILED_UPDATE_INCOMPATIBLE）。
 - gradle wrapper 可用（`sh ./gradlew`；2026-11-24 核实，此前「wrapper jar 损坏」的记录已过期）；main 常绿 + feat/xxx 分支模型，已合并分支及时清理；产物/apk/archive/密钥不入库。
 - **测试门禁固定 `--rerun-tasks`**（UP-TO-DATE≠重跑，外审§2 教训）；**停止条件（路线 B 刹车，2026-10-22 外审§9）**：来源选择/取消/保存失败/重建恢复的任务契约成立且实屏证明有效后，停止为更 Expressive 追加装饰、动画或框架——新方案不能在同任务下改善理解/步骤/维护成本时，保留现有布局。
+- 发版工具（`scripts/release.py`）的改动跑 `python -m unittest discover -s scripts/tests`（不在 CI 里）。`build --replace-unpublished`：archive 里有同一版本、另一个提交的构建记录时，只有远端还没有这个版本的 tag 才顶替（查不到远端也拒绝）；被顶替的记录进 `history`、旧产物挪进 `replaced/`。已发布的版本永远不顶替。
 
 ## 项目专属教训
 
@@ -44,6 +45,8 @@
 - **Compose 对话框默认不为软键盘让位（2026-11-25 设备套件实证）**：`Dialog` / `AlertDialog` 默认不指定软键盘模式，系统选的是 `adjustPan`（窗口管理器里看得到 `sim={adjust=pan}`）——窗口不缩小，只在焦点输入框会被键盘盖住时整块上移，焦点在上面的输入框时底部按钮就被键盘盖住。含输入框的对话框要显式 `DialogProperties(decorFitsSystemWindows = false)` + `Modifier.safeDrawingPadding()`（Material 3 1.5.0-alpha22 的 AlertDialog 自己不处理窗口占位）。验证口径：读窗口管理器里输入法的 `type=ime frame=` 上沿，断言按钮都在它上方；「输入法已显示」不够——模拟器挂着实体键盘时输入法可能只是侧边工具条或悬浮键盘，都不占屏幕底部。
 - **设备验证套件的三道闸（2026-11-25 实证）**：①**宿主机忙就不跑**——宿主在跑游戏时（CPU 85%、空闲内存 4.6G）整跑，虚拟机被饿到，系统界面进程重启后起不来（启动超时被杀），整轮的失败与被测包无关；套件开跑前和每个场景前各看一次宿主负载（CPU 连续三次采样都 ≥ 60% 就不跑；**可用内存不能当判据**——游戏占满的那晚它反而比平时高）。②**杀系统界面进程 = 框架立即把锁屏置为显示中**（`wm_set_keyguard_shown`），新进程起来才撤；新进程起不来就「没有窗口持有焦点」，之后每一次点击都被输入分发器丢掉（`Dropping event because there is no touchable window`），截图与界面树却可能看着正常。点击集体失效时先查 `dumpsys window` 的 `mCurrentFocus` 与 `KeyguardServiceDelegate.showing`，不要去猜应用卡顿；导航前断言「有窗口持有焦点 + 锁屏没挂着」，不满足就留现场（报告目录 `diag-*/`）并停。③**界面树采集先删旧文件、带超时**——`uiautomator dump` 失败不写新文件，旧文件会让「点击生效」这类判断凭空为真；场景的导航失败即停，否则「没有开始同步」「图标库不变」这类检查会凭空通过。
 - **GitHub Actions 的「失败后重试」要用步骤级 continue-on-error（2026-11-27 踩过）**：任务级 `continue-on-error` 会把失败报成成功，`needs.<job>.result` 永远是 success，按它写的重试条件永远不成立——那次整次运行显示绿，实际首个 job 失败、重试被跳过。正确做法：组合动作所在的步骤 `continue-on-error`，后一步把 `steps.<id>.outcome` 写进 job 输出，重试 job 按输出决定是否运行。本地组合动作（`./.github/actions/…`）要先 `actions/checkout` 才找得到；标量里带冒号的 `run:` 要加引号。改完这类接线要在一次性分支上演练「首败 → 重试成功」与「两边都败 → 判红」两条路，并逐个 job 核对结论。另：第三方 `android-actions/setup-android` 替人接受 SDK 许可时只答固定条数，许可一多就失败——直接 `yes | sdkmanager --licenses`；依赖仓库（Maven Central / Plugin Portal，均在 Cloudflare 后）的解析会间歇失败，同一提交重跑即过，命中依赖缓存时不会发生。
+- **接线也要有人测（2026-11-28，独立复审 D 的测试灵敏度报告）**：纯函数那一层测得再好，「它被正确调用」没有测试就等于没测——把「不看模块总开关」「没变化也作废缓存」「不删被撤销包的镜像」「不写版本戳」等 17 处接线一并改坏，全套单测照样全绿。凡是改到「调用纯函数的那一段」（线程体、hook 回调、ViewModel 的收尾），把它抽成接受注入依赖的小类并补测试：先例 `SyncRound`（hook 巡检一轮）、`RuleSyncFinisher`（同步收尾四步）、`RulesStampReaction`（版本戳变化后的三步）、`SubscriptionManager` / `HookLibSync` 的渲染器与取字节注入点。**灵敏度靠变异验证**：每批把关键分支逐个改坏，确认有测试变红（不入库的样板 `tests/up-work/mutate_*.py`）。
+- **「写到一半才失败」这类路径要用注入点测（2026-11-28）**：磁盘满的典型形态是文件建得起来、写了一半写不进；只测「建不了文件」会漏掉写失败那一支——变异测试当场抓出 4 个漏网（下载写失败、解压写失败、生产通道的归位、建不了暂存目录）。给「打开输出流」留注入点（`NetworkExecutor.openOutput`、`PicpZipScanner.openOutput`），测试里塞一个一写就抛的流；布尔返回值抹得平的失败（存储满 vs 没下到）在适配层单独抽成函数来测。
 - **防御性 hook 反转事故（v0.3.1→A17）**：给"空接口"挂的无条件 hook 在新版本填充真实实现后反转为全局破坏——一切 hook 必须带配置守卫；升级目标 API 后重审全部 hook 点（A17 审计报告在 `docs/A17_HOOK_AUDIT.md`）。
 - **hook 失效排查顺序**：① LSPosed Manager 查作用域勾选（覆盖安装/重启会掉勾选，第一嫌疑）→ ② `/data/adb/lspd/log/modules_*.log` grep 包名（比 logcat 可靠）→ ③ 才轮到内核/SELinux/代码层。直接 SQL 改 modules_config.db 守护进程不感知，必须 Manager UI 操作。
 - **FileObserver 后缀过滤 bug 藏了两个月**：声称生效的功能必须回到代码路径核对（全局规范四.5 的出处）。
