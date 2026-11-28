@@ -1,11 +1,12 @@
 <div align="center">
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/icon_dark.png">
-  <img src="assets/icon_light.png" width="96" alt="OptIcon">
-</picture>
-
 # OptIcon
+
+<p align="center">
+  <img src="assets/icon_light.png" width="120" alt="OptIcon">
+  &nbsp;&nbsp;
+  <img src="assets/icon_dark.png" width="120" alt="OptIcon Dark">
+</p>
 
 An LSPosed module that gives Android notification icons a consistent Material You style.
 
