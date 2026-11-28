@@ -20,7 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Launch
+import androidx.compose.material.icons.automirrored.rounded.Launch
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.AlertDialog
@@ -316,7 +316,7 @@ internal fun CreditEntry(project: String, description: String, url: String) {
             }.padding(horizontal = 16.dp, vertical = 6.dp)
         ) {
             Text(url, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
-            Icon(Icons.Rounded.Launch, stringResource(R.string.hero_status_cd), Modifier.padding(start = 8.dp).size(16.dp), tint = MaterialTheme.colorScheme.primary)
+            Icon(Icons.AutoMirrored.Rounded.Launch, stringResource(R.string.hero_status_cd), Modifier.padding(start = 8.dp).size(16.dp), tint = MaterialTheme.colorScheme.primary)
         }
     }
 }
@@ -441,7 +441,7 @@ internal fun SourceSection(
                                 .padding(vertical = 6.dp)) {
                                 Text(linkUrl, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                                 Spacer(Modifier.width(4.dp))
-                                Icon(Icons.Rounded.Launch, stringResource(R.string.cd_open_link), Modifier.size(12.dp), tint = MaterialTheme.colorScheme.primary)
+                                Icon(Icons.AutoMirrored.Rounded.Launch, stringResource(R.string.cd_open_link), Modifier.size(12.dp), tint = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }

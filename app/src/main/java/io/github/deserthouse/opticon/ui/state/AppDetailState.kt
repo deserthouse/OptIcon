@@ -106,7 +106,7 @@ fun selectedFlatSource(
     }
 }
 
-enum class StatusBarMode(@androidx.annotation.StringRes val labelRes: Int) {
+enum class StatusBarMode(@get:androidx.annotation.StringRes val labelRes: Int) {
     DARK(R.string.preview_mode_dark),
     LIGHT(R.string.preview_mode_light)
 }

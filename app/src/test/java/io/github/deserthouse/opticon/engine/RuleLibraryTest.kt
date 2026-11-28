@@ -134,7 +134,7 @@ class RuleLibraryTest {
 
         // 已有中间态且放不回去：不建目录
         val other = File(tmp.newFolder("other"), "rules")
-        FileSnapshotSwitch.prevOf(other.parentFile, other.name).let { p ->
+        FileSnapshotSwitch.prevOf(requireNotNull(other.parentFile), other.name).let { p ->
             p.mkdirs()
             File(p, "A.png").writeText("old-A")
         }

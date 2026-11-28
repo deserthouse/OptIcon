@@ -493,9 +493,7 @@ class AppDetailViewModel(
                     .alignedTo(IconStrategy.ALGORITHM)
             }
             _algoInputClass.value = classified
-            if (classified != null) {
-                _state.update { it.copy(redrawParams = autoParamsFor(classified)) }
-            }
+            _state.update { it.copy(redrawParams = autoParamsFor(classified)) }
             debouncePreview()
         }
     }

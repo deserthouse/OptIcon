@@ -3,6 +3,8 @@ package io.github.deserthouse.opticon.engine
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -24,10 +26,10 @@ object MaterialIconRenderer {
     val categories: List<Pair<IconCategory, List<IconEntry>>> by lazy {
         listOf(
             "Communication" to listOf(
-                "Chat" to Icons.Filled.Chat,
+                "Chat" to Icons.AutoMirrored.Filled.Chat,
                 "Email" to Icons.Filled.Email,
                 "Call" to Icons.Filled.Call,
-                "Message" to Icons.Filled.Message,
+                "Message" to Icons.AutoMirrored.Filled.Message,
                 "Contacts" to Icons.Filled.Contacts,
                 "Phone" to Icons.Filled.Phone,
                 "MailOutline" to Icons.Rounded.MailOutline,

@@ -87,10 +87,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.asComposePath
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -121,7 +121,7 @@ fun AppListScreen(
     viewModel: AppListViewModel = viewModel()
 ) {
     val context = LocalContext.current
-    val clipboard = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
     val state by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
     val pullState = rememberPullToRefreshState()
@@ -314,8 +314,11 @@ fun AppListScreen(
                                     entry = entry,
                                     onClick = { onNavigateToDetail(entry.packageName) },
                                     onLongClick = {
-                                        clipboard.setText(AnnotatedString(entry.packageName))
+                                        // 新的剪贴板接口里写入是挂起函数：与提示共用一个协程，写完再提示
                                         scope.launch {
+                                            clipboard.setClipEntry(
+                                                ClipEntry(android.content.ClipData.newPlainText("OptIcon", entry.packageName))
+                                            )
                                             snackbarHostState.showSnackbar(packageNameCopiedText)
                                         }
                                     }

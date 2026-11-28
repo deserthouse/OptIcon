@@ -690,18 +690,4 @@ object PreferenceManager {
         EMOJI_TEXT
     }
 
-    // ━━━ 旧枚举保留兼容（不推荐新代码使用）━━━
-
-    @Deprecated("Use IconMethod instead", ReplaceWith("IconMethod.REMOTE_SUB"))
-    enum class IconSource { NONE, ICON_LIB, CUSTOM }
-
-    @Deprecated("Use IconMethod + ManualBranch instead")
-    enum class BaseSource { APP_ICON, NOTIFICATION, LOCAL }
-
-    @Deprecated("Use getMethod/setMethod")
-    fun getIconSource(pkgName: String): IconSource = when (getMethod(pkgName)) {
-        IconMethod.AUTO, IconMethod.REMOTE_SUB -> IconSource.ICON_LIB
-        IconMethod.MANUAL -> IconSource.CUSTOM
-        else -> IconSource.NONE
-    }
 }

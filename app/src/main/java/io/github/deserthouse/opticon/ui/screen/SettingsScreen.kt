@@ -36,7 +36,7 @@ import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Gesture
 import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.Launch
+import androidx.compose.material.icons.automirrored.rounded.Launch
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -424,7 +424,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                     )
                     Spacer(Modifier.weight(1f))
                     Icon(
-                        Icons.Rounded.Launch, stringResource(R.string.repo_link_label),
+                        Icons.AutoMirrored.Rounded.Launch, stringResource(R.string.repo_link_label),
                         Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary
                     )
                 }
@@ -481,7 +481,7 @@ fun SettingsScreen(navController: NavController, viewModel: SettingsViewModel = 
                         .padding(vertical = 6.dp)) {
                             Text("github.com/deserthouse", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.width(4.dp))
-                            Icon(Icons.Rounded.Launch, "GitHub", Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.AutoMirrored.Rounded.Launch, "GitHub", Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
                         }
                         Spacer(Modifier.height(14.dp))
                         // Whole musings block (title + body + extra line) is the

@@ -67,7 +67,7 @@ object TraceLogger {
         }
 
         val line = buildString {
-            append(dateFormat.get().format(Date()))
+            append(dateFormat.get()?.format(Date()).orEmpty())
             append(" ")
             append(levelChar)
             append("/")

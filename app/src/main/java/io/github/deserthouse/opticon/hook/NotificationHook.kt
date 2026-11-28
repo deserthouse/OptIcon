@@ -456,7 +456,7 @@ object NotificationHook {
                 FileObserver.DELETE or FileObserver.MOVED_FROM or FileObserver.DELETE_SELF or
                 FileObserver.MOVE_SELF
         return try {
-            object : FileObserver(sub.absolutePath, mask) {
+            object : FileObserver(sub, mask) {
                 override fun onEvent(event: Int, path: String?) {
                     // 监听的目录本身被删或被移走：inotify 的监听随目录一起没了，这个观察者
                     // 已经失效。把它放掉，巡检线程发现目录回来时会重新建立（独立复审 A-H2：
@@ -811,9 +811,12 @@ object NotificationHook {
                             // in extras carries the originating package — no timing
                             // dependency on createIcons.
                             val appInfo = try {
-                                n.extras?.getParcelable(
-                                    "android.app.extra.BUILDER_APPLICATION_INFO"
-                                ) as? android.content.pm.ApplicationInfo
+                                n.extras?.let {
+                                    androidx.core.os.BundleCompat.getParcelable(
+                                        it, "android.app.extra.BUILDER_APPLICATION_INFO",
+                                        android.content.pm.ApplicationInfo::class.java
+                                    )
+                                }
                             } catch (_: Exception) { null }
                             // Fallback to icon resPackage attribution (RESOURCE icons only;
                             // BITMAP icons are already-replaced payloads with no resPackage)

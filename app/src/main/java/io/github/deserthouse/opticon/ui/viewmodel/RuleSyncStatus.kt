@@ -27,7 +27,7 @@ internal object RuleSyncStatus {
     /** 上游没有新版本。 */
     fun upToDate(count: Int, tag: String?, versionTime: Long, zone: ZoneId = ZoneId.systemDefault()): Text =
         if (hasVersion(tag, versionTime)) {
-            Text(R.string.sync_anip_uptodate_upstream, arrayOf(count, tag, date(versionTime, zone)))
+            Text(R.string.sync_anip_uptodate_upstream, arrayOf<Any?>(count, tag, date(versionTime, zone)))
         } else {
             Text(R.string.sync_anip_uptodate, arrayOf(count))
         }
@@ -35,7 +35,7 @@ internal object RuleSyncStatus {
     /** 同步成功，收尾也做完了。 */
     fun done(count: Int, tag: String?, versionTime: Long, zone: ZoneId = ZoneId.systemDefault()): Text =
         if (hasVersion(tag, versionTime)) {
-            Text(R.string.sync_anip_done_upstream, arrayOf(count, tag, date(versionTime, zone)))
+            Text(R.string.sync_anip_done_upstream, arrayOf<Any?>(count, tag, date(versionTime, zone)))
         } else {
             Text(R.string.sync_anip_done, arrayOf(count))
         }

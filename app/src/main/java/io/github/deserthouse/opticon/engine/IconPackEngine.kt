@@ -208,7 +208,7 @@ object IconPackEngine {
             if (drawableId == 0) return@withContext null
             val drawable = res.getDrawable(drawableId, null) ?: return@withContext null
             val bmp = drawableToBitmap(drawable, size)
-            if (bmp != null) previewCache.put(key, bmp)
+            previewCache.put(key, bmp)
             bmp
         } catch (e: Exception) {
             TraceLogger.w(TAG, "loadIconPreviewCached($drawableName): ${e.message}")

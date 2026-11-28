@@ -55,7 +55,8 @@ class RepositoryLegacyTest {
 
         override fun getAll(): MutableMap<String, *> = data
         override fun getString(k: String, def: String?): String? = data[k] as? String ?: def
-        override fun getStringSet(k: String, def: MutableSet<String>?): MutableSet<String>? = data[k] as? MutableSet<String> ?: def
+        override fun getStringSet(k: String, def: MutableSet<String>?): MutableSet<String>? =
+            (data[k] as? Set<*>)?.filterIsInstance<String>()?.toMutableSet() ?: def
         override fun getInt(k: String, def: Int): Int = data[k] as? Int ?: def
         override fun getLong(k: String, def: Long): Long = data[k] as? Long ?: def
         override fun getFloat(k: String, def: Float): Float = data[k] as? Float ?: def
