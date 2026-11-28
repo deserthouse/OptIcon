@@ -418,12 +418,19 @@ server_count() { tail -n "+$(( $1 + 1 ))" "$OUT/server.log" | grep -c -- "GET $2
 # ── 规则库（上游 ANIP 快照，应用侧） ──
 RULES=$P/files/fankes_cache
 pull_root()   { MSYS_NO_PATHCONV=1 adb -s "$S" exec-out "su -c 'cat $1'" > "$2" 2>/dev/null; [ -s "$2" ]; }
-rule_source() { su_ "cat $RULES/source.json" 2>/dev/null | tr -d '\r'; }   # 快照的来历（channel / tag / timestamp / sha256）
+rule_source() { su_ "cat $RULES/source.json" 2>/dev/null | tr -d '\r'; }   # 快照的来历（channel / tag / timestamp / sha256 / icons）
 rule_count()  { su_ "ls $RULES" 2>/dev/null | tr -d '\r' | grep -c '\.png$'; }
 rule_hash()   { su_ "cd $RULES && sha256sum * | sha256sum" 2>/dev/null | tr -d '\r' | cut -c1-64; }
 built_line()  { hook_logs | grep -m1 "ANIP snapshot built" | sed 's/^.*ANIP snapshot built: //'; }
 anip_mirrored() { local p; for p in "$@"; do as test -f "$SHARED/$p.opticon" || return 1; done; }   # 这些包在共享目录里都有镜像
 rule_residue()  { su_ "test -e $P/files/fankes_cache.zip.tmp -o -d $RULES.staging -o -d $RULES.prev"; }
+# rule_stamp：规则版本戳文件的「修改时间 大小」。收尾重新发布时会重写它——拿前后两次的值判断有没有重新发布。
+rule_stamp()  { as stat -c '%Y %s' "$SHARED/rules_stamp.opticon" 2>/dev/null | tr -d '\r'; }
+# drop_mirror 包名：经媒体库删掉这个包在共享目录里的镜像（应用删镜像走的也是这条路）。删后文件应不存在。
+drop_mirror() {
+  as content delete --uri content://media/external/downloads --where "\"_display_name='$1.opticon'\"" >/dev/null 2>&1
+  not as test -f "$SHARED/$1.opticon"
+}
 
 # rule_sync：设置页上点「通知图标源」的同步按钮。状态行出现的位置留在 RS_TY（之后用 rule_wait 取）。
 rule_sync() {
@@ -434,7 +441,8 @@ rule_sync() {
   as input tap "$sx" "$sy"
 }
 # rule_wait [超时秒] → 状态行（出现结论词时）；超时时也输出当时的状态行，但退出码非零
-rule_wait() { wait_status "$RS_TY" "ANIP synced|already up to date|Already up to date|failed|unavailable|Invalid data|did not finish" "${1:-300}"; }
+# 结论词要跟得上产品文案：漏了一个，那种结局就要空等到超时才判失败（2026-11-28 盲审 BU-11f：漏了「存储空间不足」）
+rule_wait() { wait_status "$RS_TY" "ANIP synced|already up to date|Already up to date|failed|unavailable|Invalid data|did not finish|Not enough storage space" "${1:-300}"; }
 
 # plant_mirror 快照里的PNG：把它作为 com.android.shell 的共享镜像（经应用真实的写入链路，应用才删得掉）
 plant_mirror() {

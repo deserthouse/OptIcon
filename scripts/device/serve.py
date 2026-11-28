@@ -10,6 +10,9 @@
   /anip-release.json       规则库官方发布通道的清单（批 UP），指向下面那个包；标签固定 aaaaaaa
   /anip-bundle-aaaaaaa.zip 上游 2026-11-26 那份官方资源包原样（tests/upstream-2026-11-27/bundle/，不入库）
   /anip-extra.zip          同一份包再加两个清单条目：一个彩色 SVG（红色实心圆）和一个别名——自定义规则源用
+  /anip-archive.zip        同一份内容换成整库 zipball 的目录约定（{根}icons/<类别>/…）——官方包核对不上时
+                           退回的兜底归档（d12）。调试包经偏好键 e2e_anip_archive_url 把兜底地址指到这里；
+                           真实上游的整库会跟着上游变，已知答案会漂，所以不由它兜底
 
 payloads/mode.txt 的内容是 badsha 时，清单里的 sha256 故意对不上（验证核对失败后退回整库）；其余时候正确。
 每个请求都写一行到标准错误（run_suite.sh 把它落到 server.log，用来数请求）。
@@ -94,6 +97,18 @@ def build_anip_extra(path, real):
         dst.writestr("app/res/%s.svg" % VECTOR_PKG, VECTOR_SVG)
 
 
+def build_anip_archive(path, real):
+    """官方资源包的内容换成整库 zipball 的目录约定：{根}icons/<类别>/…。条目逐个相同，只是换了前缀。"""
+    with zipfile.ZipFile(io.BytesIO(real)) as src, zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as dst:
+        for item in src.infolist():
+            name = item.filename
+            if name.endswith("/"):
+                continue
+            category, _, rest = name.partition("/")
+            assert category in ("app", "game", "system"), "unexpected entry in the official bundle: %s" % name
+            dst.writestr("anip-archive/icons/%s/%s" % (category, rest), src.read(item))
+
+
 def release_manifest():
     """官方发布通道的清单。badsha 模式下哈希故意对不上。"""
     name = "anip-bundle-%s.zip" % LOCAL_TAG
@@ -138,6 +153,7 @@ def make_payloads():
     with io.open(os.path.join(PAYLOADS, "anip-bundle-%s.zip" % LOCAL_TAG), "wb") as f:
         f.write(real)
     build_anip_extra(os.path.join(PAYLOADS, "anip-extra.zip"), real)
+    build_anip_archive(os.path.join(PAYLOADS, "anip-archive.zip"), real)
 
 
 class Handler(BaseHTTPRequestHandler):

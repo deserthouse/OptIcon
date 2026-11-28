@@ -4,7 +4,7 @@
 # 用法（项目根目录；先启动 OptIcon_A16_root、装好被测的调试包；hook 不用管，开跑时会重新加载）：
 #   bash scripts/device/run_suite.sh                  # 全部场景（约 25 分钟，含一次重启）
 #   bash scripts/device/run_suite.sh --only d1,d4     # 只跑指定场景
-#   bash scripts/device/run_suite.sh --skip d6b       # 跳过指定场景（d6b 最慢，d5 / d6 / d9 / d10 / d12 / d13 / d14 需要外网）
+#   bash scripts/device/run_suite.sh --skip d6b       # 跳过指定场景（d6b 最慢；d5 / d6 / d9 / d10 / d13 / d14 需要外网，d15 还要下几百 MB）
 #
 # 前提：调试包（带测试接收器与明文流量声明）、root（su）、宿主机不忙（CPU 持续低于 60%，否则不跑）。
 # 三道闸：宿主机负载、设备状态（有窗口持有焦点、锁屏没有挂着）、场景完整（导航失败即停，不留凭空通过的检查）。
@@ -408,11 +408,14 @@ d9() {  # 共享目录被整体移走再放回：观察者随之作废，巡检�
 # 共同的前提：偏好从备份出发，只有内置规则源、自动更新关、不带清单地址的设备验证入口（偏好键
 # e2e_anip_manifest_url，只有调试包读它）。本机清单把「官方发布清单」指到测试源，测试源提供的包就是
 # 上游 2026-11-26 那一份（924 条），只是换了标签 aaaaaaa——所以下面的已知答案对真实上游和本机清单都成立。
+# 官方包核对不上时退回的整库归档同理有一个设备验证入口（偏好键 e2e_anip_archive_url），d12 用它把兜底
+# 也指到测试源：真实上游的整库会跟着上游变，已知答案会漂。
 
 anip_prefs() {  # anip_prefs 标签 [mkprefs 的额外参数…]
   local tag="$1"; shift
   python "$DIR/mkprefs.py" "$OUT/backup/optcon_prefs.xml" "$OUT/p-$tag.xml" \
-    'custom_sub_sources=[]' active_ania_source- e2e_anip_manifest_url- custom_sources_formats_migrated=1 auto_lib_update=false "$@" >/dev/null
+    'custom_sub_sources=[]' active_ania_source- e2e_anip_manifest_url- e2e_anip_archive_url- \
+    custom_sources_formats_migrated=1 auto_lib_update=false "$@" >/dev/null
   prefs_inject "$OUT/p-$tag.xml"
 }
 
@@ -449,8 +452,8 @@ d10() {  # 真实上游（需要外网）：官方发布通道；别名与 SVG �
   save_logs d10-sync
   if [ "$tag" = "e98c906" ]; then
     check "D10 已知答案：924 个规则图标" grep_has "$st" "ANIP synced 924 rule icons"
-    check "D10 已知答案：814 个位图 + 10 个 SVG 渲染 + 100 个别名，缺失与未解析都是 0" \
-      hook_has "ANIP snapshot built: 924 icons (declared 924, written 814, rendered 10, aliased 100, carried over 0, missing 0, unresolved 0)"
+    check "D10 已知答案：814 个位图 + 10 个 SVG 渲染 + 100 个别名，缺失、未解析与渲染失败都是 0" \
+      hook_has "ANIP snapshot built: 924 icons (declared 924, written 814, rendered 10, aliased 100, carried over 0, missing 0, unresolved 0, render failed 0)"
   else
     note "D10 上游版本已不是已知答案那一份（e98c906）" "条数与构成以上面两行为准"
   fi
@@ -490,7 +493,7 @@ d10b() {  # 彩色 SVG（本机测试源的自定义规则源）：渲染保留�
   note "D10b 快照构成" "$(built_line)"
   save_logs d10b-sync
   check "D10b 已知答案：926 = 924 + 彩色 SVG + 别名" \
-    hook_has "ANIP snapshot built: 926 icons (declared 926, written 814, rendered 11, aliased 101, carried over 0, missing 0, unresolved 0)"
+    hook_has "ANIP snapshot built: 926 icons (declared 926, written 814, rendered 11, aliased 101, carried over 0, missing 0, unresolved 0, render failed 0)"
   check_eq "D10b 快照里的 PNG 数" "$(rule_count)" 926
   check "D10b 彩色 SVG 渲染进了快照" su_ "test -s $RULES/com.local.vector.png"
   pull_root "$RULES/com.local.vector.png" "$OUT/d10b-vector-rendered.png"
@@ -515,7 +518,7 @@ d10b() {  # 彩色 SVG（本机测试源的自定义规则源）：渲染保留�
   SCENARIO_DONE=1
 }
 
-d11() {  # 上游没有新版本：第二次同步只取清单，不下载、不重建（本机清单）
+d11() {  # 上游没有新版本：第二次同步只取清单，不下载、不重建；镜像缺了才补发（本机清单）
   anip_prefs d11 "e2e_anip_manifest_url=http://127.0.0.1:$PORT/anip-release.json"
   local mark; mark=$(server_mark)
   clear_logs
@@ -528,7 +531,9 @@ d11() {  # 上游没有新版本：第二次同步只取清单，不下载、不
   check "D11 状态行带本机清单的日期与标签" grep_has "$st" "upstream 2026-11-26 (aaaaaaa)"
   check_eq "D11 第一次同步：清单 1 次、包 1 次" "$(server_count "$mark" /anip-release.json)/$(server_count "$mark" /anip-bundle-aaaaaaa.zip)" 1/1
   check "D11 快照的版本记录：官方发布通道 + 标签 aaaaaaa" grep_has "$(rule_source)" '"channel":"release","tag":"aaaaaaa"'
-  local h0; h0=$(rule_hash)
+  check "D11 快照的版本记录带条数 924" grep_has "$(rule_source)" '"icons":924'
+  local h0 stamp0; h0=$(rule_hash); stamp0=$(rule_stamp)
+  check "D11 前提：第一次同步写了版本戳" test -n "$stamp0"
   shot d11-01-first
   # 第二次：同一个版本。不冷启动（冷启动会清掉状态行），在同一个页面上再点一次
   mark=$(server_mark)
@@ -546,16 +551,41 @@ d11() {  # 上游没有新版本：第二次同步只取清单，不下载、不
   check "D11 日志：这个版本已经在本机，没有下载" hook_has "ANIP source: release aaaaaaa is already in place (924 icons) — nothing to download"
   check "D11 快照一个字节都没动" test "$(rule_hash)" = "$h0"
   check "D11 没有重建快照" not hook_has "ANIP snapshot built"
-  check "D11 没有做收尾（镜像与撤销清理）" not hook_has "rule sync follow-up"
+  # 上游没变时收尾先核实共享目录里的镜像（盲审 BU-02）：齐全就什么都不做——不重新镜像、不写版本戳、不做撤销清理
+  check "D11 收尾核实了镜像、齐全，没有重新发布" hook_has "snapshot unchanged, mirrors complete — nothing to republish"
+  check "D11 第二次同步没有重新发布（版本戳没重写）" test "$(rule_stamp)" = "$stamp0"
+  check "D11 第二次同步没有做撤销清理" not hook_has "revoked="
   check "D11 无暂存与归档残留" not rule_residue
   save_logs d11-second
+  # 第三次：从共享目录里删掉一个镜像再同步。上游还是没变，状态行仍是「已是最新」，但缺的镜像要补回来——
+  # 「…发布到通知栏没有完成——请再同步一次」这条恢复路径靠的就是它
+  local alias=com.ss.android.ugc.aweme.lite
+  check "D11 前提：别名包在共享目录里有镜像" anip_mirrored "$alias"
+  drop_mirror "$alias" || { check "D11 删掉共享目录里的一个镜像" false; save_logs d11-drop-failed; return; }
+  check "D11 删掉共享目录里的一个镜像" not anip_mirrored "$alias"
+  mark=$(server_mark)
+  clear_logs
+  sleep 2
+  as input tap "$sx" "$sy"; sleep 2
+  st=$(rule_wait)
+  note "D11 第三次同步（共享目录里缺一个镜像）的状态行" "$st"
+  shot d11-03-republished
+  case "$st" in *"already up to date"*|*"Already up to date"*) check "D11 缺镜像时上游仍是最新，状态行照旧" true;; *) check "D11 缺镜像时上游仍是最新，状态行照旧" false; save_logs d11-third-failed; return;; esac
+  check_eq "D11 第三次同步：清单 1 次、包 0 次" "$(server_count "$mark" /anip-release.json)/$(server_count "$mark" /anip-bundle-aaaaaaa.zip)" 1/0
+  check "D11 日志：发现镜像缺了、重新发布" hook_has "snapshot unchanged, mirrors missing — republishing"
+  check "D11 缺的镜像补回来了" anip_mirrored "$alias"
+  check "D11 重新发布写了版本戳（与第二次之后的不同）" test "$(rule_stamp)" != "$stamp0"
+  check "D11 重新发布之后没有报「发布没完成」" not grep_has "$st" "did not finish"
+  check "D11 第三次同步快照还是没动" test "$(rule_hash)" = "$h0"
+  check "D11 第三次同步无暂存与归档残留" not rule_residue
+  save_logs d11-republished
   anip_restore "D11"
   SCENARIO_DONE=1
 }
 
-d12_body() {  # 包核对不上：退回整库归档，状态行如实（不带上游版本）。整库归档来自真实上游，需要外网
+d12_body() {  # 包核对不上：退回整库归档，状态行如实（不带上游版本）。清单与兜底归档都来自本机测试源，不需要外网
   echo badsha > "$DIR/payloads/mode.txt"
-  anip_prefs d12 "e2e_anip_manifest_url=http://127.0.0.1:$PORT/anip-release.json"
+  anip_prefs d12 "e2e_anip_manifest_url=http://127.0.0.1:$PORT/anip-release.json" "e2e_anip_archive_url=http://127.0.0.1:$PORT/anip-archive.zip"
   local mark; mark=$(server_mark)
   clear_logs
   rule_sync || { check "D12 打开设置页并找到规则库的同步按钮" false; return; }
@@ -564,10 +594,14 @@ d12_body() {  # 包核对不上：退回整库归档，状态行如实（不带�
   case "$st" in *"ANIP synced"*) check "D12 核对失败后同步仍然成功（退回整库）" true;; *) check "D12 核对失败后同步仍然成功（退回整库）" false; save_logs d12-failed; return;; esac
   check "D12 日志：官方包核对失败、退回整库" hook_has "failed its size / sha256 verification — falling back to the branch archive"
   check_eq "D12 本机清单取了 1 次、包下载了 1 次（下到了才核对）" "$(server_count "$mark" /anip-release.json)/$(server_count "$mark" /anip-bundle-aaaaaaa.zip)" 1/1
+  check_eq "D12 兜底归档取自本机测试源（整库布局），1 次" "$(server_count "$mark" /anip-archive.zip)" 1
   check "D12 状态行如实：整库归档没有版本可报" not grep_has "$st" "upstream"
   check "D12 状态行如实：条数是整库的" grep_has "$st" "ANIP synced 924 rule icons"
   check "D12 快照的版本记录：整库归档" grep_has "$(rule_source)" '"channel":"archive"'
+  check "D12 快照的版本记录带条数 924" grep_has "$(rule_source)" '"icons":924'
   check_eq "D12 快照完整（924 个 PNG）" "$(rule_count)" 924
+  check "D12 已知答案：整库布局解析出的构成与官方包相同" \
+    hook_has "ANIP snapshot built: 924 icons (declared 924, written 814, rendered 10, aliased 100, carried over 0, missing 0, unresolved 0, render failed 0)"
   check "D12 同步收尾完成" wait_hook "rule sync follow-up" 150
   check "D12 核对不过的包没有留下来" not rule_residue
   shot d12-01-after-sync
@@ -642,6 +676,37 @@ d14() {  # 总开关关 + 自动更新开（批 MT M5）：总开关关着时自
   shot d14-01-after
   tap_node "Auto lib update (background)"; sleep 3
   check_eq "D14 收尾：自动更新为关" "$(shared_flag auto_lib_update.opticon)" false
+  SCENARIO_DONE=1
+}
+
+d15() {  # 内置应用图标源（完美图标补全计划）从同步入口做一次真实同步（批 UP U3）。需要外网：整库几百 MB，
+         # 经模拟器的全局代理下载，是套件里最费流量的场景。地址换成了普通归档地址（批 UP），这一条证明它真的能下。
+  python "$DIR/mkprefs.py" "$OUT/backup/optcon_prefs.xml" "$OUT/p-d15.xml" \
+    'custom_sub_sources=[]' active_picp_source- active_ania_source- custom_sources_formats_migrated=1 picp_size_confirmed=true auto_lib_update=false >/dev/null
+  prefs_inject "$OUT/p-d15.xml"
+  # 导航不成功就停：往下「等同步成功」会空等到超时，超时之后的检查会凭空通过
+  read -r sx sy ty <<< "$(goto_picp)"
+  [ -n "${sx:-}" ] || { check "D15 进入应用图标源分区" false; return; }
+  clear_logs
+  as input tap "$sx" "$sy"
+  # 上限 30 分钟。成功的状态行是「Synced N packages, M icons cached」；进度文案里没有 Synced 这个词
+  local st; st=$(wait_status "$ty" "Synced |PICP sync failed|Failed to download PICP|Fetch failed|previous library kept|exceeds the size limit" 1800)
+  note "D15 内置应用图标源同步的状态行" "$st"
+  shot d15-01-after
+  local pkgs icons
+  pkgs=$(printf '%s' "$st" | sed -n 's/.*Synced \([0-9][0-9]*\) packages,.*/\1/p')
+  icons=$(printf '%s' "$st" | sed -n 's/.*packages, \([0-9][0-9]*\) icons cached.*/\1/p')
+  if [ -z "$pkgs" ] || [ -z "$icons" ]; then
+    check "D15 内置源真实同步成功（状态行带包数与图标数）" false
+    save_logs d15-failed
+    return
+  fi
+  check "D15 内置源真实同步成功（状态行带包数与图标数）" true
+  check "D15 包数与图标数都不是 0" test "$pkgs" -gt 0 -a "$icons" -gt 0
+  check "D15 日志：同步之后加载了图标库索引" hook_has "PICP index source:"
+  note "D15 图标库索引日志" "$(hook_logs | grep -m1 'PICP index source:' | sed 's/^.*PICP index source: //')"
+  note "D15 图标库目录" "$(picp_ls | tr '\n' ';')"
+  save_logs d15
   SCENARIO_DONE=1
 }
 
@@ -751,7 +816,12 @@ restore() {
   su_ "rmdir /data/user/0/com.android.systemui/cache/opticon_hook_icons 2>/dev/null"   # 早期版本误建在普通存储下的空目录
   su_ "rm -f $P/files/fankes_cache/$D5_PLAIN.png $P/files/fankes_cache/$D5_CUSTOM.png /data/local/tmp/opticon-prefs.xml /data/local/tmp/suite-src.png /data/local/tmp/opticon-suite-picp.tar $P/files/baked/suite-src.png $P/files/baked/suite-plant.png $P/files/baked/$D5_PLAIN.png $P/files/baked/$D5_CUSTOM.png"
   check "还原：临时文件已清除" not su_ "test -e /data/local/tmp/opticon-prefs.xml -o -e /data/local/tmp/suite-src.png -o -e /data/local/tmp/opticon-suite-picp.tar -o -e $P/files/baked/suite-plant.png"
-  # d14 动过总开关：它不在偏好文件里，备份还原不了，只核对
+  # d14 动过总开关：它不在偏好文件里，备份还原不了。不一样就按开始前的值把共享文件写回去，再核对
+  # （d14 中途失败时开关可能停在关：只核对不还原，后面的场景和下一轮都会带着一个关着的总开关）
+  if [ -n "${MASTER0:-}" ] && [ "$(shared_flag master_switch.opticon)" != "$MASTER0" ]; then
+    note "还原：总开关与开始前不同（$(shared_flag master_switch.opticon)），按开始前的值写回" "$MASTER0"
+    su_ "printf '%s' '$MASTER0' > $SHARED/master_switch.opticon"
+  fi
   if [ -n "${MASTER0:-}" ]; then
     check_eq "还原：总开关与开始前一致" "$(shared_flag master_switch.opticon)" "$MASTER0" || RESTORE_FAILED=1
   fi
@@ -796,7 +866,7 @@ want() {  # 场景是否要跑
 CLEANED=0
 if ! setup; then log "准备阶段失败，终止"; trap on_exit EXIT; restore; exit 1; fi
 trap on_exit EXIT
-for s in d1 d2 d3 d4 d5 d6 d6b d7 d8 d9 d10 d10b d11 d12 d13 d14; do
+for s in d1 d2 d3 d4 d5 d6 d6b d7 d8 d9 d10 d10b d11 d12 d13 d14 d15; do
   want "$s" || continue
   if [ "$DEVICE_DEAD" = "1" ]; then log "设备已经不接收点击，$s 不跑了"; continue; fi
   h=$(host_load); r="${h#*,}"
