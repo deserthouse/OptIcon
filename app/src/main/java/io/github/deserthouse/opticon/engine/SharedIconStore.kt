@@ -249,6 +249,29 @@ object SharedIconStore {
         return published
     }
 
+    /**
+     * 规则库的镜像是不是齐全：[legacyDir] 里每个 {pkg}.png 在 [sharedDir] 里都有 {pkg}.opticon。
+     * [skip] 接受的包不算——那些包共享目录里留的是用户自己的图，规则库同步不动它。
+     * 哪一个目录列不出清单都返回 false：核实不了就不说齐全。纯文件判断，单测用临时目录就能测。
+     */
+    internal fun mirrorsPresent(legacyDir: File, sharedDir: File, skip: ((String) -> Boolean)? = null): Boolean {
+        val pngs = legacyDir.listFiles { f -> f.isFile && f.name.endsWith(".png") } ?: return false
+        val names = sharedDir.list() ?: return false
+        val mirrored = HashSet<String>(names.size)
+        for (name in names) if (name.endsWith(EXTENSION)) mirrored.add(name.removeSuffix(EXTENSION))
+        return pngs.all { f ->
+            val pkg = f.name.removeSuffix(".png")
+            pkg.isNotEmpty() && (skip?.invoke(pkg) == true || pkg in mirrored)
+        }
+    }
+
+    /** [mirrorsPresent] 的生产入口：共享目录是 Download/OptIcon。出错同样按「不齐全」算。 */
+    fun ruleMirrorsPresent(legacyDir: File, skip: ((String) -> Boolean)? = null): Boolean = try {
+        mirrorsPresent(legacyDir, publicDir(), skip)
+    } catch (_: Exception) {
+        false
+    }
+
     // ━━━ internals: MediaStore.Downloads CRUD ━━━
 
     private fun collection(): Uri =

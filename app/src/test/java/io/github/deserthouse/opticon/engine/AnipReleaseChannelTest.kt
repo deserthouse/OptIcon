@@ -216,4 +216,29 @@ class AnipReleaseChannelTest {
         AnipReleaseChannel.fetchLatest(access)
         assertEquals(listOf(AnipReleaseChannel.MANIFEST_URL to AnipReleaseChannel.MAX_MANIFEST_BYTES), access.small)
     }
+
+    @Test
+    fun `numeric fields must be json numbers - strings and fractions are refused`() {
+        // 与上游 SDK 一样的严格类型。此前靠 org.json 的宽松转换，"schemaVersion": "1" 也能通过
+        unavailable(withField("schemaVersion", "\"1\""), "schema")
+        unavailable(withField("schemaVersion", "1.0"), "schema")
+        unavailable(withField("timestamp", "\"1795697528000\""), "timestamp")
+        unavailable(withField("size", "\"1795929\""), "size")
+        unavailable(withField("size", "1795929.0"), "size")
+    }
+
+    @Test
+    fun `a manifest nested too deeply is refused without throwing`() {
+        // 根是个数组：无论解析器是被栈打穿还是正常报「不是对象」，结果都只能是「用不了」，不能抛
+        val deep = "[".repeat(30_000) + "]".repeat(30_000)
+        unavailable(deep, "JSON")
+    }
+
+    @Test
+    fun `percent-encoded path tricks are refused too`() {
+        // 字面量 .. 早就挡了；%2e%2e/ 是同一个意思的另一种写法（盲审 BU-11a）
+        val base = "https://github.com/o/r/releases/latest/download/"
+        assertNull(AnipReleaseChannel.resolve(base + "anip-release.json", "%2e%2e/download/anip-bundle-abc.zip"))
+        unavailable(withField("downloadUrl", "\"%2E%2E/other.zip\""), "download")
+    }
 }

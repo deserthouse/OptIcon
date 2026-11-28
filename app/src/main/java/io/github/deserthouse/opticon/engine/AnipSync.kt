@@ -63,7 +63,7 @@ object AnipSync {
 
     /** 同步没做成的原因，调用方据此选提示。 */
     enum class Failure {
-        /** 本地问题：上一个快照放不回去、来历文件写不进去、切换失败、同步过程中的意外异常。 */
+        /** 本地问题：上一个快照放不回去、切换失败、同步过程中的意外异常。 */
         LOCAL,
 
         /** 归档没下载下来。 */
@@ -72,7 +72,7 @@ object AnipSync {
         /** 归档下载到了，但构建被拒绝：不是完整的 zip、清单解析不了、空快照、超过上限。 */
         INVALID,
 
-        /** 本地写不进去：磁盘满、建不了目录（下载落盘或写快照时出的错，批 MT M3）。 */
+        /** 本地写不进去：磁盘满、建不了目录（下载落盘、写快照或写来历文件时出的错，批 MT M3）。 */
         STORAGE
     }
 
@@ -80,7 +80,8 @@ object AnipSync {
      * 一次规则库同步的结果。count ≤ 0 = 失败（原因见 [failure]），现有目录不动。
      * [revokedPackages]：同步前在库里、新版本里没有的包（上游撤销）——
      * 供调用方在别的读取通道上把它们的图标一并清掉（修复批 X-04）。
-     * [unchanged]：官方通道说上游没有新版本——没有下载、没有重建，count 是现有快照的条数。
+     * [unchanged]：官方通道说上游没有新版本，且现有快照核实过是完整的——没有下载、没有重建，
+     * count 是现有快照的条数。
      * [versionTime]：上游这个版本的发布时间（毫秒时间戳），界面用它显示日期；没有版本可报时为 0。
      */
     data class SyncOutcome(
@@ -117,7 +118,8 @@ object AnipSync {
     /**
      * [syncDetailed] 的完整结果（含被撤销的包）。同步是阻塞的，调用方负责线程。
      *  [ops] / [access] / [rasterizer] 是注入点，生产用默认值；[manifestUrl] 同理（官方发布清单的地址，
-     *  调试包的设备验证套件把它指到本机测试源）。
+     *  调试包的设备验证套件把它指到本机测试源）。[fallbackArchiveUrl] 是内置源退回整库时用的地址，
+     *  null = 上游整库 zipball；设备验证套件同样可以把它指到本机测试源。
      */
     internal fun syncDetailed(
         dir: File,
@@ -128,7 +130,8 @@ object AnipSync {
         access: AnipReleaseChannel.Access? = null,
         rasterizer: AnipSnapshotBuilder.IconRasterizer = AnipSnapshotBuilder.NO_RASTERIZER,
         limits: AnipSnapshotBuilder.Limits = AnipSnapshotBuilder.DEFAULT_LIMITS,
-        manifestUrl: String = AnipReleaseChannel.MANIFEST_URL
+        manifestUrl: String = AnipReleaseChannel.MANIFEST_URL,
+        fallbackArchiveUrl: String? = null
     ): SyncOutcome {
         // Context-free callers (hook self-sync) fall back to locale tables so the
         // progress strings stay single-language on either locale.
@@ -172,7 +175,13 @@ object AnipSync {
                         val release = fetched.release
                         val live = RuleLibrary.readSource(dir)
                         val liveCount = RuleLibrary.packages(dir).size
-                        if (liveCount > 0 && live?.channel == CHANNEL_RELEASE && live.tag == release.tag) {
+                        // 「已经是这个版本」要三件事都成立，缺一件就重新下载（盲审 BU-05 / BU-06）：
+                        //  ① 来历记录说的就是这个版本；② 图标一个不少（缓存目录可能被系统或清理工具删掉一部分）；
+                        //  ③ 目录没有被旧版规则就地写入过——旧版落库会覆盖图标和 meta，却留下旧的来历记录。
+                        val alreadyCurrent = live != null && live.icons > 0 && liveCount == live.icons &&
+                            live.channel == CHANNEL_RELEASE && live.tag == release.tag &&
+                            !File(dir, IconLibEngine.LEGACY_ORIGIN_FILE).exists()
+                        if (alreadyCurrent) {
                             TraceLogger.i(TAG, "ANIP source: release ${release.tag} is already in place ($liveCount icons) — nothing to download")
                             return SyncOutcome(
                                 liveCount, emptyList(), unchanged = true, channel = CHANNEL_RELEASE,
@@ -200,7 +209,7 @@ object AnipSync {
                         TraceLogger.w(TAG, "ANIP release channel unavailable (${fetched.reason}) — falling back to the branch archive")
                 }
             }
-            if (!haveArchive && !fetchArchive(url)) return SyncOutcome(0, failure = Failure.NETWORK)
+            if (!haveArchive && !fetchArchive(fallbackArchiveUrl ?: url)) return SyncOutcome(0, failure = Failure.NETWORK)
 
             progress(io.github.deserthouse.opticon.R.string.sync_unpacking)
             val before = RuleLibrary.packages(dir)
@@ -223,13 +232,13 @@ object AnipSync {
                 "ANIP snapshot built: ${built.items.size} icons " +
                     "(declared ${stats.declared}, written ${stats.written}, rendered ${stats.rendered}, " +
                     "aliased ${stats.aliased}, carried over ${stats.carriedOver}, missing ${stats.missing}, " +
-                    "unresolved ${stats.unresolved})"
+                    "unresolved ${stats.unresolved}, render failed ${stats.renderFailed})"
             )
 
-            // 来历随快照一起切换：下一次同步据此判断官方通道有没有新版本
-            if (!RuleLibrary.writeSource(staging, source)) {
+            // 来历随快照一起切换：下一次同步据此判断官方通道有没有新版本，以及这份快照还完不完整
+            if (!RuleLibrary.writeSource(staging, source.copy(icons = built.items.size))) {
                 TraceLogger.w(TAG, "ANIP snapshot source record could not be written — keeping live dir")
-                return SyncOutcome(0, failure = Failure.LOCAL)
+                return SyncOutcome(0, failure = Failure.STORAGE)
             }
 
             // Switch: staging validated, swap atomically. IconLibEngine's

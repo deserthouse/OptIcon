@@ -54,8 +54,12 @@ class AnipRealBundleKnownAnswerTest {
         // SVG：理想汽车（2026-11-26 上游新增，此前进不到 OptIcon）
         assertArrayEquals(AnipZipFixtures.pngOf("rendered-150"), bytes("com.chehejia.oc.m01"))
         assertEquals("理想汽车", byPkg.getValue("com.chehejia.oc.m01").appName)
-        // 位图：原样落盘
-        assertTrue(bytes("com.tencent.mm").size > 12)
+        // 位图：原样落盘。与归档里的那一份逐字节相同——2026-11-28 盲审指出，原先只断言了「大于 12 字节」
+        java.util.zip.ZipFile(bundle).use { zip ->
+            val entry = zip.entries().asSequence().firstOrNull { it.name.endsWith("/com.tencent.mm.png") }
+                ?: error("归档里没有 com.tencent.mm.png")
+            assertArrayEquals(zip.getInputStream(entry).use { it.readBytes() }, bytes("com.tencent.mm"))
+        }
 
         val apps = JSONObject(File(staging, RuleLibrary.META_FILE).readText()).getJSONArray("apps")
         assertEquals(924, apps.length())

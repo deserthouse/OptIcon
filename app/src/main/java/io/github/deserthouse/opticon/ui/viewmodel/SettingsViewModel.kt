@@ -428,9 +428,22 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                                 ?: ctx.getString(io.github.deserthouse.opticon.R.string.sync_failed)
                         } else if (!r.wasChanged) {
                             _aniaSyncFailed.value = false
+                            // 上游没有新版本：快照没动。但共享目录里的镜像不一定还齐（被清掉、上一次收尾
+                            // 中途被杀、镜像时写失败）——先核实，缺了就补发（盲审 BU-02）。
+                            // 「…发布到通知栏没有完成——请再同步一次」这条恢复路径靠的就是它。
+                            val published = try {
+                                ruleSyncFinisher(ctx, routedFormat).repairIfNeeded()
+                            } catch (t: Throwable) {
+                                TraceLogger.w(TAG, "rule sync follow-up crashed: $t")
+                                false
+                            }
+                            _aniaSyncFailed.value = !published
                             // 上游没有新版本：文案带上游版本（批 UP-U4）；旧版规则源没有版本可报，用原来的说法
-                            _aniaSyncStatus.value = ruleSyncStatus(
-                                ctx, RuleSyncStatus.upToDate(r.iconCount, r.tag, r.versionTime))
+                            _aniaSyncStatus.value = if (published) {
+                                ruleSyncStatus(ctx, RuleSyncStatus.upToDate(r.iconCount, r.tag, r.versionTime))
+                            } else {
+                                ctx.getString(io.github.deserthouse.opticon.R.string.sync_anip_done_incomplete)
+                            }
                         } else {
                             _aniaIconCount.value = r.iconCount
                             // 收尾单独兜底（独立复审 D-04）：走到这里规则库已经同步成功，收尾
@@ -468,7 +481,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
      *
      * @return false = 规则库已同步，但镜像或撤销清理没有做完（版本戳照写）。
      */
-    private fun finishRuleSync(ctx: Context, routedFormat: io.github.deserthouse.opticon.domain.SourceFormat, revoked: List<String>): Boolean {
+    private fun finishRuleSync(ctx: Context, routedFormat: io.github.deserthouse.opticon.domain.SourceFormat, revoked: List<String>): Boolean =
+        ruleSyncFinisher(ctx, routedFormat).finish(revoked)
+
+    /** 同步收尾的执行者（在同步线程上用）。镜像是否齐全以共享目录里的实际文件为准。 */
+    private fun ruleSyncFinisher(ctx: Context, routedFormat: io.github.deserthouse.opticon.domain.SourceFormat): io.github.deserthouse.opticon.engine.RuleSyncFinisher {
         // 与应用启动入口共用 RuleLibraryLoader：旧版规则文件只在当前源确实是 Legacy JSON 时才导入（X-21）。
         // OI-02: skip apps the user has configured with a non-rules strategy —
         // a rules update must never silently replace their authored icon.
@@ -476,6 +493,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             PreferenceManager.isMethodEnabled(pkg) &&
                 PreferenceManager.getStrategy(pkg) != io.github.deserthouse.opticon.ui.state.IconStrategy.FANKES
         }
+        val rulesDir = java.io.File(ctx.filesDir, "fankes_cache")
         return io.github.deserthouse.opticon.engine.RuleSyncFinisher(
             importLegacyRules = { io.github.deserthouse.opticon.engine.RuleLibraryLoader.load(ctx, routedFormat) },
             // Z4③（架构前置）：批量覆写共享产物与保存流水线互斥——这是 Coordinator 锁外最实际的交错写者
@@ -483,9 +501,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 io.github.deserthouse.opticon.engine.publish.PublishCoordinator.withPipelineBlocking(label) { block() }
             },
             mirrorAll = {
-                io.github.deserthouse.opticon.engine.SharedIconStore.mirrorAllFromDir(
-                    ctx, java.io.File(ctx.filesDir, "fankes_cache"), userAuthored
-                )
+                io.github.deserthouse.opticon.engine.SharedIconStore.mirrorAllFromDir(ctx, rulesDir, userAuthored)
+            },
+            mirrorsPresent = {
+                io.github.deserthouse.opticon.engine.SharedIconStore.ruleMirrorsPresent(rulesDir, userAuthored)
             },
             isCustomized = { pkg -> PreferenceManager.isMethodEnabled(pkg) },
             deleteMirror = { pkg -> io.github.deserthouse.opticon.engine.SharedIconStore.deleteIcon(ctx, pkg) },
@@ -497,7 +516,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             },
             warn = { TraceLogger.w(TAG, it) },
             info = { TraceLogger.i(TAG, it) },
-        ).finish(revoked)
+        )
     }
 
     // ━━━ PICP sync ━━━

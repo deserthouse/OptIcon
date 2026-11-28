@@ -9,8 +9,13 @@ import org.junit.Assert.fail
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.zip.GZIPOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
+import java.util.zip.ZipOutputStream
 
 /**
  * 批 UP（上游对齐）：AnipSnapshotBuilder 对上游三种写法的处理——别名（target）、SVG、
@@ -78,7 +83,8 @@ class AnipUpstreamRulesTest {
 
     private fun stats(vararg parts: Int) = AnipSnapshotBuilder.Stats(
         declared = parts[0], written = parts[1], carriedOver = parts[2], missing = parts[3],
-        rendered = parts.getOrElse(4) { 0 }, aliased = parts.getOrElse(5) { 0 }, unresolved = parts.getOrElse(6) { 0 }
+        rendered = parts.getOrElse(4) { 0 }, aliased = parts.getOrElse(5) { 0 }, unresolved = parts.getOrElse(6) { 0 },
+        renderFailed = parts.getOrElse(7) { 0 }
     )
 
     private val base = AnipZipFixtures.Declared("com.a.base", zh = "抖音", en = "Douyin", contributors = "fankes")
@@ -290,10 +296,10 @@ class AnipUpstreamRulesTest {
         assertTrue(rejected.reason, rejected.reason.contains("missing 1"))
         assertFalse(staging.exists())
 
-        // 旧版本里有：沿用，不算撤销
+        // 旧版本里有：沿用，不算撤销。渲染不了这件事单独计在 renderFailed 里
         val (upgraded, staging2) = build(bytes, old = oldDirWith("com.a.svg"))
         assertArrayEquals(AnipZipFixtures.pngOf("old-com.a.svg"), png(staging2, "com.a.svg"))
-        assertEquals(stats(1, 0, 1, 0), upgraded.stats)
+        assertEquals(stats(1, 0, 1, 0, 0, 0, 0, 1), upgraded.stats)
     }
 
     @Test
@@ -310,7 +316,54 @@ class AnipUpstreamRulesTest {
             rasterizer = AnipSnapshotBuilder.IconRasterizer { _, _ -> "not an image".toByteArray() }
         )
         assertEquals(listOf("com.a.base"), built.items.map { it.pkg })
-        assertEquals(stats(2, 1, 0, 1), built.stats)
+        assertEquals(stats(2, 1, 0, 1, 0, 0, 0, 1), built.stats)
+    }
+
+    @Test
+    fun `a rasterizer that throws is treated as unreadable and does not abort the snapshot`() {
+        // 渲染器的约定是「渲染不了返回 null」；真抛了异常也不能让整次同步失败。指向它的别名同样取不到图
+        val calls = AtomicInteger()
+        val (built, staging) = build(
+            AnipZipFixtures.build(
+                categories = listOf(
+                    AnipZipFixtures.Category(
+                        "app",
+                        listOf(
+                            base,
+                            AnipZipFixtures.Declared("com.a.svg", format = "svg", ext = "svg", png = svg),
+                            AnipZipFixtures.Declared("com.a.lite", target = "com.a.svg")
+                        )
+                    )
+                )
+            ),
+            rasterizer = AnipSnapshotBuilder.IconRasterizer { _, _ -> calls.incrementAndGet(); throw IllegalStateException("boom") }
+        )
+        assertEquals(listOf("com.a.base"), built.items.map { it.pkg })
+        assertEquals("同一个资源只渲染一次", 1, calls.get())
+        assertEquals(stats(3, 1, 0, 2, 0, 0, 0, 2), built.stats)
+        assertFalse(File(staging, "com.a.svg.png").exists())
+    }
+
+    @Test
+    fun `a gzip-wrapped svg is never handed to the rasterizer`() {
+        // gzip 包裹的 SVG 解压之后可以远超「单个条目 1MB」；不交给渲染器，直接按读不出处理（盲审 BU-07）
+        val gzipped = ByteArrayOutputStream().also { out -> GZIPOutputStream(out).use { it.write(svg) } }.toByteArray()
+        val calls = AtomicInteger()
+        val (built, staging) = build(
+            AnipZipFixtures.build(
+                categories = listOf(
+                    AnipZipFixtures.Category(
+                        "app",
+                        listOf(base, AnipZipFixtures.Declared("com.a.gz", format = "svg", ext = "svg", png = gzipped))
+                    )
+                )
+            ),
+            rasterizer = AnipSnapshotBuilder.IconRasterizer { _, _ -> calls.incrementAndGet(); rendered }
+        )
+        assertEquals("渲染器不该被调用", 0, calls.get())
+        assertEquals(listOf("com.a.base"), built.items.map { it.pkg })
+        assertEquals(stats(2, 1, 0, 1, 0, 0, 0, 1), built.stats)
+        assertFalse(File(staging, "com.a.gz.png").exists())
     }
 
     @Test
@@ -398,6 +451,107 @@ class AnipUpstreamRulesTest {
         assertFalse("拒绝后不留半成品", staging.exists())
     }
 
+    /** 把几个夹具归档的条目并进同一个归档（用来造「两种目录布局同时出现」）。 */
+    private fun merged(vararg parts: ByteArray): ByteArray {
+        val out = ByteArrayOutputStream()
+        ZipOutputStream(out).use { zos ->
+            for (part in parts) ZipFile(next("part").apply { writeBytes(part) }).use { zip ->
+                val entries = zip.entries()
+                while (entries.hasMoreElements()) {
+                    val e = entries.nextElement()
+                    zos.putNextEntry(ZipEntry(e.name))
+                    zip.getInputStream(e).use { it.copyTo(zos) }
+                    zos.closeEntry()
+                }
+            }
+        }
+        return out.toByteArray()
+    }
+
+    @Test
+    fun `when both layouts are present the one with the most category manifests is used`() {
+        val viaIcons = AnipZipFixtures.build(
+            categories = listOf(
+                AnipZipFixtures.Category("app", listOf(AnipZipFixtures.Declared("com.viaicons.app"))),
+                AnipZipFixtures.Category("game", listOf(AnipZipFixtures.Declared("com.viaicons.game")))
+            )
+        )
+        val direct = AnipZipFixtures.build(
+            categories = listOf(
+                AnipZipFixtures.Category("app", listOf(AnipZipFixtures.Declared("com.direct.app"))),
+                AnipZipFixtures.Category("game", listOf(AnipZipFixtures.Declared("com.direct.game"))),
+                AnipZipFixtures.Category("system/common", listOf(AnipZipFixtures.Declared("com.direct.sys")))
+            ),
+            iconsDir = false
+        )
+
+        val (threeBeatsTwo, _) = build(merged(viaIcons, direct))
+        assertEquals(listOf("com.direct.app", "com.direct.game", "com.direct.sys"), threeBeatsTwo.items.map { it.pkg })
+
+        // 并列时 icons/ 这一层优先（整库 zipball 是内置源的兜底通道，别让零散的直接布局把它挤掉）
+        val (tie, _) = build(merged(viaIcons, AnipZipFixtures.build(
+            categories = listOf(
+                AnipZipFixtures.Category("app", listOf(AnipZipFixtures.Declared("com.direct.app"))),
+                AnipZipFixtures.Category("game", listOf(AnipZipFixtures.Declared("com.direct.game")))
+            ),
+            iconsDir = false
+        )))
+        assertEquals(listOf("com.viaicons.app", "com.viaicons.game"), tie.items.map { it.pkg })
+    }
+
+    // ── 别名链的深度 ──
+
+    /** n 个别名首尾相接，最后一个指向真正有图的 com.k.root。 */
+    private fun aliasChain(n: Int): ByteArray {
+        val aliases = (0 until n).map { i ->
+            AnipZipFixtures.Declared("com.k.a$i", target = if (i == n - 1) "com.k.root" else "com.k.a${i + 1}")
+        }
+        return AnipZipFixtures.build(categories = listOf(AnipZipFixtures.Category("app", aliases + AnipZipFixtures.Declared("com.k.root"))))
+    }
+
+    @Test
+    fun `an alias chain up to sixteen hops resolves and the seventeenth hop does not`() {
+        val (sixteen, _) = build(aliasChain(16))
+        assertEquals(stats(17, 1, 0, 0, 0, 16, 0), sixteen.stats)
+
+        val (seventeen, _) = build(aliasChain(17))
+        // 离目标 17 跳的那个别名解析不了；它后面的 16 个照常
+        assertEquals(stats(18, 1, 0, 1, 0, 16, 1), seventeen.stats)
+        assertFalse(seventeen.items.any { it.pkg == "com.k.a0" })
+    }
+
+    @Test
+    fun `a maliciously long alias chain is left unresolved instead of overflowing the stack`() {
+        // 两万个首尾相接的别名（清单约 1.6MB，在 4MB 上限之内）：不设深度上限的话递归会把栈打穿（盲审 BU-08）
+        val (built, _) = build(aliasChain(20_000))
+        assertEquals(1 + 16, built.items.size)
+        assertEquals(stats(20_001, 1, 0, 19_984, 0, 16, 19_984), built.stats)
+    }
+
+    // ── 超深嵌套与条目数 ──
+
+    @Test
+    fun `a manifest nested too deeply for the parser is rejected instead of crashing the sync`() {
+        // 递归下降的 JSON 解析器遇到这种输入会抛 StackOverflowError（Error，不是 Exception）。
+        // 栈够大的环境里它能解析完：那一条声明取不到图，快照是空的，同样被拒绝。两种结局都不许抛。
+        val deep = "[".repeat(200_000) + "]".repeat(200_000)
+        val (rejected, staging) = buildRejected(
+            AnipZipFixtures.build(categories = listOf(AnipZipFixtures.Category("app", manifestRaw = "{\"com.a.deep\": $deep}")))
+        )
+        assertTrue(rejected.reason, rejected.reason.contains("unparsable") || rejected.reason.contains("snapshot empty"))
+        assertFalse("拒绝后不留半成品", staging.exists())
+    }
+
+    @Test
+    fun `an archive with more entries than the limit is rejected before its entries are read`() {
+        val (rejected, staging) = buildRejected(
+            AnipZipFixtures.build(categories = listOf(AnipZipFixtures.Category("app", listOf(base)))),
+            limits = AnipSnapshotBuilder.Limits(archiveEntries = 1)
+        )
+        assertTrue(rejected.reason, rejected.reason.contains("too many entries"))
+        assertFalse(staging.exists())
+    }
+
     // ── 上限 ──
 
     @Test
@@ -471,5 +625,6 @@ class AnipUpstreamRulesTest {
         val s = built.stats
         assertEquals(s.declared, s.written + s.rendered + s.aliased + s.carriedOver + s.missing)
         assertTrue(s.unresolved <= s.carriedOver + s.missing)
+        assertTrue(s.renderFailed <= s.carriedOver + s.missing)
     }
 }

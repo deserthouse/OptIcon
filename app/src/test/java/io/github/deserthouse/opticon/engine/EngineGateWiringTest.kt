@@ -60,6 +60,7 @@ class EngineGateWiringTest {
     fun gateMustBeFree() {
         assertFalse("a test left the sync gate held", SyncGate.isHeld)
         SubscriptionManager.anipManifestOverride = { PreferenceManager.anipManifestOverride() }
+        SubscriptionManager.anipArchiveOverride = { PreferenceManager.anipArchiveOverride() }
         SubscriptionManager.svgRasterizer = SvgRasterizer
     }
 
@@ -317,12 +318,56 @@ class EngineGateWiringTest {
         SubscriptionManager.sync(ctx, sourceUrl = AnipSync.BASE, onResult = { second.complete(it) })
         val s = second.awaitWithin(15_000)
         assertTrue(s.success)
-        assertFalse("upstream has nothing new: the follow-up must be skipped", s.wasChanged)
+        assertFalse("upstream has nothing new: the snapshot is not rebuilt", s.wasChanged)
         assertEquals(2, s.iconCount)
         assertEquals("abc1234", s.tag)
         assertEquals(emptyList<String>(), s.revokedPackages)
         assertEquals("the bundle is downloaded only once", 1, downloads)
         assertFalse(SyncGate.isHeld)
+    }
+
+    @Test
+    fun `rule sync - the fallback archive address override is honoured`() {
+        // 设备验证套件把兜底的整库也指到本机测试源（d12：核对不上退回整库，已知答案不跟着真实上游变）
+        val ctx = FakeFilesContext(tmp.newFolder("files"))
+        val bundle = AnipZipFixtures.build(
+            root = "", iconsDir = false,
+            categories = listOf(AnipZipFixtures.Category("app", listOf(AnipZipFixtures.Declared("com.a"))))
+        )
+        val archive = AnipZipFixtures.build(
+            categories = listOf(AnipZipFixtures.Category("app", listOf(AnipZipFixtures.Declared("com.a"), AnipZipFixtures.Declared("com.b"))))
+        )
+        val localArchive = "http://127.0.0.1:28765/archive.zip"
+        val wrongHash = "0".repeat(64)
+        val fetched = ArrayList<String>()
+        SubscriptionManager.releaseAccess = object : AnipReleaseChannel.Access {
+            override fun fetchSmall(url: String, maxBytes: Long): ByteArray? =
+                // 清单里的 sha256 故意对不上包：官方包下到了也要退回整库
+                """{"schemaVersion":1,"tag":"abc1234","timestamp":1,"assetName":"anip-bundle-abc1234.zip","downloadUrl":"anip-bundle-abc1234.zip","size":${bundle.size},"sha256":"$wrongHash"}""".toByteArray()
+
+            override fun fetchToFile(url: String, dest: File, maxBytes: Long): Boolean {
+                fetched += url
+                val bytes = if (url == localArchive) archive else bundle
+                dest.writeBytes(bytes)
+                return true
+            }
+        }
+        SubscriptionManager.anipArchiveOverride = { localArchive }
+
+        val done = CompletableDeferred<SubscriptionManager.SyncResult>()
+        SubscriptionManager.sync(ctx, sourceUrl = AnipSync.BASE, onResult = { done.complete(it) })
+        val r = done.awaitWithin(15_000)
+
+        assertTrue(r.success)
+        assertTrue("整库归档没有版本可报", r.tag == null)
+        assertEquals(2, r.iconCount)
+        assertEquals(
+            listOf(
+                "https://github.com/${AnipReleaseChannel.REPO}/releases/latest/download/anip-bundle-abc1234.zip",
+                localArchive
+            ),
+            fetched
+        )
     }
 
     @Test

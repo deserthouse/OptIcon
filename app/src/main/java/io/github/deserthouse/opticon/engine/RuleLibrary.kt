@@ -89,13 +89,17 @@ internal object RuleLibrary {
         val tag: String?,
         /** 快照对应的版本时间（官方通道取清单里的；整库通道取下载时刻），毫秒。 */
         val timestamp: Long,
-        val sha256: String?
+        val sha256: String?,
+        /** 这份快照里的图标数（{pkg}.png 的个数）。下一次同步据此核实快照还完不完整：少了一个就不算
+         *  「已经是这个版本」。旧记录没有这一项时为 0 = 没记，同样不能据此判「没有变化」。 */
+        val icons: Int = 0
     ) {
         fun encode(): String = JSONObject()
             .put("channel", channel)
             .put("tag", tag ?: JSONObject.NULL)
             .put("timestamp", timestamp)
             .put("sha256", sha256 ?: JSONObject.NULL)
+            .put("icons", icons)
             .toString()
 
         companion object {
@@ -107,7 +111,8 @@ internal object RuleLibrary {
                     channel = channel,
                     tag = if (o.isNull("tag")) null else o.optString("tag"),
                     timestamp = o.optLong("timestamp", 0L),
-                    sha256 = if (o.isNull("sha256")) null else o.optString("sha256")
+                    sha256 = if (o.isNull("sha256")) null else o.optString("sha256"),
+                    icons = o.optInt("icons", 0).coerceAtLeast(0)
                 )
             } catch (_: Exception) {
                 null

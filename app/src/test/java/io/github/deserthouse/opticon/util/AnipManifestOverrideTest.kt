@@ -44,4 +44,32 @@ class AnipManifestOverrideTest {
         assertNull(override("ftp://example.com/r/anip-release.json"))
         assertNull(override("file:///data/local/tmp/anip-release.json"))
     }
+
+    // ── 兜底归档的地址（2026-11-28）：规则同上，键是另一个 ──
+
+    private fun archiveOverride(stored: String?): String? {
+        val prefs = InMemoryPrefs()
+        if (stored != null) prefs.edit().putString("e2e_anip_archive_url", stored).commit()
+        PreferenceManager.initForTest(prefs)
+        return PreferenceManager.anipArchiveOverride()
+    }
+
+    @Test
+    fun `the fallback archive address has its own entry and the same rules`() {
+        assertNull(archiveOverride(null))
+        assertEquals("http://127.0.0.1:28765/archive.zip", archiveOverride(" http://127.0.0.1:28765/archive.zip "))
+        assertEquals("https://example.com/r/archive.zip", archiveOverride("https://example.com/r/archive.zip"))
+        assertNull(archiveOverride("http://example.com/archive.zip"))
+        assertNull(archiveOverride("file:///data/local/tmp/archive.zip"))
+    }
+
+    @Test
+    fun `the two entries never read each other`() {
+        val prefs = InMemoryPrefs()
+        prefs.edit().putString("e2e_anip_manifest_url", "https://example.com/r/anip-release.json").commit()
+        PreferenceManager.initForTest(prefs)
+
+        assertEquals("https://example.com/r/anip-release.json", PreferenceManager.anipManifestOverride())
+        assertNull(PreferenceManager.anipArchiveOverride())
+    }
 }

@@ -140,6 +140,21 @@ object IconLibEngine {
         }
     }
 
+    /**
+     * 旧版规则就地写入之后，要在库目录里留下的两样东西：
+     *  - 来源标记：库目录里现在是旧版（Legacy JSON）规则。规则库（ANIP）同步是整目录切换，标记随之消失——
+     *    下一次旧版同步即使内容没变，也知道要重新落库（SubscriptionManager.needsApply）。
+     *  - 作废版本记录（source.json）：就地写入之后目录里已经不是规则库同步留下的那份快照，记录留着的话，
+     *    下一次规则库同步会因为「上游标签没变」判成已是最新，库里却还是旧版规则的内容（盲审 BU-05）。
+     * 纯文件操作，单测用临时目录就能测。
+     */
+    internal fun markLegacyInPlace(dir: File, iconsWritten: Int) {
+        try { File(dir, RuleLibrary.SOURCE_FILE).delete() } catch (_: Exception) { }
+        if (iconsWritten > 0) {
+            try { File(dir, LEGACY_ORIGIN_FILE).writeText("legacy", Charsets.UTF_8) } catch (_: Exception) { }
+        }
+    }
+
     fun getMeta(packageName: String): IconLibMeta? = lock.read { metaIndex[packageName] }
 
     fun getIndexedCount(): Int = lock.read { metaIndex.size }
@@ -196,11 +211,7 @@ object IconLibEngine {
             // Persist meta index
             val metaJson = JSONObject().apply { put("apps", metaArr) }
             File(dir, META_FILE).writeText(metaJson.toString(), Charsets.UTF_8)
-            // 来源标记：库目录里现在是旧版（Legacy JSON）规则。规则库（ANIP）同步是整目录切换，
-            // 标记随之消失——下一次旧版同步即使内容没变，也知道要重新落库（SubscriptionManager.needsApply）。
-            if (count > 0) {
-                try { File(dir, LEGACY_ORIGIN_FILE).writeText("legacy", Charsets.UTF_8) } catch (_: Exception) { }
-            }
+            markLegacyInPlace(dir, count)
 
             // Rebuild in-memory meta index (lightweight, no Base64)
             lock.write {

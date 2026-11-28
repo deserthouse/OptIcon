@@ -420,4 +420,97 @@ class AnipReleaseFlowTest {
         assertNull(RuleLibrary.Source.decode("nope"))
         assertNull(RuleLibrary.Source.decode(""))
     }
+
+    // ━━ 「已经是这个版本」要核实快照（2026-11-28 盲审 BU-05 / BU-06）━━
+
+    @Test
+    fun `a snapshot with an icon missing is not treated as up to date`() {
+        // 缓存目录可能被系统或清理工具删掉一部分：少了一个就重新下载，不等上游发下一个版本
+        sync()
+        access.file.clear()
+        File(rules, "com.a.png").delete()
+
+        val outcome = sync()
+
+        assertTrue(outcome.ok)
+        assertFalse(outcome.unchanged)
+        assertEquals(listOf(bundleUrl to bundle.size.toLong()), access.file)
+        assertEquals(
+            setOf("com.a.png", "com.b.png", "meta.json", RuleLibrary.SOURCE_FILE),
+            rules.listFiles()!!.map { it.name }.toSet()
+        )
+        assertNoResidue()
+    }
+
+    @Test
+    fun `a snapshot overwritten in place by the legacy rules source is not treated as up to date`() {
+        // 切到旧版规则源同步（就地写入：覆盖图标和 meta、留下来源标记），再切回内置源
+        sync()
+        access.file.clear()
+        File(rules, "com.a.png").writeBytes("legacy-a".toByteArray())
+        File(rules, "com.legacy.only.png").writeBytes("legacy-only".toByteArray())
+        File(rules, "meta.json").writeText("""{"apps":[]}""")
+        File(rules, IconLibEngine.LEGACY_ORIGIN_FILE).writeText("legacy")
+
+        val outcome = sync()
+
+        assertFalse(outcome.unchanged)
+        assertEquals(listOf(bundleUrl to bundle.size.toLong()), access.file)
+        assertFalse("整目录切换之后旧版独有的图不在了", File(rules, "com.legacy.only.png").exists())
+        assertArrayEquals(AnipZipFixtures.pngOf("com.a"), File(rules, "com.a.png").readBytes())
+        assertFalse(File(rules, IconLibEngine.LEGACY_ORIGIN_FILE).exists())
+    }
+
+    @Test
+    fun `the legacy origin marker alone rules out up to date even when the icon count still matches`() {
+        // 旧版规则覆盖了一个包的图、没有增减条数：只看条数分辨不出来，靠来源标记
+        sync()
+        access.file.clear()
+        File(rules, "com.a.png").writeBytes("legacy-a".toByteArray())
+        File(rules, IconLibEngine.LEGACY_ORIGIN_FILE).writeText("legacy")
+
+        val outcome = sync()
+
+        assertFalse(outcome.unchanged)
+        assertArrayEquals(AnipZipFixtures.pngOf("com.a"), File(rules, "com.a.png").readBytes())
+    }
+
+    @Test
+    fun `a source record without an icon count is not enough to claim up to date`() {
+        // 批 UP 早期的记录没记条数：核实不了就不说「已是最新」；重新下载一次之后记录就齐了
+        rules.mkdirs()
+        File(rules, "com.a.png").writeBytes("x".toByteArray())
+        File(rules, RuleLibrary.SOURCE_FILE).writeText("""{"channel":"release","tag":"abc1234","timestamp":1,"sha256":null}""")
+
+        val outcome = sync()
+
+        assertFalse(outcome.unchanged)
+        assertEquals(2, RuleLibrary.readSource(rules)!!.icons)
+    }
+
+    @Test
+    fun `the source record carries the icon count of the snapshot`() {
+        sync()
+
+        val source = RuleLibrary.readSource(rules)!!
+        assertEquals(2, source.icons)
+        assertEquals(source, RuleLibrary.Source.decode(source.encode()))
+        assertEquals("旧格式的记录（没有 icons）读出来是 0 = 没记", 0, RuleLibrary.Source.decode("""{"channel":"release","tag":"abc1234","timestamp":1}""")!!.icons)
+    }
+
+    @Test
+    fun `the fallback archive address can be pointed elsewhere - the device suite does this with a local source`() {
+        // 核对不上时退回的整库：默认是上游 zipball；调试包把它指到本机测试源，已知答案不跟着真实上游变
+        val localArchive = "http://127.0.0.1:28765/archive.zip"
+        access.served[localArchive] = archive
+        access.manifest = manifest("abc1234", bundle, sha = "0".repeat(64))
+
+        val outcome = AnipSync.syncDetailed(rules, url = AnipSync.ZIP_URL, access = access, fallbackArchiveUrl = localArchive)
+
+        assertTrue(outcome.ok)
+        assertEquals(AnipSync.CHANNEL_ARCHIVE, outcome.channel)
+        assertEquals(listOf(bundleUrl to bundle.size.toLong(), localArchive to AnipSnapshotBuilder.DEFAULT_LIMITS.archiveBytes), access.file)
+        assertEquals(sha256(archive), RuleLibrary.readSource(rules)!!.sha256)
+        assertNoResidue()
+    }
 }

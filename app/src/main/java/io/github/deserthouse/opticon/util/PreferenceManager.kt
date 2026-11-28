@@ -463,15 +463,22 @@ object PreferenceManager {
 
     // ── 设备验证入口（仅调试包） ──
     // 设备验证套件（scripts/device）把内置规则源的官方发布清单指到本机测试源，用来控制「有没有新版本」
-    // 「包对不对得上」这些情形。正式包里 [anipManifestOverride] 恒返回 null：BuildConfig.DEBUG 为 false，
-    // 也没有任何界面、接收器会写这个键。
+    // 「包对不对得上」这些情形；兜底的整库归档同理可以指过去，「核对不上退回整库」的已知答案
+    // 就不跟着真实上游变。正式包里 [anipManifestOverride] / [anipArchiveOverride] 恒返回 null：BuildConfig.DEBUG
+    // 为 false，也没有任何界面、接收器会写这两个键。
     private const val KEY_E2E_ANIP_MANIFEST = "e2e_anip_manifest_url"
+    private const val KEY_E2E_ANIP_ARCHIVE = "e2e_anip_archive_url"
 
     /** 内置规则源的清单改用这个地址；null = 用上游官方地址。只认 https，或回环地址上的明文。 */
-    internal fun anipManifestOverride(): String? {
+    internal fun anipManifestOverride(): String? = deviceVerificationUrl(KEY_E2E_ANIP_MANIFEST)
+
+    /** 内置规则源退回整库时改用这个地址；null = 上游整库 zipball。校验同上。 */
+    internal fun anipArchiveOverride(): String? = deviceVerificationUrl(KEY_E2E_ANIP_ARCHIVE)
+
+    private fun deviceVerificationUrl(key: String): String? {
         if (!io.github.deserthouse.opticon.BuildConfig.DEBUG) return null
         val url = try {
-            prefs?.getString(KEY_E2E_ANIP_MANIFEST, null)
+            prefs?.getString(key, null)
         } catch (_: Exception) {
             null
         } ?: return null

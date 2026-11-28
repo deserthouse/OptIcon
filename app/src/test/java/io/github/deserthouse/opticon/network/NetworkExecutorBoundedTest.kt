@@ -2,8 +2,10 @@ package io.github.deserthouse.opticon.network
 
 import com.sun.net.httpserver.HttpServer
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -200,5 +202,63 @@ class NetworkExecutorBoundedTest {
 
         assertEquals(NetworkExecutor.DownloadOutcome.FAILED, outcome)
         assertFalse(token.isCancelled)
+    }
+
+    // ━━ fetchBytesBounded：小文件的字节上限（上游发布清单的 64KB）。2026-11-28 盲审：此前零引用 ━━
+
+    /** 在测试服务器上挂一个返回 [bytes] 的端点；[declared] 是响应头里声称的长度（-1 = 不报）。 */
+    private fun serve(path: String, bytes: ByteArray, declared: Long = bytes.size.toLong()) {
+        server.createContext(path) { ex ->
+            ex.sendResponseHeaders(200, declared)
+            ex.responseBody.use { it.write(bytes) }
+        }
+    }
+
+    private fun pattern(size: Int) = ByteArray(size) { (it % 251).toByte() }
+
+    @Test
+    fun `a small file exactly at the limit is returned whole`() {
+        val body = pattern(64 * 1024)
+        serve("/exact", body)
+
+        assertArrayEquals(body, NetworkExecutor.fetchBytesBounded("$baseUrl/exact", 64L * 1024))
+    }
+
+    @Test
+    fun `a small file one byte over the limit is refused`() {
+        serve("/over", pattern(64 * 1024 + 1))
+
+        assertNull(NetworkExecutor.fetchBytesBounded("$baseUrl/over", 64L * 1024))
+    }
+
+    @Test
+    fun `a small file without a content length is still capped`() {
+        // 不报总长的响应（chunked）：预检帮不上忙，只能靠边读边数
+        serve("/nolen", pattern(70_000), declared = 0)
+        assertNull(NetworkExecutor.fetchBytesBounded("$baseUrl/nolen", 64L * 1024))
+
+        serve("/nolen-ok", pattern(1000), declared = 0)
+        assertEquals(1000, NetworkExecutor.fetchBytesBounded("$baseUrl/nolen-ok", 64L * 1024)!!.size)
+    }
+
+    @Test
+    fun `a non-2xx answer is refused`() {
+        server.createContext("/missing") { ex -> ex.sendResponseHeaders(404, -1); ex.close() }
+
+        assertNull(NetworkExecutor.fetchBytesBounded("$baseUrl/missing", 64L * 1024))
+    }
+
+    @Test
+    fun `a declared size above the limit is refused without reading the body`() {
+        // 预检的意义所在：对端声称 10MB、只发 1KB 就停住。不读正文，才不会被它拖到读超时
+        val got = AtomicReference<ByteArray?>()
+        val done = CountDownLatch(1)
+        Thread {
+            got.set(NetworkExecutor.fetchBytesBounded("$baseUrl/stall", 64L * 1024))
+            done.countDown()
+        }.apply { isDaemon = true }.start()
+
+        assertTrue("没有及时返回：响应头已经说明超限，却还在读正文", done.await(2, TimeUnit.SECONDS))
+        assertNull(got.get())
     }
 }

@@ -65,6 +65,8 @@ internal object AnipSnapshotBuilder {
         val totalUncompressedBytes: Long = 32L * 1024 * 1024,
         /** 归档文件本身的大小。超过 = 整体拒绝。 */
         val archiveBytes: Long = 64L * 1024 * 1024,
+        /** 归档里的条目数。超过 = 整体拒绝——几十万个空条目能把中央目录和条目名吃掉几百兆内存。 */
+        val archiveEntries: Int = 50_000,
         /** SVG 文档尺寸上限（像素）。 */
         val iconDimension: Int = 150
     )
@@ -80,6 +82,8 @@ internal object AnipSnapshotBuilder {
      * 别名复用目标的图；取不到图时沿用旧版本（carriedOver）或记为缺失（missing）。
      * declared = written + rendered + aliased + carriedOver + missing。
      * unresolved 是解析不了的别名条数，是 carriedOver 与 missing 里的一部分，不单独加进上式。
+     * renderFailed 是渲染不了的 SVG 条数（渲染器交回空、抛异常、入参是 gzip 包裹的），同样是
+     * carriedOver 与 missing 里的一部分：按「读不出」处理，但在日志里与「归档里没有这个文件」分开。
      */
     data class Stats(
         val declared: Int,
@@ -88,7 +92,8 @@ internal object AnipSnapshotBuilder {
         val missing: Int,
         val rendered: Int = 0,
         val aliased: Int = 0,
-        val unresolved: Int = 0
+        val unresolved: Int = 0,
+        val renderFailed: Int = 0
     )
 
     sealed class Result {
@@ -167,6 +172,7 @@ internal object AnipSnapshotBuilder {
             return reject("not a complete zip (${e.javaClass.simpleName}: ${e.message})")
         }
         try {
+            if (zip.size() > limits.archiveEntries) return reject("archive has too many entries (${zip.size()})")
             val layout = detectLayout(zip) ?: return reject("no ANIP category manifest found")
             val old = oldDir?.takeIf { it.isDirectory }
             val read = Reader(zip, layout, rasterizer, limits)
@@ -180,6 +186,7 @@ internal object AnipSnapshotBuilder {
             var rendered = 0
             var aliased = 0
             var unresolved = 0
+            var renderFailed = 0
             val categoriesSeen = HashSet<String>()
 
             for (category in AnipSync.CATEGORIES) {
@@ -195,6 +202,10 @@ internal object AnipSnapshotBuilder {
                     JSONObject(text)
                 } catch (e: Exception) {
                     return reject("manifest $category unparsable (${e.message})")
+                } catch (_: StackOverflowError) {
+                    // 超深嵌套的 JSON 把递归下降的解析器的栈打穿了。是这份清单的问题，不是进程的问题——
+                    // 不接住的话同步线程整个崩掉（盲审 BU-08）。
+                    return reject("manifest $category unparsable (nesting too deep)")
                 }
                 val keys = try {
                     obj.keys().asSequence().toList()
@@ -216,6 +227,7 @@ internal object AnipSnapshotBuilder {
                         return reject(e.what)
                     }
                     val target = File(staging, "$key.png")
+                    if (image == null && resolved != null && read.svgFailed(category, resolved.resourcePkg)) renderFailed++
                     if (image != null) {
                         written { target.writeBytes(image.png) }
                         target.setReadable(true, false)
@@ -268,13 +280,13 @@ internal object AnipSnapshotBuilder {
             if (items.isEmpty()) {
                 return reject(
                     "snapshot empty (declared $declared, written $written, rendered $rendered, aliased $aliased, " +
-                        "carried over $carriedOver, missing $missing, unresolved $unresolved)"
+                    "carried over $carriedOver, missing $missing, unresolved $unresolved, render failed $renderFailed)"
                 )
             }
             writeMeta(staging, items)
             return Result.Built(
                 items,
-                Stats(declared, written, carriedOver, missing, rendered, aliased, unresolved)
+                Stats(declared, written, carriedOver, missing, rendered, aliased, unresolved, renderFailed)
             )
         } finally {
             zip.close()
@@ -294,6 +306,11 @@ internal object AnipSnapshotBuilder {
 
         /** 缓存键是「类别 + 资源包名」：别名的目标只在本类别的清单里找，同名包在别的类别可以是另一张图。 */
         private val images = HashMap<String, Image?>()
+
+        /** 渲染不了的 SVG 资源（同样的缓存键）。别名指向一个渲染不了的 SVG 时，别名条目也记在里头。 */
+        private val failedSvg = HashSet<String>()
+
+        fun svgFailed(category: String, resourcePkg: String): Boolean = "$category/$resourcePkg" in failedSvg
 
         /** 清单原文。缺失、读不出 → null；超过清单上限 → 抛 [TooLarge]（整体拒绝，不是「这一个包读不出」）。 */
         fun text(entry: ZipEntry): String? {
@@ -324,8 +341,15 @@ internal object AnipSnapshotBuilder {
                 val entry = zip.getEntry(layout.resource(category, resolved.resourcePkg, ext)) ?: continue
                 val bytes = read(entry, limits.resourceBytes) ?: return null // 条目在但读不出：不再试别的扩展名
                 if (ext != "svg") return if (looksLikeImage(bytes)) Image(bytes, fromSvg = false) else null
-                val png = rasterizer.renderPng(bytes, limits.iconDimension) ?: return null
-                return if (looksLikeImage(png)) Image(png, fromSvg = true) else null
+                // gzip 包裹的 SVG 不交给渲染器：解压之后的 XML 不受「单个条目不超过上限」的约束。
+                // 渲染器的约定是「渲染不了返回 null」；抛异常同样按渲染不了处理，不让它打断整次同步。
+                failedSvg += "$category/${resolved.resourcePkg}"
+                val png = if (isGzip(bytes)) null else try {
+                    rasterizer.renderPng(bytes, limits.iconDimension)
+                } catch (_: Exception) {
+                    null
+                }
+                return png?.takeIf { looksLikeImage(it) }?.let { Image(it, fromSvg = true) }
             }
             return null
         }
@@ -392,17 +416,26 @@ internal object AnipSnapshotBuilder {
 
     /**
      * 解析继承：别名一路追到真正拥有图片文件的那个包，省略的属性取目标的。
-     * 目标不存在、目标不是合法包名、成环 → null。只在本类别的清单里找（上游的约定）。
+     * 目标不存在、目标不是合法包名、成环、链太长 → null。只在本类别的清单里找（上游的约定）。
+     * 递归有深度上限：一份恶意清单可以写十万个首尾相接的别名，不设限就把栈打穿（盲审 BU-08）。
      */
-    private fun resolve(key: String, rules: Map<String, RawRule>, stack: MutableSet<String>): Resolved? {
+    private const val MAX_ALIAS_DEPTH = 16
+
+    private fun resolve(key: String, rules: Map<String, RawRule>, stack: MutableSet<String>): Resolved? =
+        resolve(key, rules, stack, 0)
+
+    private fun resolve(key: String, rules: Map<String, RawRule>, stack: MutableSet<String>, depth: Int): Resolved? {
         val rule = rules[key] ?: return null
         if (!stack.add(key)) return null // 成环
+        if (depth > MAX_ALIAS_DEPTH) return null // 链太长
         if (!rule.isAlias) return Resolved(key, rule.format, rule.label, rule.contributor)
         val target = rule.target ?: return null
         if (!PKG_KEY.matches(target)) return null
-        val parent = resolve(target, rules, stack) ?: return null
+        val parent = resolve(target, rules, stack, depth + 1) ?: return null
         return Resolved(parent.resourcePkg, parent.format, rule.label ?: parent.label, rule.contributor ?: parent.contributor)
     }
+
+    private fun isGzip(b: ByteArray): Boolean = b.size >= 2 && b[0] == 0x1f.toByte() && b[1] == 0x8b.toByte()
 
     /** 上一个版本里每个类别各有哪些包（取自旧目录的 meta.json）。旧快照没记类别时返回空。 */
     private fun oldCategories(old: File?): Map<String, List<JSONObject>> {
@@ -425,22 +458,28 @@ internal object AnipSnapshotBuilder {
 
     /**
      * 归档根目录前缀（含结尾斜杠，没有外层目录时为空串）与目录约定。
-     * 有 icons/ 这一层就只认它（整库 zipball）；没有就按上游官方资源包的约定找。
-     * 各取类别清单最多的那个前缀；并列时取先出现的。
+     * 两种目录约定一起比：取类别清单最多的那个「根前缀 + 约定」——整库 zipball 的 icons/… 与官方资源包的
+     * 直接布局同时出现时也是这个规则。并列时 icons/ 这一层优先，再取先出现的。
      */
     private fun detectLayout(zip: ZipFile): Layout? {
         val entries = zip.entries()
         val names = ArrayList<String>()
         while (entries.hasMoreElements()) names += entries.nextElement().name
+        var best: Layout? = null
+        var bestCount = 0
         for ((pattern, hasIconsDir) in listOf(ICONS_MANIFEST to true, DIRECT_MANIFEST to false)) {
             val countByRoot = LinkedHashMap<String, Int>()
             for (name in names) {
                 val root = pattern.matchEntire(name)?.groupValues?.get(1) ?: continue
                 countByRoot[root] = (countByRoot[root] ?: 0) + 1
             }
-            countByRoot.maxByOrNull { it.value }?.key?.let { return Layout(it, hasIconsDir) }
+            val (root, count) = countByRoot.maxByOrNull { it.value }?.toPair() ?: continue
+            if (count > bestCount) {
+                best = Layout(root, hasIconsDir)
+                bestCount = count
+            }
         }
-        return null
+        return best
     }
 
     private fun looksLikeImage(b: ByteArray): Boolean {

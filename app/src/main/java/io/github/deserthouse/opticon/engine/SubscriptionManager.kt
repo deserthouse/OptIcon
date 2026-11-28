@@ -45,6 +45,9 @@ object SubscriptionManager {
      *  读不到就是上游官方地址。 */
     internal var anipManifestOverride: () -> String? = { PreferenceManager.anipManifestOverride() }
 
+    /** 内置源退回整库时下的地址从哪里读（调试包的设备验证入口；生产读不到，就是上游整库）。 */
+    internal var anipArchiveOverride: () -> String? = { PreferenceManager.anipArchiveOverride() }
+
     /** SVG → PNG 的渲染器（批 UP）。生产是 [SvgRasterizer]；单测换成不依赖 Android 图形的实现——
      *  渲染本身在设备上验证。 */
     internal var svgRasterizer: AnipSnapshotBuilder.IconRasterizer = SvgRasterizer
@@ -143,7 +146,8 @@ object SubscriptionManager {
                 AnipSync.archiveUrlFor(url),
                 access = releaseAccess,
                 rasterizer = svgRasterizer,
-                manifestUrl = anipManifestOverride() ?: AnipReleaseChannel.MANIFEST_URL
+                manifestUrl = anipManifestOverride() ?: AnipReleaseChannel.MANIFEST_URL,
+                fallbackArchiveUrl = anipArchiveOverride()
             )
             if (outcome.count <= 0) {
                 // 没下到、下到了但用不了、本地出了状况——三种原因各有各的提示
@@ -167,7 +171,8 @@ object SubscriptionManager {
                 SyncResult(
                     success = true,
                     iconCount = outcome.count,
-                    // 官方通道说上游没有新版本时快照没动：收尾（镜像、撤销清理、版本戳）也不用做
+                    // 官方通道说上游没有新版本时快照没动：镜像与撤销清理不必重做。
+                    // 调用方收到 wasChanged = false 仍会核实共享目录里的镜像还齐不齐（见 RuleSyncFinisher.repairIfNeeded）。
                     wasChanged = !outcome.unchanged,
                     revokedPackages = outcome.revokedPackages,
                     tag = outcome.tag,

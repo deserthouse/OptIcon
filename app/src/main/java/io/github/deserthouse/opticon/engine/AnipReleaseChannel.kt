@@ -80,16 +80,26 @@ internal object AnipReleaseChannel {
             JSONObject(text)
         } catch (e: Exception) {
             return Fetched.Unavailable("manifest is not JSON (${e.javaClass.simpleName})")
+        } catch (_: StackOverflowError) {
+            // 几十 KB 的超深嵌套就能把递归下降的解析器的栈打穿。清单用不了就是用不了，同步线程不能崩
+            return Fetched.Unavailable("manifest is not JSON (nesting too deep)")
         }
         fun field(name: String): String? {
             val value = obj.opt(name) ?: return null
             if (value == JSONObject.NULL) return null
             return value.toString().trim().ifEmpty { null }
         }
+
+        /** 数字字段必须是 JSON 整数（与上游 SDK 一样的严格类型）：写成字符串 "1" 或小数的不认。 */
+        fun whole(name: String): Long? = when (val value = obj.opt(name)) {
+            is Int -> value.toLong()
+            is Long -> value
+            else -> null
+        }
         fun bad(what: String) = Fetched.Unavailable(what)
 
-        val schema = obj.optInt("schemaVersion", -1)
-        if (schema != SCHEMA_VERSION) return bad("unsupported manifest schema $schema")
+        val schema = whole("schemaVersion") ?: return bad("manifest schemaVersion is not a whole number")
+        if (schema != SCHEMA_VERSION.toLong()) return bad("unsupported manifest schema $schema")
 
         val tag = field("tag") ?: return bad("manifest tag is missing")
         if (!TAG_PATTERN.matches(tag)) return bad("invalid manifest tag '$tag'")
@@ -97,11 +107,10 @@ internal object AnipReleaseChannel {
         val asset = field("assetName") ?: return bad("manifest assetName is missing")
         if (asset != "anip-bundle-$tag.zip") return bad("unexpected manifest asset name '$asset'")
 
-        val timestamp = obj.optLong("timestamp", 0L)
-        if (timestamp <= 0L) return bad("invalid manifest timestamp")
+        val timestamp = whole("timestamp")?.takeIf { it > 0L } ?: return bad("invalid manifest timestamp")
 
-        val size = obj.optLong("size", -1L)
-        if (size !in 1..AnipSnapshotBuilder.DEFAULT_LIMITS.archiveBytes) return bad("manifest size $size is out of range")
+        val size = whole("size")?.takeIf { it in 1..AnipSnapshotBuilder.DEFAULT_LIMITS.archiveBytes }
+            ?: return bad("manifest size ${obj.opt("size")} is out of range")
 
         val sha256 = field("sha256") ?: return bad("manifest sha256 is missing")
         if (!SHA256_PATTERN.matches(sha256)) return bad("invalid manifest sha256")
@@ -113,9 +122,11 @@ internal object AnipReleaseChannel {
     }
 
     /** 清单里的下载地址：相对名按清单所在目录解析；绝对地址也必须落在这个目录里。
-     *  对外一律 https；只有清单自己落在回环地址上时才允许明文（调试包的设备验证用本机测试源）。 */
+     *  对外一律 https；只有清单自己落在回环地址上时才允许明文（调试包的设备验证用本机测试源）。
+     *  带百分号编码的一律不要：`%2e%2e/` 这种写法能绕过对字面量 `..` 的检查，在同一个主机上跳到别的目录。 */
     fun resolve(manifestUrl: String, downloadUrl: String): String? {
-        if (downloadUrl.isEmpty() || downloadUrl.contains("..") || downloadUrl.contains('?') || downloadUrl.contains('#')) return null
+        if (downloadUrl.isEmpty() || downloadUrl.contains("..") || downloadUrl.contains('?') ||
+            downloadUrl.contains('#') || downloadUrl.contains('%')) return null
         val base = manifestUrl.substringBeforeLast('/', "") + "/"
         val url = if (downloadUrl.startsWith("https://") || downloadUrl.startsWith("http://")) downloadUrl else base + downloadUrl
         val secure = url.startsWith("https://") ||

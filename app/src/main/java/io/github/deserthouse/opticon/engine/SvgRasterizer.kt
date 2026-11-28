@@ -29,6 +29,10 @@ internal object SvgRasterizer : AnipSnapshotBuilder.IconRasterizer {
     const val DEFAULT_SIZE = 72
 
     override fun renderPng(svg: ByteArray, maxDimension: Int): ByteArray? {
+        // 每次渲染前都关掉内部实体展开。AndroidSVG 默认开着，遇到带实体声明的文档会切到支持展开的解析路径：
+        // 一个不到 1MB 的 SVG 就能靠嵌套实体把内存吃满。上游的图标不用实体，关掉没有损失。
+        // （静态开关，每次都设一遍：别处要是又打开过，这里把它按回去。）
+        SVG.setInternalEntitiesEnabled(false)
         return try {
             val document = SVG.getFromString(String(svg, Charsets.UTF_8))
             val size = renderSize(document.documentWidth, document.documentHeight, maxDimension) ?: return null

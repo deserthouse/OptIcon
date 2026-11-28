@@ -21,12 +21,17 @@ class RuleSyncFinisherTest {
     private var revokedWriteOk = true
     private var stampOk = true
     private var watchChecks = false
+    // 共享目录里镜像齐不齐（核实镜像的那一组用例用）
+    private var sharedHasAll = true
+    private var mirrorFixes = true
+    private var presenceCheckThrows = false
 
     @Before
     fun reset() {
         calls.clear(); warns.clear(); infos.clear()
         failMirror = false; failRevokeLock = false; undeletable = emptySet()
         revokedWriteOk = true; stampOk = true; watchChecks = false
+        sharedHasAll = true; mirrorFixes = true; presenceCheckThrows = false
     }
 
     private val customized = setOf("com.custom")
@@ -154,5 +159,99 @@ class RuleSyncFinisherTest {
         finisher().finish(listOf("com.a"))
 
         assertTrue(calls.indexOf("check:com.a") > calls.indexOf("lock:ania-sync-revoke"))
+    }
+
+    // ━━ 以结果为准：镜像之后核实共享目录；上游没变化时先核实再决定补不补发（2026-11-28 盲审 BU-02）━━
+
+    /** 会核实镜像的收尾。上面那台不核实（默认当作齐全），只为测四步顺序。 */
+    private fun checkingFinisher() = RuleSyncFinisher(
+        importLegacyRules = { calls += "import" },
+        withPipeline = { label, block ->
+            calls += "lock:$label"
+            block()
+        },
+        mirrorAll = {
+            calls += "mirror"
+            if (failMirror) throw IllegalStateException("mirror broke")
+            if (mirrorFixes) sharedHasAll = true
+        },
+        mirrorsPresent = {
+            calls += "present"
+            if (presenceCheckThrows) throw IllegalStateException("cannot list")
+            sharedHasAll
+        },
+        isCustomized = { false },
+        deleteMirror = { true },
+        writeRevokedList = { true },
+        writeStamp = { calls += "stamp"; stampOk },
+        warn = warns::add,
+        info = infos::add,
+    )
+
+    @Test
+    fun `mirroring that leaves icons missing is reported as incomplete even though nothing threw`() {
+        // 单个文件写不进去时 mirrorAll 不抛异常：只看「镜像这一步跑没跑完」会把没发出去报成已同步
+        sharedHasAll = false
+        mirrorFixes = false
+
+        assertFalse(checkingFinisher().finish(listOf("com.a")))
+
+        assertEquals(listOf("import", "lock:ania-sync-mirror", "mirror", "present", "lock:ania-sync-revoke", "stamp"), calls)
+        assertTrue(warns.any { it.contains("missing from the shared dir") })
+        assertTrue("规则库确实换了，版本戳照写", "stamp" in calls)
+    }
+
+    @Test
+    fun `when upstream has nothing new and the mirrors are complete nothing is republished`() {
+        assertTrue(checkingFinisher().repairIfNeeded())
+
+        assertEquals(listOf("present"), calls)
+        assertEquals(listOf("rule sync follow-up: snapshot unchanged, mirrors complete — nothing to republish"), infos)
+        assertTrue(warns.isEmpty())
+    }
+
+    @Test
+    fun `when upstream has nothing new but mirrors are missing they are republished and the stamp is written`() {
+        // 共享目录被清掉、上一次收尾中途被杀、镜像时写失败：「请再同步一次」要真的能把图标补回来
+        sharedHasAll = false
+        mirrorFixes = true
+
+        assertTrue(checkingFinisher().repairIfNeeded())
+
+        assertEquals(listOf("present", "lock:ania-sync-mirror", "mirror", "present", "stamp"), calls)
+        assertFalse("这一轮没有撤销，不动撤销清单", calls.any { it.startsWith("lock:ania-sync-revoke") })
+        assertTrue(warns.isEmpty())
+    }
+
+    @Test
+    fun `mirrors that are still missing after republishing are reported as not done`() {
+        sharedHasAll = false
+        mirrorFixes = false
+
+        assertFalse(checkingFinisher().repairIfNeeded())
+
+        assertTrue("补不齐也写版本戳，让 hook 重新取一次图", "stamp" in calls)
+        assertTrue(warns.any { it.contains("still incomplete") })
+    }
+
+    @Test
+    fun `a republish that throws is reported as not done`() {
+        sharedHasAll = false
+        failMirror = true
+
+        assertFalse(checkingFinisher().repairIfNeeded())
+
+        assertFalse("镜像没跑成就不写版本戳", "stamp" in calls)
+        assertTrue(warns.any { it.contains("republishing failed") })
+    }
+
+    @Test
+    fun `a shared dir that cannot be inspected is not assumed to be complete`() {
+        presenceCheckThrows = true
+
+        assertFalse(checkingFinisher().repairIfNeeded())
+
+        assertTrue("核实不了也要试着补发一次", "mirror" in calls)
+        assertTrue(warns.any { it.contains("could not verify") })
     }
 }
