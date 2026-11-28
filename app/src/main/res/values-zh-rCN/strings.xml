@@ -311,8 +311,8 @@ https://github.com/BetterAndroid/android-notification-icon-project</string>
     <string name="sync_download_failed">下载失败，请检查网络或更换订阅源</string>
     <string name="sync_anip_done">ANIP 已同步 %1$d 个规则图标</string>
     <string name="sync_anip_uptodate">已是最新（%1$d 个图标）</string>
-    <string name="sync_anip_done_upstream">ANIP 已同步 %1$d 个规则图标 · 上游 %2$s（%3$s）</string>
-    <string name="sync_anip_uptodate_upstream">规则库已是最新（%1$d 条）· 上游 %2$s（%3$s）</string>
+    <string name="sync_anip_done_upstream">ANIP 已同步 %1$d 个规则图标 · 上游版本 %3$s（%2$s）</string>
+    <string name="sync_anip_uptodate_upstream">规则库已是最新 · %1$d 条 · 上游版本 %3$s（%2$s）</string>
     <string name="sync_anip_done_incomplete">规则库已同步，但发布到通知栏没有完成——请再同步一次</string>
     <string name="sync_picp_streaming">正在流式下载 PICP…</string>
     <string name="sync_picp_bytes">下载中 %1$s</string>

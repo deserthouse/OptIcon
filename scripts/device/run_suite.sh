@@ -439,7 +439,7 @@ d10() {  # 真实上游（需要外网）：官方发布通道；别名与 SVG �
   local st; st=$(rule_wait)
   note "D10 规则库同步的状态行" "$st"
   shot d10-01-after-sync
-  check "D10 状态行带上游版本（标签与日期）" grep_has "$st" "upstream [0-9a-f]\{7\} ([0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\})"
+  check "D10 状态行带上游版本（日期与标签）" grep_has "$st" "upstream [0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\} ([0-9a-f]\{7\})"
   case "$st" in *"ANIP synced"*) check "D10 规则库同步成功" true;; *) check "D10 规则库同步成功" false; save_logs d10-sync-failed; return;; esac
   check "D10 同步收尾完成（镜像 + 撤销清理）" wait_hook "rule sync follow-up" 150
   check "D10 走的是官方发布通道，包通过了大小与哈希核对" hook_has "sha256 verified)"
@@ -525,7 +525,7 @@ d11() {  # 上游没有新版本：第二次同步只取清单，不下载、不
   case "$st" in *"ANIP synced"*) check "D11 第一次同步成功（本机清单指向的包）" true;; *) check "D11 第一次同步成功（本机清单指向的包）" false; save_logs d11-first-failed; return;; esac
   check "D11 第一次同步的收尾完成" wait_hook "rule sync follow-up" 150
   save_logs d11-first
-  check "D11 状态行带本机清单的标签与日期" grep_has "$st" "upstream aaaaaaa (2026-11-26)"
+  check "D11 状态行带本机清单的日期与标签" grep_has "$st" "upstream 2026-11-26 (aaaaaaa)"
   check_eq "D11 第一次同步：清单 1 次、包 1 次" "$(server_count "$mark" /anip-release.json)/$(server_count "$mark" /anip-bundle-aaaaaaa.zip)" 1/1
   check "D11 快照的版本记录：官方发布通道 + 标签 aaaaaaa" grep_has "$(rule_source)" '"channel":"release","tag":"aaaaaaa"'
   local h0; h0=$(rule_hash)
@@ -541,7 +541,7 @@ d11() {  # 上游没有新版本：第二次同步只取清单，不下载、不
   note "D11 第二次同步的状态行" "$st"
   shot d11-02-second
   case "$st" in *"already up to date"*|*"Already up to date"*) check "D11 第二次同步：已是最新" true;; *) check "D11 第二次同步：已是最新" false; save_logs d11-second-failed; return;; esac
-  check "D11 「已是最新」带条数与上游版本" grep_has "$st" "[Aa]lready up to date (924 icons) · upstream aaaaaaa (2026-11-26)"
+  check "D11 「已是最新」带条数与上游版本" grep_has "$st" "[Aa]lready up to date · 924 icons · upstream 2026-11-26 (aaaaaaa)"
   check_eq "D11 第二次同步：清单 1 次、包 0 次" "$(server_count "$mark" /anip-release.json)/$(server_count "$mark" /anip-bundle-aaaaaaa.zip)" 1/0
   check "D11 日志：这个版本已经在本机，没有下载" hook_has "ANIP source: release aaaaaaa is already in place (924 icons) — nothing to download"
   check "D11 快照一个字节都没动" test "$(rule_hash)" = "$h0"
