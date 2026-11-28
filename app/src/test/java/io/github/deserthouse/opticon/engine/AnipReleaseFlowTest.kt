@@ -6,6 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -247,6 +248,96 @@ class AnipReleaseFlowTest {
         assertEquals(listOf(local to AnipReleaseChannel.MAX_MANIFEST_BYTES), access.small)
         assertEquals(listOf(localBundle to bundle.size.toLong()), access.file)
         assertNoResidue()
+    }
+
+    @Test
+    fun `a local write failure while downloading says storage, not network`() {
+        // 磁盘满时下载落盘的失败（批 MT M3）：取字节通道抛 StorageWriteException，不退回整库、不报成下载失败
+        seedOld("com.old")
+        val before = snapshotHashes()
+        access.served.clear()
+        val writes = ArrayList<String>()
+        val outcome = AnipSync.syncDetailed(
+            rules, url = AnipSync.ZIP_URL,
+            access = object : AnipReleaseChannel.Access by access {
+                override fun fetchToFile(url: String, dest: File, maxBytes: Long): Boolean {
+                    writes += url
+                    throw StorageWriteException("disk full")
+                }
+            }
+        )
+
+        assertFalse(outcome.ok)
+        assertEquals(AnipSync.Failure.STORAGE, outcome.failure)
+        assertEquals("官方包只试了一次，没有再去退回整库", listOf(bundleUrl), writes)
+        assertEquals(before, snapshotHashes())
+        assertNoResidue()
+    }
+
+    @Test
+    fun `a local write failure while building the snapshot says storage and keeps the live library`() {
+        // 渲染器交回的图写不进暂存目录：本地的问题，不是归档的问题
+        sync()
+        val before = snapshotHashes()
+        val staging = FileSnapshotSwitch.stagingOf(files, "fankes_cache")
+        access.served.remove(bundleUrl)
+        val vector = AnipZipFixtures.build(
+            root = "", iconsDir = false,
+            categories = listOf(AnipZipFixtures.Category("app", listOf(
+                AnipZipFixtures.Declared("com.a"),
+                AnipZipFixtures.Declared("com.v", ext = "svg", format = "svg", png = AnipZipFixtures.svgOf("com.v"))
+            )))
+        )
+        val vectorUrl = "https://github.com/${AnipReleaseChannel.REPO}/releases/latest/download/anip-bundle-beef000.zip"
+        access.served[vectorUrl] = vector
+        access.manifest = manifest("beef000", vector)
+        val outcome = AnipSync.syncDetailed(
+            rules, url = AnipSync.ZIP_URL, access = access,
+            // 轮到 SVG 条目时，把它自己的目标位置占成一个目录——随后往那儿写 PNG 必然失败
+            rasterizer = AnipSnapshotBuilder.IconRasterizer { _, _ ->
+                File(staging, "com.v.png").mkdirs()
+                AnipZipFixtures.pngOf("rendered")
+            }
+        )
+
+        assertFalse(outcome.ok)
+        assertEquals(AnipSync.Failure.STORAGE, outcome.failure)
+        assertEquals(before, snapshotHashes())
+        assertNoResidue()
+    }
+
+    @Test
+    fun `the production channel turns a storage outcome into a storage exception`() {
+        // 生产环境的取字节通道把下载结果换成布尔值：存储失败在这一步变成异常，免得被抹平成「没下到」
+        val dest = File(files, "anip-bundle.zip")
+        assertTrue(AnipSync.accessResult(io.github.deserthouse.opticon.network.NetworkExecutor.DownloadOutcome.OK, dest))
+        for (other in listOf(
+            io.github.deserthouse.opticon.network.NetworkExecutor.DownloadOutcome.FAILED,
+            io.github.deserthouse.opticon.network.NetworkExecutor.DownloadOutcome.CANCELLED,
+            io.github.deserthouse.opticon.network.NetworkExecutor.DownloadOutcome.TOO_LARGE
+        )) {
+            assertFalse(AnipSync.accessResult(other, dest))
+        }
+        try {
+            AnipSync.accessResult(io.github.deserthouse.opticon.network.NetworkExecutor.DownloadOutcome.STORAGE, dest)
+            fail("a storage outcome must not be flattened into false")
+        } catch (e: StorageWriteException) {
+            assertEquals("cannot write anip-bundle.zip", e.message)
+        }
+    }
+
+    @Test
+    fun `a rule snapshot staging dir that cannot be created is a storage problem, not a rejected archive`() {
+        val blocker = tmp.newFile("blocker")   // 同名位置是个文件：建不了目录
+        val zip = tmp.newFile("bundle.zip")
+        zip.writeBytes(bundle)
+
+        try {
+            AnipSnapshotBuilder.build(zip, oldDir = null, staging = File(blocker, "child"))
+            fail("expected a storage failure")
+        } catch (e: StorageWriteException) {
+            assertEquals("cannot create staging dir", e.message)
+        }
     }
 
     @Test

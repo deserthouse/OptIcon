@@ -168,6 +168,8 @@ object PicpEngine {
                 SyncEnd.Cancelled(context.txt(R.string.picp_fail_cancelled))
             PicpSyncOrchestrator.Outcome.TooLarge ->
                 SyncEnd.Failed(context.txt(R.string.picp_fail_too_large))
+            PicpSyncOrchestrator.Outcome.StorageFailed ->
+                SyncEnd.Failed(context.txt(R.string.sync_storage_full))
         }
     } catch (e: Exception) {
         TraceLogger.w(TAG, "PICP sync error: $e")

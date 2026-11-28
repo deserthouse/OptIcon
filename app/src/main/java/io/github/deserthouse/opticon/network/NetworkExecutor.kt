@@ -1,5 +1,6 @@
 package io.github.deserthouse.opticon.network
 
+import io.github.deserthouse.opticon.engine.StorageWriteException
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.OkHttpClient
@@ -166,8 +167,9 @@ object NetworkExecutor {
     fun fetchToFile(url: String, destFile: java.io.File, onProgress: ((downloadedBytes: Long, totalBytes: Long) -> Unit)? = null): Boolean =
         fetchToFileBounded(url, destFile, onProgress = onProgress) == DownloadOutcome.OK
 
-    /** Bounded download result — distinguishes user cancel / budget breach from network failure. */
-    enum class DownloadOutcome { OK, CANCELLED, TOO_LARGE, FAILED }
+    /** Bounded download result — distinguishes user cancel / budget breach / local disk from network failure.
+     *  [STORAGE]：数据到了，本地写不进去（磁盘满等，批 MT M3）——不是网络的错。 */
+    enum class DownloadOutcome { OK, CANCELLED, TOO_LARGE, FAILED, STORAGE }
 
     /**
      * 可中断的取消信号：[isCancelled] 供下载循环轮询；[cancel] 还会直接取消
@@ -249,28 +251,53 @@ object NetworkExecutor {
         return try {
             if (!response.isSuccessful) return DownloadOutcome.FAILED
             val body = response.body ?: return DownloadOutcome.FAILED
-            val totalBytes = body.contentLength()
-            destFile.outputStream().use { fos ->
-                body.byteStream().use { input ->
-                    val buffer = ByteArray(8192)
-                    var read: Int
-                    var downloaded = 0L
-                    while (input.read(buffer).also { read = it } != -1) {
-                        if (shouldCancel?.invoke() == true) return DownloadOutcome.CANCELLED
-                        downloaded += read
-                        if (downloaded > maxBytes) return DownloadOutcome.TOO_LARGE
-                        fos.write(buffer, 0, read)
-                        onProgress?.invoke(downloaded, totalBytes)
-                    }
-                }
-            }
-            DownloadOutcome.OK
+            writeBody(body.byteStream(), destFile, body.contentLength(), maxBytes, shouldCancel, onProgress)
+        } catch (_: StorageWriteException) {
+            DownloadOutcome.STORAGE
         } catch (e: Exception) {
             if (token?.isCancelled == true) return DownloadOutcome.CANCELLED
             DownloadOutcome.FAILED
         } finally {
             response.close()
             token?.untrack()
+        }
+    }
+
+    /** 打开本地输出文件的方式。单测换成写一半就失败的流——磁盘满时「写失败」这一条路径只有这样测得到（批 MT M3）。 */
+    internal var openOutput: (java.io.File) -> java.io.OutputStream = { it.outputStream() }
+
+    /** 把响应体写进本地文件。网络读失败向上抛 IOException（归下载失败）；本地写失败抛 [StorageWriteException]。 */
+    private fun writeBody(
+        input: java.io.InputStream,
+        destFile: java.io.File,
+        totalBytes: Long,
+        maxBytes: Long,
+        shouldCancel: (() -> Boolean)?,
+        onProgress: ((downloadedBytes: Long, totalBytes: Long) -> Unit)?
+    ): DownloadOutcome {
+        val out = try {
+            openOutput(destFile)
+        } catch (e: IOException) {
+            throw StorageWriteException("cannot open ${destFile.name}", e)
+        }
+        return out.use { fos ->
+            input.use { source ->
+                val buffer = ByteArray(8192)
+                var read: Int
+                var downloaded = 0L
+                while (source.read(buffer).also { read = it } != -1) {
+                    if (shouldCancel?.invoke() == true) return DownloadOutcome.CANCELLED
+                    downloaded += read
+                    if (downloaded > maxBytes) return DownloadOutcome.TOO_LARGE
+                    try {
+                        fos.write(buffer, 0, read)
+                    } catch (e: IOException) {
+                        throw StorageWriteException("cannot write ${destFile.name}", e)
+                    }
+                    onProgress?.invoke(downloaded, totalBytes)
+                }
+            }
+            DownloadOutcome.OK
         }
     }
 }

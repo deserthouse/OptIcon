@@ -103,6 +103,14 @@ internal object AnipSnapshotBuilder {
     /** 读出来的大小超过了某条上限，[what] 是可以直接写进日志的原因——构建入口统一转成「拒绝」。 */
     private class TooLarge(val what: String) : RuntimeException(what)
 
+    /** 本地写不进去不是归档的问题：转成 [StorageWriteException]，调用方按「存储空间不足」报（批 MT M3）。
+     *  暂存目录留给调用方清（syncDetailed 的 finally）。 */
+    private inline fun <T> written(block: () -> T): T = try {
+        block()
+    } catch (e: IOException) {
+        throw StorageWriteException(null, e)
+    }
+
     // ── 归档里的目录约定 ──
 
     private val CAT_ALT = AnipSync.CATEGORIES.joinToString("|") { Regex.escape(it) }
@@ -144,7 +152,7 @@ internal object AnipSnapshotBuilder {
         limits: Limits = DEFAULT_LIMITS
     ): Result {
         if (staging.exists()) staging.deleteRecursively()
-        if (!staging.mkdirs() && !staging.isDirectory) return Result.Rejected("cannot create staging dir")
+        if (!staging.mkdirs() && !staging.isDirectory) throw StorageWriteException("cannot create staging dir")
         // 拒绝 = 不留下半成品（调用方拿到 Rejected 时暂存目录已清空）
         fun reject(reason: String): Result.Rejected {
             staging.deleteRecursively()
@@ -209,7 +217,7 @@ internal object AnipSnapshotBuilder {
                     }
                     val target = File(staging, "$key.png")
                     if (image != null) {
-                        target.writeBytes(image.png)
+                        written { target.writeBytes(image.png) }
                         target.setReadable(true, false)
                         when {
                             rule.isAlias -> aliased++
@@ -217,7 +225,7 @@ internal object AnipSnapshotBuilder {
                             else -> written++
                         }
                     } else if (old != null && File(old, "$key.png").isFile) {
-                        File(old, "$key.png").copyTo(target, overwrite = true)
+                        written { File(old, "$key.png").copyTo(target, overwrite = true) }
                         target.setReadable(true, false)
                         carriedOver++
                     } else {
@@ -245,7 +253,7 @@ internal object AnipSnapshotBuilder {
                     val source = old?.let { File(it, "$pkg.png") } ?: continue
                     if (!source.isFile) continue
                     val target = File(staging, "$pkg.png")
-                    source.copyTo(target, overwrite = true)
+                    written { source.copyTo(target, overwrite = true) }
                     target.setReadable(true, false)
                     carriedOver++
                     items += Item(
@@ -482,8 +490,10 @@ internal object AnipSnapshotBuilder {
         val metaJson = JSONObject().apply { put("apps", metaArr) }.toString()
         // meta 与图标同处暂存目录，随切换整体生效
         val tmp = File(staging, "meta.json.tmp")
-        tmp.writeText(metaJson, Charsets.UTF_8)
         val metaFile = File(staging, RuleLibrary.META_FILE)
-        if (!tmp.renameTo(metaFile)) metaFile.writeText(metaJson, Charsets.UTF_8)
+        written {
+            tmp.writeText(metaJson, Charsets.UTF_8)
+            if (!tmp.renameTo(metaFile)) metaFile.writeText(metaJson, Charsets.UTF_8)
+        }
     }
 }

@@ -94,6 +94,65 @@ class PicpZipScannerTest {
         }
     }
 
+    // ━━ 本地写不进去是存储问题，不是归档的问题（批 MT M3） ━━
+
+    @Test
+    fun `a staging dir that cannot be created is a storage problem`() {
+        val blocker = tmp.newFile("blocker")   // 同名位置是个文件：建不了目录
+        val zip = zipOfEntries(listOf("repo-main/themes/dark/icons/com.a/1.png" to "pngA"))
+
+        expectStorage { PicpZipScanner.extractToStaging(zip, File(blocker, "child")) }
+    }
+
+    @Test
+    fun `an entry that cannot be written is a storage problem`() {
+        val zip = zipOfEntries(listOf(
+            "repo-main/themes/dark/icons/com.a/1.png" to "pngA",
+            "repo-main/themes/dark/icons/com.b/1.png" to "pngB"
+        ))
+        val staging = tmp.newFolder("staging")
+        var polls = 0
+        // 第 1 次询问在第一个条目之前，第 2、3 次在它的读写循环里，第 4 次正好轮到第二个条目：
+        // 把它的目标位置占成一个目录
+        val shouldCancel = {
+            polls++
+            if (polls == 4) File(staging, "com.b.png").mkdirs()
+            false
+        }
+
+        expectStorage { PicpZipScanner.extractToStaging(zip, staging, shouldCancel) }
+
+        assertEquals("第一个条目已经写好", "pngA", File(staging, "com.a.png").readText())
+    }
+
+    @Test
+    fun `an entry whose data cannot be written is a storage problem, not a bad archive`() {
+        // 磁盘满的典型形态：文件建得起来，写了一半写不进。注入一个一写就抛的输出流
+        val zip = zipOfEntries(listOf("repo-main/themes/dark/icons/com.a/1.png" to "pngA"))
+        val staging = tmp.newFolder("staging")
+        PicpZipScanner.openOutput = { _ ->
+            object : java.io.OutputStream() {
+                override fun write(b: Int) = throw java.io.IOException("disk full")
+                override fun write(b: ByteArray, off: Int, len: Int) = throw java.io.IOException("disk full")
+            }
+        }
+        try {
+            expectStorage { PicpZipScanner.extractToStaging(zip, staging) }
+        } finally {
+            PicpZipScanner.openOutput = { it.outputStream() }
+        }
+        assertFalse("写了一半的文件不留", File(staging, "com.a.png").exists())
+    }
+
+    private fun expectStorage(block: () -> Unit) {
+        try {
+            block()
+        } catch (_: StorageWriteException) {
+            return
+        }
+        fail("a local write failure should surface as StorageWriteException")
+    }
+
     @Test
     fun `first theme wins for a package that appears in several themes`() {
         val zip = zipOfEntries(listOf(

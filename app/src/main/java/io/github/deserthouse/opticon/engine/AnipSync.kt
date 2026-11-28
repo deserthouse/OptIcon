@@ -70,7 +70,10 @@ object AnipSync {
         NETWORK,
 
         /** 归档下载到了，但构建被拒绝：不是完整的 zip、清单解析不了、空快照、超过上限。 */
-        INVALID
+        INVALID,
+
+        /** 本地写不进去：磁盘满、建不了目录（下载落盘或写快照时出的错，批 MT M3）。 */
+        STORAGE
     }
 
     /**
@@ -95,13 +98,20 @@ object AnipSync {
     /** 内置源的地址是清单基址（历史遗留），不是归档地址；其余地址视为自定义归档地址。 */
     fun archiveUrlFor(sourceUrl: String): String = if (sourceUrl == BASE) ZIP_URL else sourceUrl
 
-    /** 走网络的取字节实现。 */
+    /** 走网络的取字节实现。本地写不进去时抛 [StorageWriteException]（接口的布尔返回值说不出这一种失败）。 */
     private object NetworkAccess : AnipReleaseChannel.Access {
         override fun fetchSmall(url: String, maxBytes: Long): ByteArray? =
             NetworkExecutor.fetchBytesBounded(url, maxBytes)
 
         override fun fetchToFile(url: String, dest: File, maxBytes: Long): Boolean =
-            NetworkExecutor.fetchToFileBounded(url, dest, maxBytes) == NetworkExecutor.DownloadOutcome.OK
+            accessResult(NetworkExecutor.fetchToFileBounded(url, dest, maxBytes), dest)
+    }
+
+    /** 下载结果 → 取字节通道的布尔返回值。存储失败在这里变成异常，免得被接口的布尔值抹平成「没下到」。 */
+    internal fun accessResult(outcome: NetworkExecutor.DownloadOutcome, dest: File): Boolean = when (outcome) {
+        NetworkExecutor.DownloadOutcome.OK -> true
+        NetworkExecutor.DownloadOutcome.STORAGE -> throw StorageWriteException("cannot write ${dest.name}")
+        else -> false
     }
 
     /**
@@ -247,6 +257,9 @@ object AnipSync {
                 built.items.size, revoked,
                 unchanged = false, channel = source.channel, tag = source.tag, versionTime = source.timestamp
             )
+        } catch (_: StorageWriteException) {
+            TraceLogger.w(TAG, "ANIP sync could not write to local storage — nothing was switched in")
+            return SyncOutcome(0, failure = Failure.STORAGE)
         } catch (e: Exception) {
             TraceLogger.w(TAG, "ANIP sync error: ${e.message}")
             return SyncOutcome(0, failure = Failure.LOCAL)

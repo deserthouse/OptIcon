@@ -34,6 +34,9 @@ internal object PicpSyncOrchestrator {
         object SwitchFailed : Outcome()
         object Cancelled : Outcome()
         object TooLarge : Outcome()
+
+        /** 本地写不进去（磁盘满等，批 MT M3）：下载落盘或解压时出的错，和网络的错、归档的错都无关，不重试。 */
+        object StorageFailed : Outcome()
     }
 
     /** 进度节点。文案由引擎外壳负责——这里不带资源 id。 */
@@ -44,7 +47,7 @@ internal object PicpSyncOrchestrator {
         object Extracting : Stage()
     }
 
-    enum class FetchResult { OK, CANCELLED, TOO_LARGE, FAILED }
+    enum class FetchResult { OK, CANCELLED, TOO_LARGE, FAILED, STORAGE }
 
     /** 下载器的最小抽象：把归档写进 [dest]。编排层负责 [dest] 之外的落位与清理。 */
     fun interface Downloader {
@@ -87,6 +90,7 @@ internal object PicpSyncOrchestrator {
                     FetchResult.OK -> Unit
                     FetchResult.CANCELLED -> return Outcome.Cancelled
                     FetchResult.TOO_LARGE -> return Outcome.TooLarge
+                    FetchResult.STORAGE -> return Outcome.StorageFailed
                     FetchResult.FAILED -> {
                         downloadFailed = true
                         continue
@@ -103,6 +107,9 @@ internal object PicpSyncOrchestrator {
                     PicpZipScanner.extractToStaging(zip, staging, cancelled)
                 } catch (e: PicpZipScanner.CancelledException) {
                     return Outcome.Cancelled
+                } catch (e: StorageWriteException) {
+                    // 磁盘满不会因为再下一遍就好了：不重试，如实报本地写不进
+                    return Outcome.StorageFailed
                 } catch (e: PicpZipScanner.InvalidArchiveException) {
                     // 代理返回的错误页、被截断的下载……重试一次，两次都坏就如实报「无效」
                     lastInvalid = e.detail

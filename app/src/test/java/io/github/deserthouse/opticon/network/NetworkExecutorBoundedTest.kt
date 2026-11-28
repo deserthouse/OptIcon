@@ -77,6 +77,31 @@ class NetworkExecutorBoundedTest {
     }
 
     @Test
+    fun `a destination that cannot be opened is a storage failure, not a download failure`() {
+        // 数据到了、本地建不了文件：磁盘满时下载落盘的失败就是这一种（批 MT M3），不该提示用户查网络
+        val outcome = NetworkExecutor.fetchToFileBounded("$baseUrl/ok", File(tmp.root, "no-such-dir/out.zip"))
+
+        assertEquals(NetworkExecutor.DownloadOutcome.STORAGE, outcome)
+    }
+
+    @Test
+    fun `a write that fails midway is a storage failure, not a network failure`() {
+        // 磁盘满的典型形态：文件建得起来，写了一半写不进。注入一个一写就抛的输出流
+        NetworkExecutor.openOutput = { _ ->
+            object : java.io.OutputStream() {
+                override fun write(b: Int) = throw IOException("disk full")
+                override fun write(b: ByteArray, off: Int, len: Int) = throw IOException("disk full")
+            }
+        }
+        try {
+            val outcome = NetworkExecutor.fetchToFileBounded("$baseUrl/ok", File(tmp.root, "full.bin"))
+            assertEquals(NetworkExecutor.DownloadOutcome.STORAGE, outcome)
+        } finally {
+            NetworkExecutor.openOutput = { it.outputStream() }
+        }
+    }
+
+    @Test
     fun `ok download writes full body`() {
         val dest = File(tmp.root, "ok.bin")
         val outcome = NetworkExecutor.fetchToFileBounded("$baseUrl/ok", dest)

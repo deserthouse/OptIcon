@@ -36,6 +36,9 @@ internal object PicpZipScanner {
      *  [detail] 会原样进状态行（"PICP archive invalid: %1$s"）——调用方取它，别取 message。 */
     class InvalidArchiveException(val detail: String) : Exception("invalid archive: $detail")
 
+    /** 打开目标文件的方式。单测换成写不进去的流——磁盘满时「写失败」这一条路径只有这样测得到（批 MT M3）。 */
+    internal var openOutput: (File) -> java.io.OutputStream = { it.outputStream() }
+
     /**
      * Rebuild [staging] from scratch with one {pkg}.png per matched package
      * plus an index.txt manifest; returns the package count (0 = no matches).
@@ -45,7 +48,7 @@ internal object PicpZipScanner {
     fun extractToStaging(zipFile: File, staging: File, shouldCancel: (() -> Boolean)? = null): Int {
         if (staging.exists()) staging.deleteRecursively()
         if (!staging.mkdirs() && !staging.isDirectory) {
-            throw InvalidArchiveException("cannot create staging dir")
+            throw StorageWriteException("cannot create staging dir")
         }
         val pkgs = LinkedHashMap<String, Boolean>()
         // 失败详情会原样进状态行（"PICP archive invalid: %1$s"）：只说「哪种问题、涉及哪个包」，
@@ -73,11 +76,19 @@ internal object PicpZipScanner {
         } finally {
             zip.close()
         }
-        File(staging, PicpLibrary.INDEX_FILE).writeText(pkgs.keys.joinToString("\n"))
+        try {
+            File(staging, PicpLibrary.INDEX_FILE).writeText(pkgs.keys.joinToString("\n"))
+        } catch (e: IOException) {
+            throw StorageWriteException("cannot write index", e)
+        }
         return pkgs.size
     }
 
-    /** 解压一个条目到 [target]，并按中央目录登记的长度与 CRC-32 复核。[pkg] 只用于失败详情。 */
+    /** 归档读不出来的标记：把「读归档出错」和「往本地写出错」分开（批 MT M3）。 */
+    private class ArchiveReadException(e: IOException) : IOException(e)
+
+    /** 解压一个条目到 [target]，并按中央目录登记的长度与 CRC-32 复核。[pkg] 只用于失败详情。
+     *  归档读不出 → [InvalidArchiveException]；本地写不进（建不了文件、写失败、关文件失败）→ [StorageWriteException]。 */
     private fun copyVerified(
         zip: ZipFile,
         entry: ZipEntry,
@@ -87,15 +98,31 @@ internal object PicpZipScanner {
     ) {
         val crc = CRC32()
         var written = 0L
+        // 先开归档里的输入流、再开本地文件：后者打不开时不必留着一个没关的句柄
+        val input = try {
+            zip.getInputStream(entry)
+        } catch (e: IOException) {
+            throw ArchiveReadException(e)
+        }
+        val out = try {
+            openOutput(target)
+        } catch (e: IOException) {
+            input.close()
+            throw StorageWriteException("cannot create $pkg.png", e)
+        }
         try {
-            zip.getInputStream(entry).use { input ->
-                target.outputStream().use { out ->
+            input.use { source ->
+                out.use { sink ->
                     val buffer = ByteArray(16 * 1024)
                     while (true) {
                         if (shouldCancel?.invoke() == true) throw CancelledException()
-                        val read = input.read(buffer)
+                        val read = try {
+                            source.read(buffer)
+                        } catch (e: IOException) {
+                            throw ArchiveReadException(e)
+                        }
                         if (read == -1) break
-                        out.write(buffer, 0, read)
+                        sink.write(buffer, 0, read)
                         crc.update(buffer, 0, read)
                         written += read
                     }
@@ -103,9 +130,12 @@ internal object PicpZipScanner {
             }
         } catch (e: CancelledException) {
             throw e
-        } catch (_: Exception) {
+        } catch (e: ArchiveReadException) {
             target.delete()
             throw InvalidArchiveException("unreadable entry: $pkg")
+        } catch (e: Exception) {
+            target.delete()
+            throw StorageWriteException("cannot write $pkg.png", e)
         }
         // 中央目录没登记长度/校验和时取值为 -1，此时无从复核
         if (entry.size >= 0 && written != entry.size) {

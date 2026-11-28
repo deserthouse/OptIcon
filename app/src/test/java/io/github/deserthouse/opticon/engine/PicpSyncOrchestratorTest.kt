@@ -405,4 +405,42 @@ class PicpSyncOrchestratorTest {
         assertEquals(before, snapshot(icons))
         assertNoResidue()
     }
+
+    // ━━ 本地写不进去（磁盘满，批 MT M3） ━━
+
+    @Test
+    fun `a storage failure while downloading is reported as such and not retried`() {
+        seedOld("com.a")
+        val before = snapshot(icons)
+        val dl = ScriptedDownloader(List(2) { Step(null, PicpSyncOrchestrator.FetchResult.STORAGE) })
+
+        val outcome = PicpSyncOrchestrator.run(cache, dl, cancelled = { false }, pauseBetweenAttempts = {})
+
+        expectOutcome(PicpSyncOrchestrator.Outcome.StorageFailed, outcome)
+        assertEquals("磁盘满不会因为再下一遍就好了：只试了一次", 1, dl.calls)
+        assertEquals(before, snapshot(icons))
+        assertNoResidue()
+    }
+
+    @Test
+    fun `a storage failure while extracting is reported as such, not as a bad archive`() {
+        seedOld("com.a")
+        val staging = FileSnapshotSwitch.stagingOf(cache, "icons")
+        var polls = 0
+        // 解压时每读一步都先问一次「取消了吗」：第 1 次在下载之前，第 2~4 次属于第一个条目，第 5 次正好轮到第二个条目。
+        // 在那里把第二个条目的目标位置占成一个目录——写不进去
+        val cancelled = {
+            polls++
+            if (polls == 5) File(staging, "com.c.png").mkdirs()
+            false
+        }
+
+        val outcome = PicpSyncOrchestrator.run(
+            cache, delivering(PicpZipFixtures.build(pkgs = listOf("com.a", "com.c"))),
+            cancelled = cancelled, pauseBetweenAttempts = {}
+        )
+
+        expectOutcome(PicpSyncOrchestrator.Outcome.StorageFailed, outcome)
+        assertNoResidue()
+    }
 }

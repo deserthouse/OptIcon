@@ -405,4 +405,22 @@ class EngineGateWiringTest {
         assertArrayEquals(rendered, File(dir, "com.vector.png").readBytes())
         assertTrue(File(dir, "com.bitmap.png").isFile)
     }
+
+    @Test
+    fun `rule sync - a local write failure is reported as storage, not as a network problem`() {
+        // 批 MT M3：磁盘满时归档落盘失败。文案经接缝给的是资源 id——断言用的是「存储空间不足」那一条，不是「下载失败」
+        val ctx = FakeFilesContext(tmp.newFolder("files"))
+        SubscriptionManager.releaseAccess = object : AnipReleaseChannel.Access {
+            override fun fetchSmall(url: String, maxBytes: Long): ByteArray? = null   // 官方通道用不上 → 退回整库
+
+            override fun fetchToFile(url: String, dest: File, maxBytes: Long): Boolean = throw StorageWriteException("disk full")
+        }
+
+        val done = CompletableDeferred<SubscriptionManager.SyncResult>()
+        SubscriptionManager.sync(ctx, sourceUrl = AnipSync.BASE, onResult = { done.complete(it) })
+        val r = done.awaitWithin(15_000)
+
+        assertFalse(r.success)
+        assertEquals("#" + R.string.sync_storage_full, r.errorMessage)
+    }
 }

@@ -154,6 +154,7 @@ object SubscriptionManager {
                             when (outcome.failure) {
                                 AnipSync.Failure.NETWORK -> R.string.sync_download_failed
                                 AnipSync.Failure.INVALID -> R.string.sync_invalid_data
+                                AnipSync.Failure.STORAGE -> R.string.sync_storage_full
                                 else -> R.string.sync_failed
                             }
                         )
