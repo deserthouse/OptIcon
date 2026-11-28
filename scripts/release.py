@@ -404,13 +404,14 @@ def remote_has_tag(tag, proxy=None):
     fail("查不到远端的 tag（git ls-remote 失败）——无法确认 %s 是否已发布，不顶替" % tag)
 
 
-def replacement_history(prev, head, version, replace_unpublished, remote_has_tag=remote_has_tag):
+def replacement_history(prev, head, version, replace_unpublished, remote_has_tag=remote_has_tag, proxy=None):
     """archive 里已有这个版本的构建记录时，这一次构建顶替谁。返回新记录里的 history（被顶替的构建，旧在前）；不允许就 fail。
 
       - 同一个提交的早先构建：直接顶替（发布前的重建属于常规操作）；
       - 另一个提交的构建：默认拒绝——同一个版本号换了提交，多半是忘了递增版本号；
         带 replace_unpublished 且远端还没有这个版本的 tag 时才顶替。已发布的版本永远不顶替
         （发布后禁止同名覆盖，一律新版本 / 新构建）。
+    proxy 是查远端 tag 时走的本地代理（None = 直连）；判断不了远端的时候由 remote_has_tag 自己中止。
     """
     if not prev:
         return []
@@ -422,7 +423,7 @@ def replacement_history(prev, head, version, replace_unpublished, remote_has_tag
              "这个版本确实还没发布时，用 build --replace-unpublished 顶替它（旧记录留在 history 里）"
              % str(prev.get("head") or "?")[:12])
     tag = "v" + version
-    if remote_has_tag(tag):
+    if remote_has_tag(tag, proxy):
         fail("远端已有 %s——这个版本已经发布，同一个版本号不能再换提交；请递增版本号" % tag)
     print("顶替另一个提交（%s）的未发布构建：%s %s"
           % (str(prev.get("head") or "?")[:12], prev["apk"], prev["sha256"][:16]))
@@ -437,7 +438,9 @@ def cmd_tag(args):
     rc, existing = sh(["git", "rev-parse", "--verify", "-q", "refs/tags/" + tag], check=False)
     if rc == 0:
         if existing.strip() != head:
-            fail("tag %s 已存在且指向别的提交（%s）——不自动移动 tag" % (tag, existing.strip()[:12]))
+            # 顶替过另一个提交的未发布构建时会出现这种局面：上一次构建打的本地 tag 还在
+            fail("tag %s 已存在且指向别的提交（%s）——不自动移动 tag；它要是早先那次未发布构建留下的、也没有推送过，"
+                 "先手工删除（git tag -d %s）再重跑" % (tag, existing.strip()[:12], tag))
         print("tag %s 已在 %s" % (tag, head[:12]))
         return
     git("tag", tag, head)
