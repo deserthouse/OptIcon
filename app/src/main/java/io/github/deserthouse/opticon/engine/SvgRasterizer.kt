@@ -2,6 +2,7 @@ package io.github.deserthouse.opticon.engine
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import androidx.core.graphics.createBitmap
 import com.caverock.androidsvg.SVG
 import java.io.ByteArrayOutputStream
 import kotlin.math.roundToInt
@@ -33,7 +34,7 @@ internal object SvgRasterizer : AnipSnapshotBuilder.IconRasterizer {
             val size = renderSize(document.documentWidth, document.documentHeight, maxDimension) ?: return null
             val (width, height) = size
             val picture = document.renderToPicture(width, height)
-            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val bitmap = createBitmap(width, height, Bitmap.Config.ARGB_8888)
             Canvas(bitmap).drawPicture(picture)
             val out = ByteArrayOutputStream()
             if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)) return null
